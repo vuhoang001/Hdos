@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
@@ -37,6 +38,24 @@ public static class JwtAuthExtensions
                     IssuerSigningKey = new SymmetricSecurityKey(
                         Encoding.UTF8.GetBytes(options.Secret)),
                     ClockSkew = TimeSpan.FromSeconds(30),
+                };
+
+                // SignalR (và bất kỳ WebSocket nào) không thể gắn header
+                // `Authorization` lúc upgrade — token được gửi qua query
+                // `?access_token=...`. Đọc query khi path chứa `/hubs/`.
+                o.Events = new JwtBearerEvents
+                {
+                    OnMessageReceived = ctx =>
+                    {
+                        var accessToken = ctx.Request.Query["access_token"];
+                        var path = ctx.HttpContext.Request.Path;
+                        if (!string.IsNullOrEmpty(accessToken) && path.HasValue &&
+                            path.Value!.Contains("/hubs/", StringComparison.OrdinalIgnoreCase))
+                        {
+                            ctx.Token = accessToken;
+                        }
+                        return Task.CompletedTask;
+                    }
                 };
             });
 

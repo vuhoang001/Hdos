@@ -1,9 +1,12 @@
 using Hdos.Common.Auth;
 using Hdos.Common.Extensions;
 using Hdos.Common.Logging;
+using Hdos.NotificationService.API.Hubs;
 using Hdos.NotificationService.Application;
+using Hdos.NotificationService.Application.Realtime;
 using Hdos.NotificationService.Infrastructure;
 using Hdos.NotificationService.Infrastructure.Persistence;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -17,18 +20,27 @@ builder.Services.AddNotificationApplication();
 builder.Services.AddNotificationInfrastructure(builder.Configuration);
 builder.Services.AddHdosJwtAuth(builder.Configuration);
 
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<IUserIdProvider, EmailUserIdProvider>();
+builder.Services.AddScoped<INotificationPusher, SignalRNotificationPusher>();
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwagger(c => c.RouteTemplate = "notifications/swagger/{documentName}/swagger.json");
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/notifications/swagger/v1/swagger.json", "NotificationService v1");
+        c.RoutePrefix = "notifications/swagger";
+    });
 }
 
 app.UseHdosMiddleware();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<NotificationHub>("/notifications/hubs/notifications");
 
 await EnsureDatabaseAsync(app);
 

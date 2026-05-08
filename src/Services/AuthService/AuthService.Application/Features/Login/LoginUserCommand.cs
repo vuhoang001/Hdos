@@ -22,45 +22,31 @@ public sealed class LoginUserCommandValidator : AbstractValidator<LoginUserComma
     }
 }
 
-public sealed class LoginUserCommandHandler : IRequestHandler<LoginUserCommand, Result<LoginResultDto>>
+public sealed class LoginUserCommandHandler(
+    IUserRepository users,
+    IUnitOfWork uow,
+    IPasswordHasher hasher,
+    IEventBus eventBus,
+    IJwtTokenIssuer tokenIssuer)
+    : IRequestHandler<LoginUserCommand, Result<LoginResultDto>>
 {
-    private readonly IUserRepository _users;
-    private readonly IUnitOfWork _uow;
-    private readonly IPasswordHasher _hasher;
-    private readonly IEventBus _eventBus;
-    private readonly IJwtTokenIssuer _tokenIssuer;
-
-    public LoginUserCommandHandler(
-        IUserRepository users,
-        IUnitOfWork uow,
-        IPasswordHasher hasher,
-        IEventBus eventBus,
-        IJwtTokenIssuer tokenIssuer)
-    {
-        _users = users;
-        _uow = uow;
-        _hasher = hasher;
-        _eventBus = eventBus;
-        _tokenIssuer = tokenIssuer;
-    }
-
     public async Task<Result<LoginResultDto>> Handle(LoginUserCommand request, CancellationToken ct)
     {
         var emailResult = Email.Create(request.Email);
         if (emailResult.IsFailure) return Result.Failure<LoginResultDto>(emailResult.Error);
 
-        var user = await _users.GetByEmailAsync(emailResult.Value, ct);
-        if (user is null || !_hasher.Verify(request.Password, user.PasswordHash))
+        var user = await users.GetByEmailAsync(emailResult.Value, ct);
+        if (user is null || !hasher.Verify(request.Password, user.PasswordHash))
             return Result.Failure<LoginResultDto>(Error.Unauthorized("Invalid credentials"));
 
         user.RecordLogin();
-        _users.Update(user);
-        await _uow.SaveChangesAsync(ct);
+        users.Update(user);
+        await uow.SaveChangesAsync(ct);
 
-        await _eventBus.PublishAsync(
+        await eventBus.PublishAsync(
             new UserLoggedInIntegrationEvent(user.Id, user.Email.Value, DateTime.UtcNow), ct);
 
-        var token = _tokenIssuer.Issue(user.Id, user.Email.Value);
+        var token = tokenIssuer.Issue(user.Id, user.Email.Value);
         return new LoginResultDto(user.Id, user.Email.Value, token.Token);
     }
 }

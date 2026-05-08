@@ -11,32 +11,24 @@ namespace Hdos.AuthService.Application.EventHandlers;
 /// In real code this is where you'd send a welcome email, seed a user profile
 /// in another bounded context, etc.
 /// </summary>
-public sealed class UserRegisteredDomainEventHandler : INotificationHandler<UserRegisteredDomainEvent>
+public sealed class UserRegisteredDomainEventHandler(ILogger<UserRegisteredDomainEventHandler> logger)
+    : INotificationHandler<UserRegisteredDomainEvent>
 {
-    private readonly ILogger<UserRegisteredDomainEventHandler> _logger;
-
-    public UserRegisteredDomainEventHandler(ILogger<UserRegisteredDomainEventHandler> logger)
-        => _logger = logger;
-
     public Task Handle(UserRegisteredDomainEvent notification, CancellationToken cancellationToken)
     {
-        _logger.LogInformation(
+        logger.LogInformation(
             "[Welcome flow] User {UserId} ({Email} / {FullName}) just registered — kicking off onboarding",
             notification.UserId, notification.Email, notification.FullName);
         return Task.CompletedTask;
     }
 }
 
-public sealed class UserLoggedInDomainEventHandler : INotificationHandler<UserLoggedInDomainEvent>
+public sealed class UserLoggedInDomainEventHandler(ILogger<UserLoggedInDomainEventHandler> logger)
+    : INotificationHandler<UserLoggedInDomainEvent>
 {
-    private readonly ILogger<UserLoggedInDomainEventHandler> _logger;
-
-    public UserLoggedInDomainEventHandler(ILogger<UserLoggedInDomainEventHandler> logger)
-        => _logger = logger;
-
     public Task Handle(UserLoggedInDomainEvent notification, CancellationToken cancellationToken)
     {
-        _logger.LogInformation(
+        logger.LogInformation(
             "[Audit] Login recorded for {UserId} ({Email})",
             notification.UserId, notification.Email);
         return Task.CompletedTask;

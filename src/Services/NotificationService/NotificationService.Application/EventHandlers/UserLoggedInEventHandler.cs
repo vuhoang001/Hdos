@@ -1,30 +1,23 @@
 using Hdos.Common.Messaging;
 using Hdos.Contracts.IntegrationEvents;
+using Hdos.NotificationService.Application.DTOs;
+using Hdos.NotificationService.Application.Realtime;
 using Hdos.NotificationService.Domain.Entities;
 using Hdos.NotificationService.Domain.Repositories;
 using Microsoft.Extensions.Logging;
 
 namespace Hdos.NotificationService.Application.EventHandlers;
 
-public sealed class UserLoggedInEventHandler : IIntegrationEventHandler<UserLoggedInIntegrationEvent>
+public sealed class UserLoggedInEventHandler(
+    INotificationRepository repo,
+    IUnitOfWork uow,
+    INotificationPusher pusher,
+    ILogger<UserLoggedInEventHandler> logger)
+    : IIntegrationEventHandler<UserLoggedInIntegrationEvent>
 {
-    private readonly INotificationRepository _repo;
-    private readonly IUnitOfWork _uow;
-    private readonly ILogger<UserLoggedInEventHandler> _logger;
-
-    public UserLoggedInEventHandler(
-        INotificationRepository repo,
-        IUnitOfWork uow,
-        ILogger<UserLoggedInEventHandler> logger)
-    {
-        _repo = repo;
-        _uow = uow;
-        _logger = logger;
-    }
-
     public async Task HandleAsync(UserLoggedInIntegrationEvent @event, CancellationToken ct)
     {
-        _logger.LogInformation("Received UserLoggedIn for {Email}", @event.Email);
+        logger.LogInformation("Received UserLoggedIn for {Email}", @event.Email);
 
         var notification = Notification.Create(
             recipient: @event.Email,
@@ -32,8 +25,10 @@ public sealed class UserLoggedInEventHandler : IIntegrationEventHandler<UserLogg
             body: $"Hi! A new login was detected at {@event.LoggedInAtUtc:u}. If this wasn't you, please reset your password.");
 
         notification.MarkSent();
-        await _repo.AddAsync(notification, ct);
-        await _uow.SaveChangesAsync(ct);
+        await repo.AddAsync(notification, ct);
+        await uow.SaveChangesAsync(ct);
+
+        await pusher.PushToUserAsync(@event.Email, notification.ToDto(), ct);
     }
 }
 
@@ -41,15 +36,18 @@ public sealed class UserRegisteredEventHandler : IIntegrationEventHandler<UserRe
 {
     private readonly INotificationRepository _repo;
     private readonly IUnitOfWork _uow;
+    private readonly INotificationPusher _pusher;
     private readonly ILogger<UserRegisteredEventHandler> _logger;
 
     public UserRegisteredEventHandler(
         INotificationRepository repo,
         IUnitOfWork uow,
+        INotificationPusher pusher,
         ILogger<UserRegisteredEventHandler> logger)
     {
         _repo = repo;
         _uow = uow;
+        _pusher = pusher;
         _logger = logger;
     }
 
@@ -65,6 +63,8 @@ public sealed class UserRegisteredEventHandler : IIntegrationEventHandler<UserRe
         notification.MarkSent();
         await _repo.AddAsync(notification, ct);
         await _uow.SaveChangesAsync(ct);
+
+        await _pusher.PushToUserAsync(@event.Email, notification.ToDto(), ct);
     }
 }
 
@@ -72,15 +72,18 @@ public sealed class OrderCreatedEventHandler : IIntegrationEventHandler<OrderCre
 {
     private readonly INotificationRepository _repo;
     private readonly IUnitOfWork _uow;
+    private readonly INotificationPusher _pusher;
     private readonly ILogger<OrderCreatedEventHandler> _logger;
 
     public OrderCreatedEventHandler(
         INotificationRepository repo,
         IUnitOfWork uow,
+        INotificationPusher pusher,
         ILogger<OrderCreatedEventHandler> logger)
     {
         _repo = repo;
         _uow = uow;
+        _pusher = pusher;
         _logger = logger;
     }
 
@@ -100,5 +103,7 @@ public sealed class OrderCreatedEventHandler : IIntegrationEventHandler<OrderCre
         notification.MarkSent();
         await _repo.AddAsync(notification, ct);
         await _uow.SaveChangesAsync(ct);
+
+        await _pusher.PushToUserAsync(@event.CustomerEmail, notification.ToDto(), ct);
     }
 }

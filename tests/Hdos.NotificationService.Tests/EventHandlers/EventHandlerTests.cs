@@ -2,6 +2,7 @@ using FluentAssertions;
 using Hdos.Common.Messaging;
 using Hdos.Contracts.IntegrationEvents;
 using Hdos.NotificationService.Application.EventHandlers;
+using Hdos.NotificationService.Application.Realtime;
 using Hdos.NotificationService.Domain.Entities;
 using Hdos.NotificationService.Domain.Repositories;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -17,7 +18,8 @@ public sealed class UserLoggedInEventHandlerTests
     {
         var repo = Substitute.For<INotificationRepository>();
         var uow = Substitute.For<IUnitOfWork>();
-        var handler = new UserLoggedInEventHandler(repo, uow,
+        var pusher = Substitute.For<INotificationPusher>();
+        var handler = new UserLoggedInEventHandler(repo, uow, pusher,
             NullLogger<UserLoggedInEventHandler>.Instance);
 
         var captured = (Notification?)null;
@@ -32,6 +34,9 @@ public sealed class UserLoggedInEventHandlerTests
         captured.Status.Should().Be(NotificationStatus.Sent);
         captured.Subject.Should().Contain("login");
         await uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        await pusher.Received(1).PushToUserAsync("alice@hdos.io",
+            Arg.Is<Hdos.NotificationService.Application.DTOs.NotificationDto>(d => d.Recipient == "alice@hdos.io"),
+            Arg.Any<CancellationToken>());
     }
 }
 
@@ -42,7 +47,8 @@ public sealed class UserRegisteredEventHandlerTests
     {
         var repo = Substitute.For<INotificationRepository>();
         var uow = Substitute.For<IUnitOfWork>();
-        var handler = new UserRegisteredEventHandler(repo, uow,
+        var pusher = Substitute.For<INotificationPusher>();
+        var handler = new UserRegisteredEventHandler(repo, uow, pusher,
             NullLogger<UserRegisteredEventHandler>.Instance);
 
         var captured = (Notification?)null;
@@ -67,7 +73,8 @@ public sealed class OrderCreatedEventHandlerTests
     {
         var repo = Substitute.For<INotificationRepository>();
         var uow = Substitute.For<IUnitOfWork>();
-        var handler = new OrderCreatedEventHandler(repo, uow,
+        var pusher = Substitute.For<INotificationPusher>();
+        var handler = new OrderCreatedEventHandler(repo, uow, pusher,
             NullLogger<OrderCreatedEventHandler>.Instance);
 
         var captured = (Notification?)null;

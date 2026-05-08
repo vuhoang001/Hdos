@@ -36,8 +36,13 @@ var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    // Path khớp với prefix YARP forward (`/auth/...`) để Gateway có thể tổng hợp.
+    app.UseSwagger(c => c.RouteTemplate = "auth/swagger/{documentName}/swagger.json");
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/auth/swagger/v1/swagger.json", "AuthService v1");
+        c.RoutePrefix = "auth/swagger";
+    });
 }
 
 app.UseHdosMiddleware();

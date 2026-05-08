@@ -117,7 +117,53 @@ Mỗi service phía sau có endpoint health riêng (`/auth/health`,
 | Per-route header rewrite    | `Transforms` block trong route.                                                    |
 | CORS                        | `AddCors(...)` + `UseCors(...)`.                                                   |
 
-## 8. Thêm service mới — checklist phần gateway
+## 8. Swagger gộp tại Gateway
+
+Mỗi service tự host swagger.json nhưng **dưới prefix riêng** khớp với route YARP:
+
+| Service             | swagger.json                                         |
+|---------------------|------------------------------------------------------|
+| AuthService         | `/auth/swagger/v1/swagger.json`                      |
+| OrderService        | `/orders/swagger/v1/swagger.json`                    |
+| NotificationService | `/notifications/swagger/v1/swagger.json`             |
+
+Code service:
+
+```csharp
+app.UseSwagger(c => c.RouteTemplate = "auth/swagger/{documentName}/swagger.json");
+app.UseSwaggerUI(c =>
+{
+    c.SwaggerEndpoint("/auth/swagger/v1/swagger.json", "AuthService v1");
+    c.RoutePrefix = "auth/swagger";
+});
+```
+
+Gateway gắn Swashbuckle UI duy nhất tại `/swagger`, dropdown chọn service:
+
+```csharp
+app.UseSwaggerUI(c =>
+{
+    c.RoutePrefix = "swagger";
+    c.SwaggerEndpoint("/auth/swagger/v1/swagger.json", "AuthService v1");
+    c.SwaggerEndpoint("/orders/swagger/v1/swagger.json", "OrderService v1");
+    c.SwaggerEndpoint("/notifications/swagger/v1/swagger.json", "NotificationService v1");
+});
+```
+
+Vì `/orders/*` và `/notifications/*` mặc định yêu cầu JWT, cần thêm route
+**Anonymous** riêng cho path swagger trong `appsettings.json`:
+
+```json
+"orders-swagger-route": {
+  "ClusterId": "orders-cluster",
+  "AuthorizationPolicy": "Anonymous",
+  "Match": { "Path": "/orders/swagger/{**catch-all}" }
+}
+```
+
+Truy cập: `http://localhost:5000/swagger`.
+
+## 9. Thêm service mới — checklist phần gateway
 
 1. Mở `appsettings.json`: thêm route `<svc>-route` + cluster `<svc>-cluster`.
 2. Mở `appsettings.Docker.json`: thêm cluster với hostname container.

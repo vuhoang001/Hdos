@@ -21,7 +21,23 @@
       "Bash(curl -sf http://localhost:5000/health)",
       "Bash(curl -sf http://localhost:5000/auth/health)",
       "Bash(curl -sf http://localhost:5000/orders/health)",
-      "Bash(curl -sf http://localhost:5000/notifications/health)"
+      "Bash(curl -sf http://localhost:5000/notifications/health)",
+      "Read(//usr/share/dotnet/**)",
+      "Bash(export PATH=\"$HOME/.dotnet:/usr/share/dotnet:/usr/local/share/dotnet:$PATH\")",
+      "Bash(export PATH=\"$HOME/.dotnet:$PATH\")",
+      "Read(//home/hoanggggf/.dotnet/**)",
+      "Bash(command -v dotnet)",
+      "Bash(find / -maxdepth 5 -name \"dotnet\" -type f)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code} | %{url_effective}\\\\n\" http://localhost:5000/)",
+      "Bash(curl -s http://localhost:5000/)",
+      "Bash(curl -s -L -o /dev/null -w \"swagger: HTTP %{http_code}\\\\n\" http://localhost:5000/swagger)",
+      "Bash(curl -s -o /dev/null -w \"auth swagger.json: HTTP %{http_code}\\\\n\" http://localhost:5000/auth/swagger/v1/swagger.json)",
+      "Bash(curl -s -o /dev/null -w \"auth health: HTTP %{http_code}\\\\n\" http://localhost:5000/auth/health)",
+      "Bash(curl -s -o /dev/null -w \"root: HTTP %{http_code}\\\\n\" http://localhost:5000/)",
+      "Bash(curl -s -o /dev/null -w \"/swagger: HTTP %{http_code}\\\\n\" http://localhost:5000/swagger)",
+      "Bash(curl -s -o /dev/null -w \"/swagger/index.html: HTTP %{http_code}\\\\n\" http://localhost:5000/swagger/index.html)",
+      "Bash(curl -s -o /dev/null -w \"orders swagger.json: HTTP %{http_code}\\\\n\" http://localhost:5000/orders/swagger/v1/swagger.json)",
+      "Bash(curl -s -o /dev/null -w \"notifications swagger.json: HTTP %{http_code}\\\\n\" http://localhost:5000/notifications/swagger/v1/swagger.json)"
     ]
   }
 }

@@ -4,6 +4,7 @@ using Hdos.AuthService.Application.Features.Login;
 using Hdos.AuthService.Domain.Entities;
 using Hdos.AuthService.Domain.Repositories;
 using Hdos.AuthService.Domain.ValueObjects;
+using Hdos.Common.Auth;
 using Hdos.Common.Messaging;
 using Hdos.Contracts.IntegrationEvents;
 using NSubstitute;
@@ -17,8 +18,15 @@ public sealed class LoginUserCommandHandlerTests
     private readonly IUnitOfWork _uow = Substitute.For<IUnitOfWork>();
     private readonly IPasswordHasher _hasher = Substitute.For<IPasswordHasher>();
     private readonly IEventBus _bus = Substitute.For<IEventBus>();
+    private readonly IJwtTokenIssuer _tokenIssuer = Substitute.For<IJwtTokenIssuer>();
 
-    private LoginUserCommandHandler NewHandler() => new(_users, _uow, _hasher, _bus);
+    public LoginUserCommandHandlerTests()
+    {
+        _tokenIssuer.Issue(Arg.Any<Guid>(), Arg.Any<string>())
+            .Returns(_ => new JwtTokenResult("test-token", DateTime.UtcNow.AddHours(1)));
+    }
+
+    private LoginUserCommandHandler NewHandler() => new(_users, _uow, _hasher, _bus, _tokenIssuer);
 
     private static User AUser() => User.Register(Email.Create("alice@hdos.io").Value, "Alice", "stored-hash");
 
