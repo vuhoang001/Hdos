@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet --version)",
+      "Bash(dotnet build *)",
+      "Bash(dotnet sln *)",
+      "Bash(dotnet restore *)",
+      "Bash(dotnet test *)",
+      "Bash(docker exec *)",
+      "Bash(docker compose up *)"
+    ]
+  }
+}

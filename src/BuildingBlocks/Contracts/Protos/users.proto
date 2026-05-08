@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+option csharp_namespace = "Hdos.Contracts.Grpc.Users";
+
+package hdos.users.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// UserService — exposed by AuthService, consumed by other services
+// (e.g. OrderService verifying a customer before creating an order).
+service UserService {
+  // Look up a user by id. Returns NOT_FOUND if no such user exists.
+  rpc GetUserById (GetUserByIdRequest) returns (UserReply);
+
+  // Lightweight existence check used when callers don't need the full payload.
+  rpc UserExists (UserExistsRequest) returns (UserExistsReply);
+}
+
+message GetUserByIdRequest {
+  string user_id = 1; // GUID as string
+}
+
+message UserExistsRequest {
+  string user_id = 1; // GUID as string
+}
+
+message UserExistsReply {
+  bool exists = 1;
+}
+
+message UserReply {
+  string id = 1;
+  string email = 2;
+  string full_name = 3;
+  google.protobuf.Timestamp created_at_utc = 4;
+}

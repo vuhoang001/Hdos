@@ -1,0 +1,22 @@
+## Build outputs
+bin/
+obj/
+out/
+publish/
+*.user
+*.suo
+*.dll
+*.pdb
+
+## .NET / Rider / VS
+.vs/
+.idea/
+.vscode/
+
+## Logs / OS
+*.log
+.DS_Store
+Thumbs.db
+
+## EF Core
+**/Migrations/.last
