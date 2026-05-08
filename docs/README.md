@@ -20,6 +20,7 @@ DDD nhẹ + CQRS qua MediatR + EF Core + RabbitMQ + gRPC + YARP).
 | 10 | [Thêm feature / service mới](./10-them-feature-moi.md) | Checklist từng bước                                       |
 | 11 | [Domain Event Dispatcher](./11-domain-events.md)   | Cơ chế bắn domain event in-process qua MediatR + EF Core interceptor |
 | 12 | [Testing](./12-testing.md)                          | Test layout, stack (xUnit + FluentAssertions + NSubstitute), cách chạy |
+| 13 | [EF Core Migrations](./13-migrations.md)            | Tạo / apply / rollback migration, sinh SQL script, troubleshooting    |
 
 ## Đọc theo kịch bản
 
