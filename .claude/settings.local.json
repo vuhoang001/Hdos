@@ -7,7 +7,15 @@
       "Bash(dotnet restore *)",
       "Bash(dotnet test *)",
       "Bash(docker exec *)",
-      "Bash(docker compose up *)"
+      "Bash(docker compose up *)",
+      "Bash(dotnet ef *)",
+      "Bash(dotnet tool install *)",
+      "Bash(export PATH=\"$PATH:/home/hoanggggf/.dotnet/tools\")",
+      "Bash(export DOTNET_ROOT=\"/home/hoanggggf/.dotnet\")",
+      "Bash(dotnet add *)",
+      "Bash(docker compose *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }
