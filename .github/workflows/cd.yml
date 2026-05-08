@@ -1,0 +1,52 @@
+name: CD
+
+on:
+  # Tự động chạy sau khi CI thành công trên nhánh main
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+  # Cho phép trigger thủ công (rollback, hotfix...)
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Ubuntu
+    # Chỉ deploy khi CI pass
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            cd /opt/hdos
+
+            # Đăng nhập GHCR trên server
+            echo "${{ secrets.GHCR_TOKEN }}" | \
+              docker login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin
+
+            # Pull image mới nhất cho tất cả services
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+
+            # Khởi động lại container nào có image mới, giữ nguyên cái khác
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+              up -d --remove-orphans
+
+            # Dọn image cũ
+            docker image prune -f
+
+      - name: Notify success
+        if: success()
+        run: echo "Deploy thành công tại $(date)"
+
+      - name: Notify failure
+        if: failure()
+        run: echo "Deploy thất bại tại $(date)" && exit 1

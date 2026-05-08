@@ -1,0 +1,22 @@
+# Khi thêm service mới: thêm một block tương tự bên dưới.
+# Mỗi service sẽ rebuild khi chính nó hoặc BuildingBlocks thay đổi.
+
+authservice:
+  - "src/Services/AuthService/**"
+  - "src/BuildingBlocks/**"
+
+orderservice:
+  - "src/Services/OrderService/**"
+  - "src/BuildingBlocks/**"
+
+notificationservice:
+  - "src/Services/NotificationService/**"
+  - "src/BuildingBlocks/**"
+
+m01service:
+  - "src/Services/M01Service/**"
+  - "src/BuildingBlocks/**"
+
+apigateway:
+  - "src/ApiGateway/**"
+  - "src/BuildingBlocks/**"

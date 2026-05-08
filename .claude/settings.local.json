@@ -50,7 +50,21 @@
       "Bash(curl -s -i -X POST http://localhost:5000/auth/api/auth/login -H \"Origin: http://localhost:3000\" -H \"Content-Type: application/json\" -d '{\"username\":\"x\",\"password\":\"y\"}')",
       "Bash(curl -s -i -X OPTIONS https://4de3-222-252-99-27.ngrok-free.app/m01/cap-cuu -H 'origin: http://localhost:3000' -H 'access-control-request-method: GET' -H 'access-control-request-headers: authorization' -H 'user-agent: Mozilla/5.0')",
       "Bash(curl -s -i https://4de3-222-252-99-27.ngrok-free.app/m01/cap-cuu -H 'accept: application/json, text/plain, */*' -H 'authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyOGRlNDU5MC0xMmU1LTQ0Y2MtYjdlOS1hOTg2MTEyYzVjNmIiLCJlbWFpbCI6ImFkbWluMUBnbWFpbC5jb20iLCJqdGkiOiI2ZmMzNjAzOTBjZTQ0ZWY4YWFjZTcwOWQwOWUwYzY2YyIsIm5iZiI6MTc3ODIyMTI5OSwiZXhwIjoxNzc4MjI0ODk5LCJpc3MiOiJIZG9zLkF1dGgiLCJhdWQiOiJIZG9zLlNlcnZpY2VzIn0.4-4uqIvi1DMNZbNA7ru6tHKb1UUgT-qDeqkZ2buBY6I' -H 'origin: http://localhost:3000' -H 'referer: http://localhost:3000/' -H 'user-agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 Chrome/147.0.0.0')",
-      "Bash(curl -s -i https://4de3-222-252-99-27.ngrok-free.app/m01/cap-cuu -H 'accept: application/json, text/plain, */*' -H 'authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyOGRlNDU5MC0xMmU1LTQ0Y2MtYjdlOS1hOTg2MTEyYzVjNmIiLCJlbWFpbCI6ImFkbWluMUBnbWFpbC5jb20iLCJqdGkiOiI2ZmMzNjAzOTBjZTQ0ZWY4YWFjZTcwOWQwOWUwYzY2YyIsIm5iZiI6MTc3ODIyMTI5OSwiZXhwIjoxNzc4MjI0ODk5LCJpc3MiOiJIZG9zLkF1dGgiLCJhdWQiOiJIZG9zLlNlcnZpY2VzIn0.4-4uqIvi1DMNZbNA7ru6tHKb1UUgT-qDeqkZ2buBY6I' -H 'origin: http://localhost:3000' -H 'ngrok-skip-browser-warning: true' -H 'user-agent: Mozilla/5.0 Chrome/147')"
+      "Bash(curl -s -i https://4de3-222-252-99-27.ngrok-free.app/m01/cap-cuu -H 'accept: application/json, text/plain, */*' -H 'authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyOGRlNDU5MC0xMmU1LTQ0Y2MtYjdlOS1hOTg2MTEyYzVjNmIiLCJlbWFpbCI6ImFkbWluMUBnbWFpbC5jb20iLCJqdGkiOiI2ZmMzNjAzOTBjZTQ0ZWY4YWFjZTcwOWQwOWUwYzY2YyIsIm5iZiI6MTc3ODIyMTI5OSwiZXhwIjoxNzc4MjI0ODk5LCJpc3MiOiJIZG9zLkF1dGgiLCJhdWQiOiJIZG9zLlNlcnZpY2VzIn0.4-4uqIvi1DMNZbNA7ru6tHKb1UUgT-qDeqkZ2buBY6I' -H 'origin: http://localhost:3000' -H 'ngrok-skip-browser-warning: true' -H 'user-agent: Mozilla/5.0 Chrome/147')",
+      "Bash(npm --version)",
+      "Bash(npm install *)",
+      "Bash(npm start *)",
+      "Bash(tee /tmp/docusaurus-dev.log)",
+      "Read(//tmp/**)",
+      "Bash(rm -f /tmp/docusaurus-dev.log)",
+      "Bash(echo \"PID=$!\")",
+      "Bash(curl -s -o /dev/null -w \"homepage: %{http_code}\\\\n\" http://localhost:3000/)",
+      "Bash(curl -s -o /dev/null -w \"adr index: %{http_code}\\\\n\" http://localhost:3000/adr/)",
+      "Bash(curl -s -o /dev/null -w \"ADR-0001: %{http_code}\\\\n\" http://localhost:3000/adr/0001-record-architecture-decisions)",
+      "Bash(curl -s -o /dev/null -w \"ADR-0002: %{http_code}\\\\n\" http://localhost:3000/adr/0002-split-rest-grpc-ports)",
+      "Bash(curl -s -o /dev/null -w \"C4 context: %{http_code}\\\\n\" http://localhost:3000/explanation/c4/context)",
+      "Bash(pkill -f \"docusaurus start\")",
+      "Bash(chmod +x *)"
     ]
   }
 }

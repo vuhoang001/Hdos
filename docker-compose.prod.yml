@@ -1,0 +1,36 @@
+# Override dùng cho production server.
+# Chạy: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# File này thay thế image bằng ảnh đã build sẵn trên GHCR,
+# và override environment sang Production.
+
+services:
+  authservice:
+    image: ghcr.io/${GHCR_OWNER}/hdos-authservice:latest
+    build: !reset null
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+
+  orderservice:
+    image: ghcr.io/${GHCR_OWNER}/hdos-orderservice:latest
+    build: !reset null
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+
+  notificationservice:
+    image: ghcr.io/${GHCR_OWNER}/hdos-notificationservice:latest
+    build: !reset null
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+
+  m01service:
+    image: ghcr.io/${GHCR_OWNER}/hdos-m01service:latest
+    build: !reset null
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+
+  apigateway:
+    image: ghcr.io/${GHCR_OWNER}/hdos-apigateway:latest
+    build: !reset null
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production

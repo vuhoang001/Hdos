@@ -1,0 +1,32 @@
+# CODEOWNERS — Tự động gán reviewer khi PR chạm vào thư mục tương ứng.
+# Xem docs/18-them-service-da-ngon-ngu.md để biết cách kích hoạt.
+#
+# Format: <path-pattern>  @github-username
+# Dòng sau ghi đè dòng trước (last match wins với các glob pattern).
+
+# ─── Mặc định: lead review tất cả ────────────────────────────────────────────
+*                            @hoanggggf
+
+# ─── Infrastructure dùng chung — chỉ lead ─────────────────────────────────────
+src/BuildingBlocks/          @hoanggggf
+src/ApiGateway/              @hoanggggf
+.github/                     @hoanggggf
+services.json                @hoanggggf
+docker-compose*.yml          @hoanggggf
+scripts/                     @hoanggggf
+
+# ─── Mỗi service — gán developer phụ trách ────────────────────────────────────
+# Thay @hoanggggf bằng GitHub username thực của từng người.
+#
+# Ví dụ:
+#   src/Services/AuthService/        @developer-a
+#   src/Services/OrderService/       @developer-b
+#   src/Services/PaymentService/     @developer-c  (service mới, ngôn ngữ khác)
+#
+src/Services/AuthService/        @hoanggggf
+src/Services/OrderService/       @hoanggggf
+src/Services/NotificationService/ @hoanggggf
+src/Services/M01Service/         @hoanggggf
+
+# ─── Tests — developer của service đó + lead ──────────────────────────────────
+tests/                       @hoanggggf
