@@ -9,6 +9,22 @@ namespace Hdos.Common.Extensions;
 
 public static class ServiceCollectionExtensions
 {
+    public const string HdosCorsPolicy = "HdosCors";
+
+    public static IServiceCollection AddHdosCors(this IServiceCollection services)
+    {
+        services.AddCors(options =>
+        {
+            options.AddPolicy(HdosCorsPolicy, policy =>
+            {
+                policy.AllowAnyOrigin()
+                      .AllowAnyMethod()
+                      .AllowAnyHeader();
+            });
+        });
+        return services;
+    }
+
     public static IServiceCollection AddRabbitMq(
         this IServiceCollection services,
         IConfiguration configuration)

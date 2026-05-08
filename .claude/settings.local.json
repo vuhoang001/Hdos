@@ -37,7 +37,20 @@
       "Bash(curl -s -o /dev/null -w \"/swagger: HTTP %{http_code}\\\\n\" http://localhost:5000/swagger)",
       "Bash(curl -s -o /dev/null -w \"/swagger/index.html: HTTP %{http_code}\\\\n\" http://localhost:5000/swagger/index.html)",
       "Bash(curl -s -o /dev/null -w \"orders swagger.json: HTTP %{http_code}\\\\n\" http://localhost:5000/orders/swagger/v1/swagger.json)",
-      "Bash(curl -s -o /dev/null -w \"notifications swagger.json: HTTP %{http_code}\\\\n\" http://localhost:5000/notifications/swagger/v1/swagger.json)"
+      "Bash(curl -s -o /dev/null -w \"notifications swagger.json: HTTP %{http_code}\\\\n\" http://localhost:5000/notifications/swagger/v1/swagger.json)",
+      "Bash(/usr/share/dotnet/dotnet --version)",
+      "Bash(/home/hoanggggf/.dotnet/dotnet *)",
+      "Bash(~/.dotnet/dotnet build *)",
+      "Bash(curl -s -i -X OPTIONS http://localhost:5000/auth/api/auth/login -H \"Origin: http://localhost:3000\" -H \"Access-Control-Request-Method: POST\" -H \"Access-Control-Request-Headers: Content-Type,Authorization\")",
+      "Bash(curl -s -i -X OPTIONS http://localhost:5000/orders/api/orders -H \"Origin: http://localhost:3000\" -H \"Access-Control-Request-Method: GET\" -H \"Access-Control-Request-Headers: Authorization\")",
+      "Bash(curl -s -i -X OPTIONS http://localhost:5000/notifications/api/notifications -H \"Origin: http://localhost:3000\" -H \"Access-Control-Request-Method: GET\" -H \"Access-Control-Request-Headers: Authorization\")",
+      "Bash(curl -s -i -X OPTIONS http://localhost:5000/m01/api/test -H \"Origin: http://localhost:3000\" -H \"Access-Control-Request-Method: GET\" -H \"Access-Control-Request-Headers: Authorization\")",
+      "Bash(curl -s -i http://localhost:5000/health -H \"Origin: http://localhost:3000\")",
+      "Bash(curl -s -i http://localhost:5000/auth/health -H \"Origin: http://localhost:3000\")",
+      "Bash(curl -s -i -X POST http://localhost:5000/auth/api/auth/login -H \"Origin: http://localhost:3000\" -H \"Content-Type: application/json\" -d '{\"username\":\"x\",\"password\":\"y\"}')",
+      "Bash(curl -s -i -X OPTIONS https://4de3-222-252-99-27.ngrok-free.app/m01/cap-cuu -H 'origin: http://localhost:3000' -H 'access-control-request-method: GET' -H 'access-control-request-headers: authorization' -H 'user-agent: Mozilla/5.0')",
+      "Bash(curl -s -i https://4de3-222-252-99-27.ngrok-free.app/m01/cap-cuu -H 'accept: application/json, text/plain, */*' -H 'authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyOGRlNDU5MC0xMmU1LTQ0Y2MtYjdlOS1hOTg2MTEyYzVjNmIiLCJlbWFpbCI6ImFkbWluMUBnbWFpbC5jb20iLCJqdGkiOiI2ZmMzNjAzOTBjZTQ0ZWY4YWFjZTcwOWQwOWUwYzY2YyIsIm5iZiI6MTc3ODIyMTI5OSwiZXhwIjoxNzc4MjI0ODk5LCJpc3MiOiJIZG9zLkF1dGgiLCJhdWQiOiJIZG9zLlNlcnZpY2VzIn0.4-4uqIvi1DMNZbNA7ru6tHKb1UUgT-qDeqkZ2buBY6I' -H 'origin: http://localhost:3000' -H 'referer: http://localhost:3000/' -H 'user-agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 Chrome/147.0.0.0')",
+      "Bash(curl -s -i https://4de3-222-252-99-27.ngrok-free.app/m01/cap-cuu -H 'accept: application/json, text/plain, */*' -H 'authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyOGRlNDU5MC0xMmU1LTQ0Y2MtYjdlOS1hOTg2MTEyYzVjNmIiLCJlbWFpbCI6ImFkbWluMUBnbWFpbC5jb20iLCJqdGkiOiI2ZmMzNjAzOTBjZTQ0ZWY4YWFjZTcwOWQwOWUwYzY2YyIsIm5iZiI6MTc3ODIyMTI5OSwiZXhwIjoxNzc4MjI0ODk5LCJpc3MiOiJIZG9zLkF1dGgiLCJhdWQiOiJIZG9zLlNlcnZpY2VzIn0.4-4uqIvi1DMNZbNA7ru6tHKb1UUgT-qDeqkZ2buBY6I' -H 'origin: http://localhost:3000' -H 'ngrok-skip-browser-warning: true' -H 'user-agent: Mozilla/5.0 Chrome/147')"
     ]
   }
 }

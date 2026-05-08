@@ -1,6 +1,7 @@
 using Hdos.Common.Auth;
 using Hdos.Common.Extensions;
 using Hdos.Common.Logging;
+using Hdos.Common.Swagger;
 using Hdos.OrderService.Application;
 using Hdos.OrderService.Infrastructure;
 using Hdos.OrderService.Infrastructure.Persistence;
@@ -15,11 +16,12 @@ builder.UseHdosLogging("OrderService");
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddHdosSwagger("OrderService");
 
 builder.Services.AddOrderApplication();
 builder.Services.AddOrderInfrastructure(builder.Configuration);
 builder.Services.AddHdosJwtAuth(builder.Configuration);
+builder.Services.AddHdosCors();
 
 var app = builder.Build();
 
@@ -34,6 +36,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHdosMiddleware();
+app.UseHdosCors();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

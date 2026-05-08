@@ -23,6 +23,7 @@ DDD nhẹ + CQRS qua MediatR + EF Core + RabbitMQ + gRPC + YARP).
 | 13 | [EF Core Migrations](./13-migrations.md)            | Tạo / apply / rollback migration, sinh SQL script, troubleshooting    |
 | 14 | [Bảo mật: đóng cổng nội bộ + JWT](./14-bao-mat-jwt.md) | Chỉ Gateway lộ ra ngoài, JWT bắt buộc cho /orders /notifications     |
 | 15 | [Realtime SignalR](./15-signalr.md)                | NotificationHub, push noti realtime, auth qua `?access_token=`        |
+| 16 | [Luồng request & auth](./16-luong-request-auth.md) | Trace 1 request qua Gateway → service, pipeline order, validate JWT 2 tầng |
 
 ## Đọc theo kịch bản
 
@@ -32,6 +33,7 @@ DDD nhẹ + CQRS qua MediatR + EF Core + RabbitMQ + gRPC + YARP).
 - **Cần phát/nhận event giữa service** → 08 (RabbitMQ).
 - **Cần thêm route ở Gateway** → 09.
 - **Hỏi tại sao orders/notifications cần token, gateway lộ port nào** → 14.
+- **Muốn hiểu request đi từng bước, JWT được check ở đâu, debug 401** → 16.
 
 ## Quy ước trong tài liệu
 

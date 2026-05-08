@@ -32,28 +32,16 @@ public sealed class UserLoggedInEventHandler(
     }
 }
 
-public sealed class UserRegisteredEventHandler : IIntegrationEventHandler<UserRegisteredIntegrationEvent>
+public sealed class UserRegisteredEventHandler(
+    INotificationRepository repo,
+    IUnitOfWork uow,
+    INotificationPusher pusher,
+    ILogger<UserRegisteredEventHandler> logger)
+    : IIntegrationEventHandler<UserRegisteredIntegrationEvent>
 {
-    private readonly INotificationRepository _repo;
-    private readonly IUnitOfWork _uow;
-    private readonly INotificationPusher _pusher;
-    private readonly ILogger<UserRegisteredEventHandler> _logger;
-
-    public UserRegisteredEventHandler(
-        INotificationRepository repo,
-        IUnitOfWork uow,
-        INotificationPusher pusher,
-        ILogger<UserRegisteredEventHandler> logger)
-    {
-        _repo = repo;
-        _uow = uow;
-        _pusher = pusher;
-        _logger = logger;
-    }
-
     public async Task HandleAsync(UserRegisteredIntegrationEvent @event, CancellationToken ct)
     {
-        _logger.LogInformation("Received UserRegistered for {Email}", @event.Email);
+        logger.LogInformation("Received UserRegistered for {Email}", @event.Email);
 
         var notification = Notification.Create(
             recipient: @event.Email,
@@ -61,10 +49,10 @@ public sealed class UserRegisteredEventHandler : IIntegrationEventHandler<UserRe
             body: $"Hello {@event.FullName}, your account is ready.");
 
         notification.MarkSent();
-        await _repo.AddAsync(notification, ct);
-        await _uow.SaveChangesAsync(ct);
+        await repo.AddAsync(notification, ct);
+        await uow.SaveChangesAsync(ct);
 
-        await _pusher.PushToUserAsync(@event.Email, notification.ToDto(), ct);
+        await pusher.PushToUserAsync(@event.Email, notification.ToDto(), ct);
     }
 }
 

@@ -11,4 +11,9 @@ public static class WebApplicationExtensions
         app.UseMiddleware<RequestLoggingMiddleware>();
         return app;
     }
+
+    public static IApplicationBuilder UseHdosCors(this IApplicationBuilder app)
+    {
+        return app.UseCors(ServiceCollectionExtensions.HdosCorsPolicy);
+    }
 }

@@ -5,6 +5,7 @@ using Hdos.AuthService.Infrastructure.Persistence;
 using Hdos.Common.Auth;
 using Hdos.Common.Extensions;
 using Hdos.Common.Logging;
+using Hdos.Common.Swagger;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.EntityFrameworkCore;
 
@@ -24,13 +25,14 @@ builder.WebHost.ConfigureKestrel(options =>
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddHdosSwagger("AuthService");
 builder.Services.AddGrpc();
 
 builder.Services.AddAuthApplication();
 builder.Services.AddAuthInfrastructure(builder.Configuration);
 builder.Services.AddHdosJwtAuth(builder.Configuration);
 builder.Services.AddHdosJwtIssuer(builder.Configuration);
+builder.Services.AddHdosCors();
 
 var app = builder.Build();
 
@@ -46,6 +48,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHdosMiddleware();
+app.UseHdosCors();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

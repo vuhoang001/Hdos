@@ -5,26 +5,18 @@ using Hdos.Contracts.Grpc.Users;
 
 namespace Hdos.AuthService.API.Grpc;
 
-public sealed class UserGrpcService : UserService.UserServiceBase
+public sealed class UserGrpcService(IUserRepository users, ILogger<UserGrpcService> logger)
+    : UserService.UserServiceBase
 {
-    private readonly IUserRepository _users;
-    private readonly ILogger<UserGrpcService> _logger;
-
-    public UserGrpcService(IUserRepository users, ILogger<UserGrpcService> logger)
-    {
-        _users = users;
-        _logger = logger;
-    }
-
     public override async Task<UserReply> GetUserById(GetUserByIdRequest request, ServerCallContext context)
     {
         if (!Guid.TryParse(request.UserId, out var id))
             throw new RpcException(new Status(StatusCode.InvalidArgument, "user_id must be a GUID"));
 
-        var user = await _users.GetByIdAsync(id, context.CancellationToken);
+        var user = await users.GetByIdAsync(id, context.CancellationToken);
         if (user is null)
         {
-            _logger.LogInformation("gRPC GetUserById miss for {UserId}", id);
+            logger.LogInformation("gRPC GetUserById miss for {UserId}", id);
             throw new RpcException(new Status(StatusCode.NotFound, $"User {id} not found"));
         }
 
@@ -42,7 +34,7 @@ public sealed class UserGrpcService : UserService.UserServiceBase
         if (!Guid.TryParse(request.UserId, out var id))
             throw new RpcException(new Status(StatusCode.InvalidArgument, "user_id must be a GUID"));
 
-        var user = await _users.GetByIdAsync(id, context.CancellationToken);
+        var user = await users.GetByIdAsync(id, context.CancellationToken);
         return new UserExistsReply { Exists = user is not null };
     }
 }
