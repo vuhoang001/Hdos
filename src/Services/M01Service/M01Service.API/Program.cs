@@ -1,6 +1,8 @@
 using Hdos.Common.Auth;
 using Hdos.Common.Extensions;
+using Hdos.Common.HealthChecks;
 using Hdos.Common.Logging;
+using Hdos.Common.Monitoring;
 using Hdos.Common.Swagger;
 using Hdos.M01Service.Application;
 using Hdos.M01Service.Infrastructure;
@@ -19,6 +21,9 @@ builder.Services.AddM01Infrastructure(builder.Configuration);
 builder.Services.AddHdosJwtAuth(builder.Configuration);
 builder.Services.AddHdosCors();
 
+builder.Services.AddHdosOpenTelemetry(builder.Configuration, "M01Service");
+builder.Services.AddHdosHealthChecks(builder.Configuration, sqlConnectionStringKey: "M01Db");
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -36,6 +41,7 @@ app.UseHdosCors();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.UseHdosMonitoring();
 
 await EnsureDatabaseAsync(app);
 

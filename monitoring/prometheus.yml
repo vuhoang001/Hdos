@@ -1,0 +1,40 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: hdos
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: [localhost:9090]
+
+  - job_name: apigateway
+    static_configs:
+      - targets: [apigateway:8080]
+        labels: { service: ApiGateway }
+    metrics_path: /metrics
+
+  - job_name: authservice
+    static_configs:
+      - targets: [authservice:8080]
+        labels: { service: AuthService }
+    metrics_path: /metrics
+
+  - job_name: orderservice
+    static_configs:
+      - targets: [orderservice:8080]
+        labels: { service: OrderService }
+    metrics_path: /metrics
+
+  - job_name: notificationservice
+    static_configs:
+      - targets: [notificationservice:8080]
+        labels: { service: NotificationService }
+    metrics_path: /metrics
+
+  - job_name: m01service
+    static_configs:
+      - targets: [m01service:8080]
+        labels: { service: M01Service }
+    metrics_path: /metrics

@@ -1,0 +1,102 @@
+# Overlay file — run alongside the main compose:
+#   docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+#
+# Adds: Prometheus, Loki, Tempo, Grafana
+# Injects OTel/Loki env vars into every application service
+
+services:
+
+  # ── Prometheus: scrapes /metrics from every service ───────────────────────
+  prometheus:
+    image: prom/prometheus:v2.54.0
+    container_name: hdos-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --web.enable-lifecycle
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - hdos-prometheus-data:/prometheus
+    networks: [hdos-net]
+    restart: unless-stopped
+
+  # ── Loki: log aggregation (Serilog sends logs here) ───────────────────────
+  loki:
+    image: grafana/loki:3.2.0
+    container_name: hdos-loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/loki.yml
+    volumes:
+      - ./monitoring/loki.yml:/etc/loki/loki.yml:ro
+      - hdos-loki-data:/loki
+    networks: [hdos-net]
+    restart: unless-stopped
+
+  # ── Tempo: distributed tracing (receives OTLP from services) ──────────────
+  tempo:
+    image: grafana/tempo:2.6.0
+    container_name: hdos-tempo
+    command: -config.file=/etc/tempo/tempo.yml
+    ports:
+      - "3200:3200"   # Tempo HTTP API (Grafana datasource)
+      - "4317:4317"   # OTLP gRPC  (services export traces here)
+      - "4318:4318"   # OTLP HTTP
+    volumes:
+      - ./monitoring/tempo.yml:/etc/tempo/tempo.yml:ro
+      - hdos-tempo-data:/var/tempo
+    networks: [hdos-net]
+    restart: unless-stopped
+
+  # ── Grafana: unified UI for metrics + logs + traces ───────────────────────
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: hdos-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - hdos-grafana-data:/var/lib/grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_FEATURE_TOGGLES_ENABLE: traceqlEditor
+    depends_on: [prometheus, loki, tempo]
+    networks: [hdos-net]
+    restart: unless-stopped
+
+  # ── Inject monitoring env vars into every application service ─────────────
+  authservice:
+    environment:
+      OpenTelemetry__OtlpEndpoint: http://tempo:4317
+      Loki__Uri: http://loki:3100
+
+  orderservice:
+    environment:
+      OpenTelemetry__OtlpEndpoint: http://tempo:4317
+      Loki__Uri: http://loki:3100
+
+  notificationservice:
+    environment:
+      OpenTelemetry__OtlpEndpoint: http://tempo:4317
+      Loki__Uri: http://loki:3100
+
+  m01service:
+    environment:
+      OpenTelemetry__OtlpEndpoint: http://tempo:4317
+      Loki__Uri: http://loki:3100
+
+  apigateway:
+    environment:
+      OpenTelemetry__OtlpEndpoint: http://tempo:4317
+      Loki__Uri: http://loki:3100
+
+volumes:
+  hdos-prometheus-data:
+  hdos-loki-data:
+  hdos-tempo-data:
+  hdos-grafana-data:

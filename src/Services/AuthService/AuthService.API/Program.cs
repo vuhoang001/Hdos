@@ -4,7 +4,9 @@ using Hdos.AuthService.Infrastructure;
 using Hdos.AuthService.Infrastructure.Persistence;
 using Hdos.Common.Auth;
 using Hdos.Common.Extensions;
+using Hdos.Common.HealthChecks;
 using Hdos.Common.Logging;
+using Hdos.Common.Monitoring;
 using Hdos.Common.Swagger;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.EntityFrameworkCore;
@@ -34,6 +36,9 @@ builder.Services.AddHdosJwtAuth(builder.Configuration);
 builder.Services.AddHdosJwtIssuer(builder.Configuration);
 builder.Services.AddHdosCors();
 
+builder.Services.AddHdosOpenTelemetry(builder.Configuration, "AuthService");
+builder.Services.AddHdosHealthChecks(builder.Configuration, sqlConnectionStringKey: "AuthDb", checkRabbitMq: true);
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -53,6 +58,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapGrpcService<UserGrpcService>();
+app.UseHdosMonitoring();
 
 await EnsureDatabaseAsync(app);
 

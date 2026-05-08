@@ -1,6 +1,8 @@
 using Hdos.Common.Auth;
 using Hdos.Common.Extensions;
+using Hdos.Common.HealthChecks;
 using Hdos.Common.Logging;
+using Hdos.Common.Monitoring;
 using Hdos.Common.Swagger;
 using Hdos.NotificationService.API.Hubs;
 using Hdos.NotificationService.Application;
@@ -21,6 +23,9 @@ builder.Services.AddNotificationApplication();
 builder.Services.AddNotificationInfrastructure(builder.Configuration);
 builder.Services.AddHdosJwtAuth(builder.Configuration);
 builder.Services.AddHdosCors();
+
+builder.Services.AddHdosOpenTelemetry(builder.Configuration, "NotificationService");
+builder.Services.AddHdosHealthChecks(builder.Configuration, sqlConnectionStringKey: "NotificationDb", checkRabbitMq: true);
 
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<IUserIdProvider, EmailUserIdProvider>();
@@ -44,6 +49,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<NotificationHub>("/notifications/hubs/notifications");
+app.UseHdosMonitoring();
 
 await EnsureDatabaseAsync(app);
 
