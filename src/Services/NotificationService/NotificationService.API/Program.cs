@@ -1,3 +1,4 @@
+using Hdos.Common.Auth;
 using Hdos.Common.Extensions;
 using Hdos.Common.Logging;
 using Hdos.NotificationService.Application;
@@ -14,6 +15,7 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddNotificationApplication();
 builder.Services.AddNotificationInfrastructure(builder.Configuration);
+builder.Services.AddHdosJwtAuth(builder.Configuration);
 
 var app = builder.Build();
 
@@ -24,6 +26,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHdosMiddleware();
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapControllers();
 
 await EnsureDatabaseAsync(app);

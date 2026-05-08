@@ -2,6 +2,7 @@ using Hdos.AuthService.API.Grpc;
 using Hdos.AuthService.Application;
 using Hdos.AuthService.Infrastructure;
 using Hdos.AuthService.Infrastructure.Persistence;
+using Hdos.Common.Auth;
 using Hdos.Common.Extensions;
 using Hdos.Common.Logging;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -28,6 +29,8 @@ builder.Services.AddGrpc();
 
 builder.Services.AddAuthApplication();
 builder.Services.AddAuthInfrastructure(builder.Configuration);
+builder.Services.AddHdosJwtAuth(builder.Configuration);
+builder.Services.AddHdosJwtIssuer(builder.Configuration);
 
 var app = builder.Build();
 
@@ -38,6 +41,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHdosMiddleware();
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapControllers();
 app.MapGrpcService<UserGrpcService>();
 

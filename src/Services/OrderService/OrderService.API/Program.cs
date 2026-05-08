@@ -1,3 +1,4 @@
+using Hdos.Common.Auth;
 using Hdos.Common.Extensions;
 using Hdos.Common.Logging;
 using Hdos.OrderService.Application;
@@ -18,6 +19,7 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddOrderApplication();
 builder.Services.AddOrderInfrastructure(builder.Configuration);
+builder.Services.AddHdosJwtAuth(builder.Configuration);
 
 var app = builder.Build();
 
@@ -28,6 +30,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHdosMiddleware();
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapControllers();
 
 await EnsureDatabaseAsync(app);

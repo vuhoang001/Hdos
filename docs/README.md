@@ -21,6 +21,7 @@ DDD nhẹ + CQRS qua MediatR + EF Core + RabbitMQ + gRPC + YARP).
 | 11 | [Domain Event Dispatcher](./11-domain-events.md)   | Cơ chế bắn domain event in-process qua MediatR + EF Core interceptor |
 | 12 | [Testing](./12-testing.md)                          | Test layout, stack (xUnit + FluentAssertions + NSubstitute), cách chạy |
 | 13 | [EF Core Migrations](./13-migrations.md)            | Tạo / apply / rollback migration, sinh SQL script, troubleshooting    |
+| 14 | [Bảo mật: đóng cổng nội bộ + JWT](./14-bao-mat-jwt.md) | Chỉ Gateway lộ ra ngoài, JWT bắt buộc cho /orders /notifications     |
 
 ## Đọc theo kịch bản
 
@@ -29,6 +30,7 @@ DDD nhẹ + CQRS qua MediatR + EF Core + RabbitMQ + gRPC + YARP).
 - **Cần gọi service khác đồng bộ** → 07 (gRPC).
 - **Cần phát/nhận event giữa service** → 08 (RabbitMQ).
 - **Cần thêm route ở Gateway** → 09.
+- **Hỏi tại sao orders/notifications cần token, gateway lộ port nào** → 14.
 
 ## Quy ước trong tài liệu
 

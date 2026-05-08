@@ -43,14 +43,16 @@ services:
       ConnectionStrings__AuthDb: "Server=sqlserver,1433;Database=AuthDb;User Id=sa;Password=Hdos!Pass123;TrustServerCertificate=True;Encrypt=False"
       RabbitMq__Host: rabbitmq
       RabbitMq__Port: 5672
+      Jwt__Secret: "${JWT_SECRET:-hdos-dev-secret-please-change-me-min-32-chars}"
+      Jwt__Issuer: "Hdos.Auth"
+      Jwt__Audience: "Hdos.Services"
+      Jwt__ExpiresMinutes: "60"
     depends_on:
       sqlserver:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-    ports:
-      - "5101:8080"   # REST
-      - "5111:8081"   # gRPC
+    # No host ports: only reachable via the apigateway on the internal hdos-net.
     networks: [hdos-net]
 
   orderservice:
@@ -64,6 +66,9 @@ services:
       RabbitMq__Host: rabbitmq
       RabbitMq__Port: 5672
       Services__Auth__GrpcUrl: "http://authservice:8081"
+      Jwt__Secret: "${JWT_SECRET:-hdos-dev-secret-please-change-me-min-32-chars}"
+      Jwt__Issuer: "Hdos.Auth"
+      Jwt__Audience: "Hdos.Services"
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -71,8 +76,6 @@ services:
         condition: service_healthy
       authservice:
         condition: service_started
-    ports:
-      - "5102:8080"
     networks: [hdos-net]
 
   notificationservice:
@@ -85,13 +88,14 @@ services:
       ConnectionStrings__NotificationDb: "Server=sqlserver,1433;Database=NotificationDb;User Id=sa;Password=Hdos!Pass123;TrustServerCertificate=True;Encrypt=False"
       RabbitMq__Host: rabbitmq
       RabbitMq__Port: 5672
+      Jwt__Secret: "${JWT_SECRET:-hdos-dev-secret-please-change-me-min-32-chars}"
+      Jwt__Issuer: "Hdos.Auth"
+      Jwt__Audience: "Hdos.Services"
     depends_on:
       sqlserver:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-    ports:
-      - "5103:8080"
     networks: [hdos-net]
 
   apigateway:
@@ -101,6 +105,9 @@ services:
       dockerfile: src/ApiGateway/Dockerfile
     environment:
       ASPNETCORE_ENVIRONMENT: Docker
+      Jwt__Secret: "${JWT_SECRET:-hdos-dev-secret-please-change-me-min-32-chars}"
+      Jwt__Issuer: "Hdos.Auth"
+      Jwt__Audience: "Hdos.Services"
     depends_on:
       - authservice
       - orderservice

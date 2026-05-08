@@ -4,18 +4,21 @@ using Hdos.AuthService.Application.Features.Login;
 using Hdos.AuthService.Application.Features.Register;
 using Hdos.Common.Responses;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Hdos.AuthService.API.Controllers;
 
 [ApiController]
 [Route("auth")]
+[Authorize]
 public sealed class AuthController : ControllerBase
 {
     private readonly ISender _sender;
 
     public AuthController(ISender sender) => _sender = sender;
 
+    [AllowAnonymous]
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterUserCommand cmd, CancellationToken ct)
     {
@@ -25,6 +28,7 @@ public sealed class AuthController : ControllerBase
             : BadRequest(ApiResponse<UserDto>.Fail(result.Error.Code, result.Error.Message));
     }
 
+    [AllowAnonymous]
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginUserCommand cmd, CancellationToken ct)
     {
@@ -43,6 +47,7 @@ public sealed class AuthController : ControllerBase
         return Ok(ApiResponse<UserDto>.Ok(result.Value));
     }
 
+    [AllowAnonymous]
     [HttpGet("health")]
     public IActionResult Health() => Ok(new { status = "OK", service = "AuthService", at = DateTime.UtcNow });
 }

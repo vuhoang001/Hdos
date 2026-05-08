@@ -15,7 +15,13 @@
       "Bash(dotnet add *)",
       "Bash(docker compose *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(command -v docker)",
+      "Bash(docker --version)",
+      "Bash(curl -sf http://localhost:5000/health)",
+      "Bash(curl -sf http://localhost:5000/auth/health)",
+      "Bash(curl -sf http://localhost:5000/orders/health)",
+      "Bash(curl -sf http://localhost:5000/notifications/health)"
     ]
   }
 }

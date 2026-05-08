@@ -3,6 +3,7 @@ using Hdos.AuthService.Application.Abstractions;
 using Hdos.AuthService.Application.DTOs;
 using Hdos.AuthService.Domain.Repositories;
 using Hdos.AuthService.Domain.ValueObjects;
+using Hdos.Common.Auth;
 using Hdos.Common.Messaging;
 using Hdos.Contracts.IntegrationEvents;
 using Hdos.SharedKernel;
@@ -27,17 +28,20 @@ public sealed class LoginUserCommandHandler : IRequestHandler<LoginUserCommand, 
     private readonly IUnitOfWork _uow;
     private readonly IPasswordHasher _hasher;
     private readonly IEventBus _eventBus;
+    private readonly IJwtTokenIssuer _tokenIssuer;
 
     public LoginUserCommandHandler(
         IUserRepository users,
         IUnitOfWork uow,
         IPasswordHasher hasher,
-        IEventBus eventBus)
+        IEventBus eventBus,
+        IJwtTokenIssuer tokenIssuer)
     {
         _users = users;
         _uow = uow;
         _hasher = hasher;
         _eventBus = eventBus;
+        _tokenIssuer = tokenIssuer;
     }
 
     public async Task<Result<LoginResultDto>> Handle(LoginUserCommand request, CancellationToken ct)
@@ -56,7 +60,7 @@ public sealed class LoginUserCommandHandler : IRequestHandler<LoginUserCommand, 
         await _eventBus.PublishAsync(
             new UserLoggedInIntegrationEvent(user.Id, user.Email.Value, DateTime.UtcNow), ct);
 
-        var token = $"demo-token::{user.Id}::{Guid.NewGuid():N}";
-        return new LoginResultDto(user.Id, user.Email.Value, token);
+        var token = _tokenIssuer.Issue(user.Id, user.Email.Value);
+        return new LoginResultDto(user.Id, user.Email.Value, token.Token);
     }
 }

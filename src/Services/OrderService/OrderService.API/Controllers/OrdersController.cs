@@ -3,12 +3,14 @@ using Hdos.OrderService.Application.DTOs;
 using Hdos.OrderService.Application.Features.CreateOrder;
 using Hdos.OrderService.Application.Features.GetOrder;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Hdos.OrderService.API.Controllers;
 
 [ApiController]
 [Route("orders")]
+[Authorize]
 public sealed class OrdersController : ControllerBase
 {
     private readonly ISender _sender;
@@ -34,6 +36,7 @@ public sealed class OrdersController : ControllerBase
         return Ok(ApiResponse<OrderDto>.Ok(result.Value));
     }
 
+    [AllowAnonymous]
     [HttpGet("health")]
     public IActionResult Health() => Ok(new { status = "OK", service = "OrderService", at = DateTime.UtcNow });
 }
