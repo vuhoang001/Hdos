@@ -14,5 +14,5 @@
   "m01service": {
     "dockerfile": "src/Services/M01Service/M01Service.API/Dockerfile",
     "context": "."
-  },
+  }
 }
