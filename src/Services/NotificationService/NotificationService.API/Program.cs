@@ -33,15 +33,12 @@ builder.Services.AddScoped<INotificationPusher, SignalRNotificationPusher>();
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
+app.UseSwagger(c => c.RouteTemplate = "notifications/swagger/{documentName}/swagger.json");
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger(c => c.RouteTemplate = "notifications/swagger/{documentName}/swagger.json");
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/notifications/swagger/v1/swagger.json", "NotificationService v1");
-        c.RoutePrefix = "notifications/swagger";
-    });
-}
+    c.SwaggerEndpoint("/notifications/swagger/v1/swagger.json", "NotificationService v1");
+    c.RoutePrefix = "notifications/swagger";
+});
 
 app.UseHdosMiddleware();
 app.UseHdosCors();

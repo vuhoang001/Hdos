@@ -26,15 +26,12 @@ builder.Services.AddHdosHealthChecks(builder.Configuration, sqlConnectionStringK
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
+app.UseSwagger(c => c.RouteTemplate = "m01/swagger/{documentName}/swagger.json");
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger(c => c.RouteTemplate = "m01/swagger/{documentName}/swagger.json");
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/m01/swagger/v1/swagger.json", "M01Service v1");
-        c.RoutePrefix = "m01/swagger";
-    });
-}
+    c.SwaggerEndpoint("/m01/swagger/v1/swagger.json", "M01Service v1");
+    c.RoutePrefix = "m01/swagger";
+});
 
 app.UseHdosMiddleware();
 app.UseHdosCors();
