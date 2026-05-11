@@ -5,6 +5,13 @@ on:
     branches: [main, dev]
   pull_request:
     branches: [main, dev]
+  # Bấm nút thủ công để force build tất cả service (dùng lần đầu hoặc khi cần rebuild)
+  workflow_dispatch:
+    inputs:
+      force_build_all:
+        description: "Build tất cả service (bỏ qua detect-changes)"
+        type: boolean
+        default: true
 
 env:
   REGISTRY: ghcr.io
@@ -24,6 +31,32 @@ jobs:
         id: filter
         with:
           filters: .github/path-filters.yml
+
+  # ─── Job 1b: Quyết định danh sách service cần build ──────────────────────
+  # workflow_dispatch → build tất cả
+  # push              → chỉ build service có thay đổi
+  resolve-services:
+    name: Resolve services to build
+    needs: [detect-changes]
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.resolve.outputs.services }}
+      should_build: ${{ steps.resolve.outputs.should_build }}
+    steps:
+      - id: resolve
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo 'services=["authservice","orderservice","notificationservice","m01service","apigateway"]' >> $GITHUB_OUTPUT
+            echo 'should_build=true' >> $GITHUB_OUTPUT
+          else
+            CHANGED='${{ needs.detect-changes.outputs.changed }}'
+            echo "services=$CHANGED" >> $GITHUB_OUTPUT
+            if [ "$CHANGED" != "[]" ] && [ -n "$CHANGED" ]; then
+              echo 'should_build=true' >> $GITHUB_OUTPUT
+            else
+              echo 'should_build=false' >> $GITHUB_OUTPUT
+            fi
+          fi
 
   # ─── Job 2: Chạy toàn bộ test suite ──────────────────────────────────────
   test:
@@ -53,16 +86,15 @@ jobs:
           path: "**/*.trx"
 
   # ─── Job 3: Build Docker image và push lên GHCR ──────────────────────────
-  # Chỉ chạy khi push thật (không chạy cho PR), và chỉ với service có thay đổi.
-  # dev  → tag :dev-latest
-  # main → tag :prod-latest
+  # Không chạy cho PR.
+  # dev / workflow_dispatch từ dev  → tag :dev-latest
+  # main / workflow_dispatch từ main → tag :prod-latest
   build-push:
     name: Build & Push (${{ matrix.service }})
-    needs: [detect-changes, test]
+    needs: [resolve-services, test]
     if: |
-      github.event_name == 'push' &&
-      needs.detect-changes.outputs.changed != '[]' &&
-      needs.detect-changes.outputs.changed != ''
+      needs.resolve-services.outputs.should_build == 'true' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -70,7 +102,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: ${{ fromJSON(needs.detect-changes.outputs.changed) }}
+        service: ${{ fromJSON(needs.resolve-services.outputs.services) }}
 
     steps:
       - uses: actions/checkout@v4
