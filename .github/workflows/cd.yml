@@ -32,6 +32,8 @@ jobs:
         env:
           GHCR_OWNER: ${{ vars.GHCR_USER }}
           IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+          ENV_DIR: /opt/hdos-staging
+          ASPNETCORE_ENVIRONMENT: Staging
         run: |
           set -e
 
@@ -41,13 +43,11 @@ jobs:
           docker compose \
             -f docker-compose.yml \
             -f docker-compose.server.yml \
-            --env-file ${{ vars.DEPLOY_ENV_FILE }} \
             pull
 
           docker compose \
             -f docker-compose.yml \
             -f docker-compose.server.yml \
-            --env-file ${{ vars.DEPLOY_ENV_FILE }} \
             up -d --remove-orphans
 
           docker image prune -f
@@ -76,6 +76,8 @@ jobs:
         env:
           GHCR_OWNER: ${{ vars.GHCR_USER }}
           IMAGE_TAG: ${{ inputs.sha || 'prod-latest' }}
+          ENV_DIR: /opt/hdos-prod
+          ASPNETCORE_ENVIRONMENT: Production
         run: |
           set -e
 
@@ -85,13 +87,11 @@ jobs:
           docker compose \
             -f docker-compose.yml \
             -f docker-compose.server.yml \
-            --env-file ${{ vars.DEPLOY_ENV_FILE }} \
             pull
 
           docker compose \
             -f docker-compose.yml \
             -f docker-compose.server.yml \
-            --env-file ${{ vars.DEPLOY_ENV_FILE }} \
             up -d --remove-orphans
 
           docker image prune -f
