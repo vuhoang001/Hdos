@@ -41,11 +41,13 @@ jobs:
             docker login ghcr.io -u "$GHCR_OWNER" --password-stdin
 
           docker compose \
+            --env-file "${ENV_DIR}/.env" \
             -f docker-compose.yml \
             -f docker-compose.server.yml \
             pull
 
           docker compose \
+            --env-file "${ENV_DIR}/.env" \
             -f docker-compose.yml \
             -f docker-compose.server.yml \
             up -d --remove-orphans
@@ -85,11 +87,13 @@ jobs:
             docker login ghcr.io -u "$GHCR_OWNER" --password-stdin
 
           docker compose \
+            --env-file "${ENV_DIR}/.env" \
             -f docker-compose.yml \
             -f docker-compose.server.yml \
             pull
 
           docker compose \
+            --env-file "${ENV_DIR}/.env" \
             -f docker-compose.yml \
             -f docker-compose.server.yml \
             up -d --remove-orphans

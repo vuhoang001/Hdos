@@ -1,7 +1,8 @@
 # Override dùng cho mọi server (staging + production).
 #
 # Biến cần có trong --env-file (compose substitution):
-#   IMAGE_TAG, GHCR_OWNER, ASPNETCORE_ENVIRONMENT, ENV_DIR
+#   IMAGE_TAG, GHCR_OWNER, ASPNETCORE_ENVIRONMENT, ENV_DIR,
+#   MSSQL_SA_PASSWORD, JWT_SECRET
 #
 # ENV_DIR trỏ tới thư mục chứa các file .env của từng service trên server:
 #   Staging : ENV_DIR=/opt/hdos-staging
@@ -9,8 +10,8 @@
 #
 # Cấu trúc thư mục trên mỗi server:
 #   ${ENV_DIR}/
-#   ├── .env                  ← compose vars (IMAGE_TAG, ENV_DIR, ...)
-#   ├── common.env            ← biến dùng chung (DB password, JWT, RabbitMQ)
+#   ├── .env                  ← compose vars (IMAGE_TAG, MSSQL_SA_PASSWORD, ...)
+#   ├── common.env            ← biến dùng chung inject vào container
 #   ├── authservice.env       ← biến riêng AuthService
 #   ├── orderservice.env      ← biến riêng OrderService
 #   ├── notificationservice.env
@@ -18,6 +19,13 @@
 #   └── apigateway.env
 
 services:
+
+  # sqlserver phải được override ở đây để nhận MSSQL_SA_PASSWORD từ common.env.
+  # Nếu thiếu block này, sqlserver chỉ dùng giá trị default hardcode trong
+  # docker-compose.yml → password không khớp với ConnectionStrings của services.
+  sqlserver:
+    environment:
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
 
   authservice:
     image: ghcr.io/${GHCR_OWNER}/hdos-authservice:${IMAGE_TAG}
