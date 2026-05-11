@@ -15,33 +15,38 @@ jobs:
     name: Deploy to Ubuntu
     # Chỉ deploy khi CI pass
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     environment: production
 
     steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ vars.SERVER_HOST }}
-          username: ${{ vars.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            set -e
-            cd /opt/hdos
+      - uses: actions/checkout@v4
 
-            # Đăng nhập GHCR trên server
-            echo "${{ secrets.GHCR_TOKEN }}" | \
-              docker login ghcr.io -u "${{ vars.GHCR_USER }}" --password-stdin
+      - name: Deploy
+        env:
+          GHCR_OWNER: ${{ vars.GHCR_USER }}
+        run: |
+          set -e
 
-            # Pull image mới nhất cho tất cả services
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+          # Đăng nhập GHCR
+          echo "${{ secrets.GHCR_TOKEN }}" | \
+            docker login ghcr.io -u "${{ vars.GHCR_USER }}" --password-stdin
 
-            # Khởi động lại container nào có image mới, giữ nguyên cái khác
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml \
-              up -d --remove-orphans
+          # Pull image mới nhất cho tất cả services
+          docker compose \
+            -f docker-compose.yml \
+            -f docker-compose.prod.yml \
+            --env-file /opt/hdos/.env \
+            pull
 
-            # Dọn image cũ
-            docker image prune -f
+          # Khởi động lại container nào có image mới, giữ nguyên cái khác
+          docker compose \
+            -f docker-compose.yml \
+            -f docker-compose.prod.yml \
+            --env-file /opt/hdos/.env \
+            up -d --remove-orphans
+
+          # Dọn image cũ
+          docker image prune -f
 
       - name: Notify success
         if: success()
