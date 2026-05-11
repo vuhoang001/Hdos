@@ -141,6 +141,7 @@ jobs:
           context: ${{ steps.config.outputs.context }}
           file: ${{ steps.config.outputs.dockerfile }}
           push: true
+          provenance: false
           tags: |
             ghcr.io/${{ github.repository_owner }}/hdos-${{ matrix.service }}:${{ steps.tag.outputs.env_tag }}
             ghcr.io/${{ github.repository_owner }}/hdos-${{ matrix.service }}:${{ github.sha }}
