@@ -44,12 +44,14 @@ jobs:
             --env-file "${ENV_DIR}/.env" \
             -f docker-compose.yml \
             -f docker-compose.server.yml \
+            -f docker-compose.monitoring.yml \
             pull
 
           docker compose \
             --env-file "${ENV_DIR}/.env" \
             -f docker-compose.yml \
             -f docker-compose.server.yml \
+            -f docker-compose.monitoring.yml \
             up -d --remove-orphans
 
           docker image prune -f
@@ -90,12 +92,14 @@ jobs:
             --env-file "${ENV_DIR}/.env" \
             -f docker-compose.yml \
             -f docker-compose.server.yml \
+            -f docker-compose.monitoring.yml \
             pull
 
           docker compose \
             --env-file "${ENV_DIR}/.env" \
             -f docker-compose.yml \
             -f docker-compose.server.yml \
+            -f docker-compose.monitoring.yml \
             up -d --remove-orphans
 
           docker image prune -f
