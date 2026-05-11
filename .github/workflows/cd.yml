@@ -28,23 +28,6 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
-      - name: Write env files
-        env:
-          COMMON_ENV:           ${{ secrets.COMMON_ENV }}
-          AUTHSERVICE_ENV:      ${{ secrets.AUTHSERVICE_ENV }}
-          ORDERSERVICE_ENV:     ${{ secrets.ORDERSERVICE_ENV }}
-          NOTIFICATIONSERVICE_ENV: ${{ secrets.NOTIFICATIONSERVICE_ENV }}
-          M01SERVICE_ENV:       ${{ secrets.M01SERVICE_ENV }}
-          APIGATEWAY_ENV:       ${{ secrets.APIGATEWAY_ENV }}
-        run: |
-          mkdir -p /opt/hdos-staging
-          echo "$COMMON_ENV"              > /opt/hdos-staging/common.env
-          echo "$AUTHSERVICE_ENV"         > /opt/hdos-staging/authservice.env
-          echo "$ORDERSERVICE_ENV"        > /opt/hdos-staging/orderservice.env
-          echo "$NOTIFICATIONSERVICE_ENV" > /opt/hdos-staging/notificationservice.env
-          echo "$M01SERVICE_ENV"          > /opt/hdos-staging/m01service.env
-          echo "$APIGATEWAY_ENV"          > /opt/hdos-staging/apigateway.env
-
       - name: Deploy
         env:
           GHCR_OWNER: ${{ vars.GHCR_USER }}
@@ -88,23 +71,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.sha || 'main' }}
-
-      - name: Write env files
-        env:
-          COMMON_ENV:           ${{ secrets.COMMON_ENV }}
-          AUTHSERVICE_ENV:      ${{ secrets.AUTHSERVICE_ENV }}
-          ORDERSERVICE_ENV:     ${{ secrets.ORDERSERVICE_ENV }}
-          NOTIFICATIONSERVICE_ENV: ${{ secrets.NOTIFICATIONSERVICE_ENV }}
-          M01SERVICE_ENV:       ${{ secrets.M01SERVICE_ENV }}
-          APIGATEWAY_ENV:       ${{ secrets.APIGATEWAY_ENV }}
-        run: |
-          mkdir -p /opt/hdos-prod
-          echo "$COMMON_ENV"              > /opt/hdos-prod/common.env
-          echo "$AUTHSERVICE_ENV"         > /opt/hdos-prod/authservice.env
-          echo "$ORDERSERVICE_ENV"        > /opt/hdos-prod/orderservice.env
-          echo "$NOTIFICATIONSERVICE_ENV" > /opt/hdos-prod/notificationservice.env
-          echo "$M01SERVICE_ENV"          > /opt/hdos-prod/m01service.env
-          echo "$APIGATEWAY_ENV"          > /opt/hdos-prod/apigateway.env
 
       - name: Deploy
         env:
