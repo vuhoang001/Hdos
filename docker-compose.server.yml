@@ -1,0 +1,65 @@
+# Override dùng cho mọi server (staging + production).
+#
+# Biến cần có trong --env-file (compose substitution):
+#   IMAGE_TAG, GHCR_OWNER, ASPNETCORE_ENVIRONMENT, ENV_DIR
+#
+# ENV_DIR trỏ tới thư mục chứa các file .env của từng service trên server:
+#   Staging : ENV_DIR=/opt/hdos-staging
+#   Prod    : ENV_DIR=/opt/hdos-prod
+#
+# Cấu trúc thư mục trên mỗi server:
+#   ${ENV_DIR}/
+#   ├── .env                  ← compose vars (IMAGE_TAG, ENV_DIR, ...)
+#   ├── common.env            ← biến dùng chung (DB password, JWT, RabbitMQ)
+#   ├── authservice.env       ← biến riêng AuthService
+#   ├── orderservice.env      ← biến riêng OrderService
+#   ├── notificationservice.env
+#   ├── m01service.env
+#   └── apigateway.env
+
+services:
+
+  authservice:
+    image: ghcr.io/${GHCR_OWNER}/hdos-authservice:${IMAGE_TAG}
+    build: !reset null
+    env_file:
+      - ${ENV_DIR}/common.env
+      - ${ENV_DIR}/authservice.env
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
+
+  orderservice:
+    image: ghcr.io/${GHCR_OWNER}/hdos-orderservice:${IMAGE_TAG}
+    build: !reset null
+    env_file:
+      - ${ENV_DIR}/common.env
+      - ${ENV_DIR}/orderservice.env
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
+
+  notificationservice:
+    image: ghcr.io/${GHCR_OWNER}/hdos-notificationservice:${IMAGE_TAG}
+    build: !reset null
+    env_file:
+      - ${ENV_DIR}/common.env
+      - ${ENV_DIR}/notificationservice.env
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
+
+  m01service:
+    image: ghcr.io/${GHCR_OWNER}/hdos-m01service:${IMAGE_TAG}
+    build: !reset null
+    env_file:
+      - ${ENV_DIR}/common.env
+      - ${ENV_DIR}/m01service.env
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
+
+  apigateway:
+    image: ghcr.io/${GHCR_OWNER}/hdos-apigateway:${IMAGE_TAG}
+    build: !reset null
+    env_file:
+      - ${ENV_DIR}/common.env
+      - ${ENV_DIR}/apigateway.env
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}

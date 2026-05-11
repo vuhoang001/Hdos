@@ -1,25 +1,32 @@
 name: CD
 
 on:
-  # Tự động chạy sau khi CI thành công trên nhánh main
+  # ── Tự động: CI pass trên nhánh dev → deploy staging ─────────────────────
   workflow_run:
     workflows: [CI]
     types: [completed]
-    branches: [main]
+    branches: [dev]
 
-  # Cho phép trigger thủ công (rollback, hotfix...)
+  # ── Thủ công: chỉ dùng nút "Run workflow" trên GitHub để deploy production ─
   workflow_dispatch:
+    inputs:
+      sha:
+        description: "SHA cụ thể cần deploy (để trống = HEAD của main)"
+        required: false
+        default: ""
 
 jobs:
-  deploy:
-    name: Deploy to Ubuntu
-    # Chỉ deploy khi CI pass
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+  # ─── Staging: tự động sau mỗi lần CI trên nhánh dev thành công ────────────
+  deploy-staging:
+    name: Deploy → Staging (auto)
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
     runs-on: self-hosted
-    environment: production
+    environment: staging
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Deploy
         env:
@@ -27,31 +34,70 @@ jobs:
         run: |
           set -e
 
-          # Đăng nhập GHCR
           echo "${{ secrets.GHCR_TOKEN }}" | \
-            docker login ghcr.io -u "${{ vars.GHCR_USER }}" --password-stdin
+            docker login ghcr.io -u "$GHCR_OWNER" --password-stdin
 
-          # Pull image mới nhất cho tất cả services
           docker compose \
             -f docker-compose.yml \
-            -f docker-compose.prod.yml \
-            --env-file /opt/hdos/.env \
+            -f docker-compose.server.yml \
+            --env-file ${{ vars.DEPLOY_ENV_FILE }} \
             pull
 
-          # Khởi động lại container nào có image mới, giữ nguyên cái khác
           docker compose \
             -f docker-compose.yml \
-            -f docker-compose.prod.yml \
-            --env-file /opt/hdos/.env \
+            -f docker-compose.server.yml \
+            --env-file ${{ vars.DEPLOY_ENV_FILE }} \
             up -d --remove-orphans
 
-          # Dọn image cũ
           docker image prune -f
 
       - name: Notify success
         if: success()
-        run: echo "Deploy thành công tại $(date)"
+        run: echo "Staging deploy OK — $(date) — ${{ github.event.workflow_run.head_sha }}"
 
       - name: Notify failure
         if: failure()
-        run: echo "Deploy thất bại tại $(date)" && exit 1
+        run: echo "Staging deploy FAILED — $(date)" && exit 1
+
+  # ─── Production: CHỈ chạy khi bấm nút "Run workflow" thủ công ────────────
+  deploy-production:
+    name: Deploy → Production (manual)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: self-hosted
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha || 'main' }}
+
+      - name: Deploy
+        env:
+          GHCR_OWNER: ${{ vars.GHCR_USER }}
+        run: |
+          set -e
+
+          echo "${{ secrets.GHCR_TOKEN }}" | \
+            docker login ghcr.io -u "$GHCR_OWNER" --password-stdin
+
+          docker compose \
+            -f docker-compose.yml \
+            -f docker-compose.server.yml \
+            --env-file ${{ vars.DEPLOY_ENV_FILE }} \
+            pull
+
+          docker compose \
+            -f docker-compose.yml \
+            -f docker-compose.server.yml \
+            --env-file ${{ vars.DEPLOY_ENV_FILE }} \
+            up -d --remove-orphans
+
+          docker image prune -f
+
+      - name: Notify success
+        if: success()
+        run: echo "Production deploy OK — $(date) — SHA=${{ inputs.sha || 'main' }}"
+
+      - name: Notify failure
+        if: failure()
+        run: echo "Production deploy FAILED — $(date)" && exit 1
