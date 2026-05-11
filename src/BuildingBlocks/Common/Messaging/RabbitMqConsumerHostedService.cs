@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using Hdos.Contracts.IntegrationEvents;
@@ -5,6 +6,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using OpenTelemetry;
+using OpenTelemetry.Context.Propagation;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
@@ -14,6 +17,9 @@ public abstract class RabbitMqConsumerHostedService<TEvent, THandler> : Backgrou
     where TEvent : IntegrationEvent
     where THandler : IIntegrationEventHandler<TEvent>
 {
+    private static readonly ActivitySource _activitySource = new("Hdos.Messaging");
+    private static readonly TextMapPropagator _propagator = Propagators.DefaultTextMapPropagator;
+
     private readonly RabbitMqConnection _connection;
     private readonly RabbitMqOptions _options;
     private readonly IServiceScopeFactory _scopeFactory;
@@ -55,6 +61,30 @@ public abstract class RabbitMqConsumerHostedService<TEvent, THandler> : Backgrou
 
     private async Task OnMessageAsync(object sender, BasicDeliverEventArgs ea)
     {
+        // Extract W3C traceparent from AMQP headers to continue the distributed trace
+        var parentContext = _propagator.Extract(
+            default,
+            ea.BasicProperties.Headers,
+            static (headers, key) =>
+            {
+                if (headers is not null &&
+                    headers.TryGetValue(key, out var value) &&
+                    value is byte[] bytes)
+                    return [Encoding.UTF8.GetString(bytes)];
+                return [];
+            });
+
+        Baggage.Current = parentContext.Baggage;
+
+        using var activity = _activitySource.StartActivity(
+            $"rabbitmq process {ea.RoutingKey}",
+            ActivityKind.Consumer,
+            parentContext.ActivityContext);
+
+        activity?.SetTag("messaging.system", "rabbitmq");
+        activity?.SetTag("messaging.destination", ea.RoutingKey);
+        activity?.SetTag("messaging.rabbitmq.queue", _queueName);
+
         var json = Encoding.UTF8.GetString(ea.Body.ToArray());
         try
         {
@@ -69,6 +99,7 @@ public abstract class RabbitMqConsumerHostedService<TEvent, THandler> : Backgrou
         }
         catch (Exception ex)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             _logger.LogError(ex, "Failed to handle event {RoutingKey}", ea.RoutingKey);
             _channel!.BasicNack(ea.DeliveryTag, multiple: false, requeue: !ea.Redelivered);
         }

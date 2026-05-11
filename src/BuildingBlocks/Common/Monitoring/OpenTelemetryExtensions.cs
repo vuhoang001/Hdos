@@ -33,7 +33,8 @@ public static class OpenTelemetryExtensions
                             !ctx.Request.Path.StartsWithSegments("/health") &&
                             !ctx.Request.Path.StartsWithSegments("/metrics");
                     })
-                    .AddHttpClientInstrumentation(opts => opts.RecordException = true);
+                    .AddHttpClientInstrumentation(opts => opts.RecordException = true)
+                    .AddSource("Hdos.Messaging");
 
                 var otlpEndpoint = configuration["OpenTelemetry:OtlpEndpoint"];
                 if (!string.IsNullOrWhiteSpace(otlpEndpoint))
