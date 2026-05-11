@@ -1,118 +1,34 @@
 # 03 — Building Blocks
 
-Ba project trong `src/BuildingBlocks/` được dùng chung bởi mọi service. **Không
-service nào reference service khác** — mọi thứ chia sẻ phải đi qua Building
-Blocks (hoặc qua mạng: gRPC / RabbitMQ).
+Building Blocks là các thư viện dùng chung. Mục tiêu: viết một lần, tất cả services sử dụng. Khi cần thay đổi cách logging hay response format — sửa một chỗ, rebuild tất cả.
 
-## 1. SharedKernel
+---
 
-Vị trí: `src/BuildingBlocks/SharedKernel/`
-Namespace: `Hdos.SharedKernel`
-Chỉ chứa **DDD primitives** (không EF, không HTTP, không Rabbit).
+## Result Pattern (`SharedKernel/Result.cs`)
 
-| File              | Vai trò                                                                               |
-|-------------------|---------------------------------------------------------------------------------------|
-| `BaseEntity.cs`   | `BaseEntity<TId>` — `Id`, `CreatedAtUtc`, `UpdatedAtUtc`. Equality theo `Id`.         |
-| `AggregateRoot.cs`| Kế thừa BaseEntity, thêm `DomainEvents` collection + `RaiseDomainEvent(...)`.         |
-| `IDomainEvent.cs` | Marker `IDomainEvent : INotification` (MediatR). `DomainEvent` base record.           |
-| `ValueObject.cs`  | Equality so sánh từng component (override `GetEqualityComponents()`).                 |
-| `Result.cs`       | `Result`, `Result<T>`, `Error`. Pattern thay vì throw exception cho expected failures. |
-
-**Dùng khi nào**:
-
-- `BaseEntity<TId>` cho mọi entity có id.
-- `AggregateRoot<TId>` cho **gốc** của aggregate — nơi raise domain event.
-- `ValueObject` cho concept không có id (`Email`, `Money`).
-- `Result<T>` cho handler khi failure là **kỳ vọng** (validation, not-found,
-  business rule). Ngoại lệ chỉ dùng cho lỗi không mong đợi.
-
-## 2. Contracts
-
-Vị trí: `src/BuildingBlocks/Contracts/`
-Namespace: `Hdos.Contracts.*`
-Chứa **mọi thứ đi qua biên giới service**.
-
-```
-Contracts/
-├── IntegrationEvents/
-│   ├── IntegrationEvent.cs
-│   ├── UserRegisteredIntegrationEvent.cs
-│   ├── UserLoggedInIntegrationEvent.cs
-│   └── OrderCreatedIntegrationEvent.cs
-└── Protos/
-    └── users.proto      ← gRPC contract
-```
-
-### 2.1 IntegrationEvent
-
-`IntegrationEvent` (record, base) — có `EventId` (Guid), `OccurredAtUtc`.
-
-Quy tắc viết integration event:
-
-- **Phẳng**, JSON-serializable, không reference Domain entity.
-- Dùng kiểu nguyên thuỷ + collection của primitive/record.
-- Tên class trùng routing key trong RabbitMQ — đừng đổi tên class một cách tuỳ tiện.
-- Phiên bản hoá bằng cách *tạo class mới* (`OrderCreatedIntegrationEventV2`),
-  không thêm field "không bắt buộc" rồi giả vờ vẫn tương thích.
-
-### 2.2 Protos
-
-File `.proto` được build với `Grpc.Tools` (đã thêm vào csproj). Khi build:
-
-- Server-side base class + client class được sinh ra trong namespace
-  `Hdos.Contracts.Grpc.Users`.
-- Cả AuthService.API (server) và OrderService.Infrastructure (client) đều
-  reference `Contracts` → cùng dùng class generated, đồng bộ tự nhiên.
-
-Chi tiết xem [07 — gRPC](./07-grpc.md).
-
-## 3. Common
-
-Vị trí: `src/BuildingBlocks/Common/`
-Namespace: `Hdos.Common.*`
-Chứa **infrastructure cross-cutting**: middleware, MediatR behavior, event bus,
-logging config, response wrapper.
-
-### 3.1 Logging — `Logging/SerilogConfig.cs`
+**Vấn đề giải quyết:** Xử lý lỗi business logic mà không throw exception. Exception dành cho lỗi đột ngột (database down, null reference), không phải "sai password" hay "email đã tồn tại".
 
 ```csharp
-builder.UseHdosLogging("AuthService"); // tag mọi log với serviceName
+// Thay vì throw:
+// throw new Exception("User not found");
+
+// Dùng Result:
+return Result.Failure<UserDto>(UserErrors.NotFound(id));
+
+// Handler nhận về:
+var result = await _sender.Send(query);
+if (result.IsFailure)
+    return NotFound(ApiResponse.Fail(result.Error.Code, result.Error.Message));
+return Ok(ApiResponse.Ok(result.Value));
 ```
 
-Console sink, structured logging.
+`Result<T>` có hai trạng thái: `IsSuccess` và `IsFailure`. Không bao giờ throw exception cho business logic — chỉ trả về `Result.Failure(error)`.
 
-### 3.2 Middleware — `Middleware/`
+---
 
-| Middleware                        | Chức năng                                                                       |
-|-----------------------------------|---------------------------------------------------------------------------------|
-| `RequestLoggingMiddleware`        | Log mỗi HTTP request: method, path, status, elapsed ms.                          |
-| `ExceptionHandlingMiddleware`     | Catch all → map sang `ApiResponse.Fail(...)` JSON.                                |
+## ApiResponse (`Common/Responses/ApiResponse.cs`)
 
-Map exception → status code:
-
-| Exception                       | Status      | Code         |
-|---------------------------------|-------------|--------------|
-| `ValidationException`           | 400         | `Validation` |
-| `NotFoundException`             | 404         | `NotFound`   |
-| `ConflictException`             | 409         | `Conflict`   |
-| `UnauthorizedAccessException`   | 401         | `Unauthorized` |
-| (mọi exception khác)            | 500         | `Server`     |
-
-Bật trong `Program.cs` qua extension:
-
-```csharp
-app.UseHdosMiddleware();   // thứ tự: ExceptionHandling → RequestLogging
-```
-
-### 3.3 Response wrapper — `Responses/ApiResponse.cs`
-
-```csharp
-ApiResponse<UserDto>.Ok(userDto);
-ApiResponse<UserDto>.Fail("NotFound", "User was not found");
-```
-
-Mọi REST endpoint của hệ thống đều trả `ApiResponse` hoặc `ApiResponse<T>` để
-client có shape thống nhất:
+Tất cả API trả về cùng một format:
 
 ```json
 {
@@ -123,73 +39,218 @@ client có shape thống nhất:
 }
 ```
 
-### 3.4 MediatR pipeline — `Behaviors/`
-
-| Behavior              | Vai trò                                                                                |
-|-----------------------|----------------------------------------------------------------------------------------|
-| `LoggingBehavior`     | Log "Handling X" / "Handled X in Yms" cho mọi request đi qua MediatR.                  |
-| `ValidationBehavior`  | Lấy mọi `IValidator<TRequest>`, chạy song song. Có lỗi → throw `ValidationException`.  |
-
-Đăng ký một lần ở Application của mỗi service (xem `AuthService.Application/DependencyInjection.cs`):
-
-```csharp
-services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(thisAssembly));
-services.AddCommonMediatRBehaviors();         // 2 behavior trên
-services.AddValidatorsFromAssembly(thisAssembly);
+```json
+{
+  "success": false,
+  "data": null,
+  "errorCode": "Unauthorized",
+  "errorMessage": "Invalid credentials"
+}
 ```
 
-### 3.5 Domain Event Dispatcher — `Persistence/`
+**Lý do:** Frontend biết chính xác cấu trúc response mà không cần xử lý riêng từng endpoint.
 
-| File                                       | Vai trò                                                                                              |
-|--------------------------------------------|------------------------------------------------------------------------------------------------------|
-| `PublishDomainEventsInterceptor.cs`        | EF Core `SaveChangesInterceptor` — sau commit, lấy mọi `IDomainEvent` từ aggregate đang track và publish qua MediatR `IPublisher`. |
-| `LoggingDomainEventHandler<TEvent>`        | Open-generic `INotificationHandler<TEvent>` — log bất kỳ domain event nào để debug.                   |
+---
 
-Gắn vào service:
+## MediatR Behaviors
 
-```csharp
-services.AddDomainEventDispatching();   // interceptor + open-generic logger
+Pipeline behaviors là middleware cho CQRS — chạy trước/sau mọi Command/Query.
 
-services.AddDbContext<TContext>((sp, opts) =>
-    opts.UseSqlServer(...)
-        .AddInterceptors(sp.GetRequiredService<PublishDomainEventsInterceptor>()));
+### LoggingBehavior
+Log thời gian xử lý của mỗi Command/Query:
+```
+[INF] Handled LoginUserCommand in 81ms
 ```
 
-Sau đó mọi `aggregate.RaiseDomainEvent(...)` rồi `SaveChangesAsync(...)` sẽ
-fire event qua MediatR. Handler cụ thể đặt trong `*.Application/EventHandlers/`,
-auto-discovered nhờ `RegisterServicesFromAssembly`. Chi tiết xem
-[11 — Domain Event Dispatcher](./11-domain-events.md).
+### ValidationBehavior
+Chạy FluentValidation trước khi Handler nhận request:
+```csharp
+public class RegisterUserCommandValidator : AbstractValidator<RegisterUserCommand>
+{
+    public RegisterUserCommandValidator()
+    {
+        RuleFor(x => x.Email).NotEmpty().EmailAddress();
+        RuleFor(x => x.Password).MinimumLength(8);
+    }
+}
+```
+Nếu validation fail → throw `ValidationException` → `ExceptionHandlingMiddleware` bắt → trả 400.
 
-### 3.6 Messaging — `Messaging/`
+**Lý do dùng behavior thay vì validate trong Handler:** DRY — không cần nhớ validate trong mỗi handler. Tất cả validation chạy tự động.
 
-Tách thành 5 file:
+---
 
-| File                             | Vai trò                                                                                  |
-|----------------------------------|------------------------------------------------------------------------------------------|
-| `RabbitMqOptions.cs`             | Section `RabbitMq` trong appsettings — Host/Port/User/VHost/Exchange/RetryCount.         |
-| `RabbitMqConnection.cs`          | Singleton connection factory với retry-on-connect (Polly-style).                         |
-| `IEventBus.cs`                   | `IEventBus.PublishAsync<TEvent>(...)` + `IIntegrationEventHandler<TEvent>`.              |
-| `RabbitMqEventBus.cs`            | Implementation publisher: declare topic exchange, routingKey = tên class event.          |
-| `RabbitMqConsumerHostedService.cs`| Generic `BackgroundService` — declare exchange/queue/binding, manual ack/nack, requeue 1 lần. |
+## PublishDomainEventsInterceptor
 
-Đăng ký:
+**Vấn đề giải quyết:** Domain Events cần được dispatch SAU KHI dữ liệu đã lưu vào DB (không phải trước). Nếu dispatch trước, handler có thể phản ứng với dữ liệu chưa tồn tại.
 
 ```csharp
-services.AddRabbitMq(configuration);   // singleton connection + IEventBus
-// và cho mỗi consumer service:
-services.AddHostedService<UserLoggedInConsumer>();
+public sealed class PublishDomainEventsInterceptor : SaveChangesInterceptor
+{
+    public override async ValueTask<int> SavedChangesAsync(...)
+    {
+        // SaveChanges đã chạy xong, dữ liệu đã commit
+        await PublishDomainEvents(dbContext);
+        return result;
+    }
+}
 ```
 
-Chi tiết flow xem [08 — RabbitMQ](./08-rabbitmq.md).
+Flow khi user đăng ký:
+```
+RegisterUserCommandHandler
+  → user.Register()           ← thêm UserRegisteredDomainEvent vào list
+  → dbContext.SaveChangesAsync()
+      → PublishDomainEventsInterceptor.SavedChangesAsync()
+          → mediator.Publish(UserRegisteredDomainEvent)
+              → UserRegisteredDomainEventHandler
+                  → eventBus.PublishAsync(UserRegisteredIntegrationEvent)
+                      → RabbitMQ
+```
 
-## 4. Vì sao tách 3 project
+---
 
-| Project        | Reference được phép từ                                                                       |
-|----------------|----------------------------------------------------------------------------------------------|
-| `SharedKernel` | Bất kỳ project nào (rất ít phụ thuộc, không kéo theo gì nặng).                               |
-| `Contracts`    | Chỉ `Application` & `Infrastructure` & `API` của các service. Không reference từ `Domain`.   |
-| `Common`       | `Application` (cho Behaviors), `Infrastructure` (cho RabbitMQ), `API` (middleware). Không reference từ `Domain`. |
+## ExceptionHandlingMiddleware
 
-Nếu để chung 1 project, `Domain` sẽ vô tình kéo theo MediatR, FluentValidation,
-RabbitMQ.Client — phá vỡ quy tắc "Domain pure". Tách ra để compiler tự bắt
-nếu lỡ tay reference sai.
+Bắt tất cả unhandled exception và trả về JSON:
+
+```csharp
+private static (HttpStatusCode status, string code, string message) = ex switch
+{
+    ValidationException v   => (400, "Validation", errors),
+    NotFoundException nf    => (404, "NotFound",   nf.Message),
+    ConflictException cf    => (409, "Conflict",   cf.Message),
+    UnauthorizedAccessException ua => (401, "Unauthorized", ua.Message),
+    _                       => (500, "Server",     "An unexpected error occurred.")
+};
+```
+
+**Quan trọng:** Stack trace không bao giờ trả về client. `_` case trả về generic message.
+
+---
+
+## RequestLoggingMiddleware
+
+Log mỗi HTTP request với TraceId và SpanId (từ OpenTelemetry context):
+
+```
+[INF] HTTP POST /auth/login responded 200 in 83ms
+      TraceId=4092180ceb8cd9cb65a0658d5ac7cc12
+      SpanId=0a642908c7ae3426
+```
+
+TraceId/SpanId này được Grafana Loki dùng để link log sang Tempo trace. Xem [09 — W3C Trace Context](./09-w3c-trace-context.md).
+
+---
+
+## JWT Extensions (`Common/Auth/JwtAuthExtensions.cs`)
+
+`AddHdosJwtAuth()` — dùng ở tất cả services để validate JWT:
+
+```csharp
+services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(o =>
+    {
+        o.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,       // Phải là "Hdos.Auth"
+            ValidateAudience = true,     // Phải là "Hdos.Services"
+            ValidateLifetime = true,     // Token chưa expired
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(secret),
+            ClockSkew = TimeSpan.FromSeconds(30)  // Cho phép lệch đồng hồ 30s
+        };
+
+        // SignalR WebSocket: token qua query string thay vì header
+        o.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = ctx =>
+            {
+                var accessToken = ctx.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(accessToken) &&
+                    ctx.Request.Path.Value!.Contains("/hubs/"))
+                    ctx.Token = accessToken;
+                return Task.CompletedTask;
+            }
+        };
+    });
+```
+
+`AddHdosJwtIssuer()` — chỉ dùng ở AuthService để TẠO JWT.
+
+---
+
+## Health Checks (`Common/HealthChecks`)
+
+Ba endpoint được register tự động qua `MapHdosHealthChecks()`:
+
+| Endpoint | Kiểm tra | Dùng cho |
+|----------|---------|---------|
+| `/health/live` | Không gì (process còn sống) | Kubernetes liveness probe |
+| `/health/ready` | SQL Server + RabbitMQ | Kubernetes readiness probe |
+| `/health` | SQL Server + RabbitMQ | Nginx gateway health route |
+
+Nginx gateway có route `location ~ ^/xxx(/health.*)` để strip prefix:
+- Request: `GET /orders/health/live`
+- OrderService nhận: `GET /health/live`
+
+---
+
+## RabbitMQ Messaging
+
+### Publisher (`RabbitMqEventBus`)
+
+```csharp
+// Cách dùng trong handler:
+await _eventBus.PublishAsync(new UserRegisteredIntegrationEvent(userId, email));
+```
+
+Phía dưới:
+1. Tạo Activity (W3C tracing) với kind `Producer`
+2. Inject `traceparent`/`tracestate` vào AMQP headers
+3. Serialize event thành JSON
+4. Publish tới exchange `hdos.events` với routing key = tên class event
+
+### Consumer (`RabbitMqConsumerHostedService<TEvent, THandler>`)
+
+Base class — subclass chỉ cần khai báo event type và handler type:
+
+```csharp
+public class UserRegisteredConsumerService
+    : RabbitMqConsumerHostedService<UserRegisteredIntegrationEvent, UserRegisteredConsumer>
+{
+    // Không cần viết gì thêm
+}
+```
+
+Base class xử lý:
+- Connect/reconnect tới RabbitMQ
+- Declare queue và bind tới exchange
+- Deserialize message
+- Extract W3C trace context để link với producer trace
+- Gọi handler
+- Manual ack/nack (không dùng auto-ack)
+- Retry: nếu lần đầu fail → requeue một lần. Nếu fail lần 2 → nack (drop/dead-letter)
+
+**Lý do manual ack:** Nếu auto-ack, message bị xóa khỏi queue ngay khi deliver. Nếu service crash trong lúc xử lý → mất message. Manual ack đảm bảo chỉ ack sau khi xử lý thành công.
+
+---
+
+## Logging (`Common/Logging`)
+
+`UseHdosLogging(serviceName)` cấu hình Serilog:
+
+```csharp
+builder.Host.UseSerilog((ctx, cfg) => cfg
+    .ReadFrom.Configuration(ctx.Configuration)
+    .Enrich.WithProperty("ServiceName", serviceName)
+    .Enrich.FromLogContext()
+    .WriteTo.Console(outputTemplate: "[{Timestamp} {Level}] [{ServiceName}] {Message}{NewLine}{Exception}")
+    .WriteTo.GrafanaLoki(lokiUri,   // Nếu có Loki__Uri trong config
+        labels: [new("service", serviceName)]));
+```
+
+Mỗi log entry có:
+- `ServiceName`: biết log từ service nào
+- `RequestId`, `RequestPath`: từ ASP.NET Core
+- `SpanId`, `TraceId`: từ OpenTelemetry (inject bởi RequestLoggingMiddleware)
