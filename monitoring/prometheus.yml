@@ -9,12 +9,6 @@ scrape_configs:
     static_configs:
       - targets: [localhost:9090]
 
-  - job_name: apigateway
-    static_configs:
-      - targets: [apigateway:8080]
-        labels: { service: ApiGateway }
-    metrics_path: /metrics
-
   - job_name: authservice
     static_configs:
       - targets: [authservice:8080]

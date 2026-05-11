@@ -47,6 +47,9 @@ public sealed class AuthController : ControllerBase
         return Ok(ApiResponse<UserDto>.Ok(result.Value));
     }
 
+    [HttpGet("validate")]
+    public IActionResult ValidateToken() => Ok();
+
     [AllowAnonymous]
     [HttpGet("health")]
     public IActionResult Health() => Ok(new { status = "OK", service = "AuthService", at = DateTime.UtcNow });

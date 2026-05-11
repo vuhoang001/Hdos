@@ -17,6 +17,3 @@ m01service:
   - "src/Services/M01Service/**"
   - "src/BuildingBlocks/**"
 
-apigateway:
-  - "src/ApiGateway/**"
-  - "src/BuildingBlocks/**"

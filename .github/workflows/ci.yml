@@ -46,7 +46,7 @@ jobs:
       - id: resolve
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo 'services=["authservice","orderservice","notificationservice","m01service","apigateway"]' >> $GITHUB_OUTPUT
+            echo 'services=["authservice","orderservice","notificationservice","m01service"]' >> $GITHUB_OUTPUT
             echo 'should_build=true' >> $GITHUB_OUTPUT
           else
             CHANGED='${{ needs.detect-changes.outputs.changed }}'

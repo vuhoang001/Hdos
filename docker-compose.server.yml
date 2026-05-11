@@ -15,8 +15,7 @@
 #   ├── authservice.env       ← biến riêng AuthService
 #   ├── orderservice.env      ← biến riêng OrderService
 #   ├── notificationservice.env
-#   ├── m01service.env
-#   └── apigateway.env
+#   └── m01service.env
 
 services:
 
@@ -63,11 +62,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
 
-  apigateway:
-    image: ghcr.io/${GHCR_OWNER}/hdos-apigateway:${IMAGE_TAG}
-    build: !reset null
-    env_file:
-      - ${ENV_DIR}/common.env
-      - ${ENV_DIR}/apigateway.env
-    environment:
-      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
+  nginx:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro

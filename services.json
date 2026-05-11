@@ -15,8 +15,4 @@
     "dockerfile": "src/Services/M01Service/M01Service.API/Dockerfile",
     "context": "."
   },
-  "apigateway": {
-    "dockerfile": "src/ApiGateway/Dockerfile",
-    "context": "."
-  }
 }
