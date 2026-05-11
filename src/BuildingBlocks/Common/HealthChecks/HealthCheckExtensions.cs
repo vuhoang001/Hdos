@@ -54,6 +54,14 @@ public static class HealthCheckExtensions
             ResponseWriter = WriteJsonResponseAsync
         }).AllowAnonymous();
 
+        // Combined shortcut: /health → same as /health/ready
+        // Dùng bởi gateway route /xxx/health → /health sau khi strip prefix
+        app.MapHealthChecks("/health", new HealthCheckOptions
+        {
+            Predicate = _ => true,
+            ResponseWriter = WriteJsonResponseAsync
+        }).AllowAnonymous();
+
         return app;
     }
 
