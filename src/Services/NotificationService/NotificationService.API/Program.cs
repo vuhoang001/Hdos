@@ -32,8 +32,7 @@ builder.Services.AddSignalR();
 builder.Services.AddSingleton<IUserIdProvider, EmailUserIdProvider>();
 builder.Services.AddScoped<INotificationPusher, SignalRNotificationPusher>();
 
-if (builder.Environment.IsDevelopment())
-    builder.Services.AddHostedService<TestBroadcastService>();
+builder.Services.AddHostedService<TestBroadcastService>();
 
 var app = builder.Build();
 
