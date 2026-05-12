@@ -23,7 +23,12 @@ public sealed class SignalRNotificationPusher : INotificationPusher
     {
         if (string.IsNullOrWhiteSpace(userEmail)) return;
 
-        await _hub.Clients.User(userEmail).SendAsync(EventName, notification, ct);
+        var envelope = new SignalREnvelope<NotificationDto>(
+            Type: EventName,
+            Payload: notification,
+            OccurredAtUtc: DateTime.UtcNow);
+
+        await _hub.Clients.User(userEmail).SendAsync(EventName, envelope, ct);
         _logger.LogInformation("Pushed SignalR notification {NotificationId} → {User}",
             notification.Id, userEmail);
     }

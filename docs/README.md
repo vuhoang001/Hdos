@@ -21,6 +21,7 @@ Bộ tài liệu này mô tả toàn bộ hệ thống **Hdos** — một nền 
 | [11 — Local Dev & Deploy](./11-local-dev-va-deploy.md) | Setup máy local, chạy monitoring, deploy production |
 | [12 — Kiểm thử](./12-kiem-thu.md) | Strategy, stack, cách chạy tests |
 | [13 — Thêm tính năng](./13-them-tinh-nang.md) | Checklist thêm endpoint, event, service mới |
+| [14 — SignalR Realtime](./14-signalr-realtime.md) | Hub, envelope chuẩn, cách test từ frontend |
 
 ---
 
