@@ -23,7 +23,7 @@ builder.Services.AddHdosSwagger("OrderService");
 builder.Services.AddOrderApplication();
 builder.Services.AddOrderInfrastructure(builder.Configuration);
 builder.Services.AddHdosJwtAuth(builder.Configuration);
-builder.Services.AddHdosCors();
+builder.Services.AddHdosCors(builder.Configuration);
 
 builder.Services.AddHdosOpenTelemetry(builder.Configuration, "OrderService");
 builder.Services.AddHdosHealthChecks(builder.Configuration, sqlConnectionStringKey: "OrderDb", checkRabbitMq: true);

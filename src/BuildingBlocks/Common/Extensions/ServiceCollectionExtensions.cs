@@ -11,15 +11,25 @@ public static class ServiceCollectionExtensions
 {
     public const string HdosCorsPolicy = "HdosCors";
 
-    public static IServiceCollection AddHdosCors(this IServiceCollection services)
+    public static IServiceCollection AddHdosCors(
+        this IServiceCollection services,
+        IConfiguration configuration)
     {
+        var origins = configuration
+            .GetSection("Cors:AllowedOrigins")
+            .Get<string[]>() ?? [];
+
         services.AddCors(options =>
         {
             options.AddPolicy(HdosCorsPolicy, policy =>
             {
-                policy.AllowAnyOrigin()
+                // AllowAnyOrigin() không dùng được cùng AllowCredentials()
+                // (trình duyệt chặn khi credentials:include + wildcard origin).
+                // Luôn dùng WithOrigins() cụ thể + AllowCredentials().
+                policy.WithOrigins(origins)
                       .AllowAnyMethod()
-                      .AllowAnyHeader();
+                      .AllowAnyHeader()
+                      .AllowCredentials();
             });
         });
         return services;

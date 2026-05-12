@@ -23,7 +23,7 @@ builder.Services.AddHdosSwagger("NotificationService");
 builder.Services.AddNotificationApplication();
 builder.Services.AddNotificationInfrastructure(builder.Configuration);
 builder.Services.AddHdosJwtAuth(builder.Configuration);
-builder.Services.AddHdosCors();
+builder.Services.AddHdosCors(builder.Configuration);
 
 builder.Services.AddHdosOpenTelemetry(builder.Configuration, "NotificationService");
 builder.Services.AddHdosHealthChecks(builder.Configuration, sqlConnectionStringKey: "NotificationDb", checkRabbitMq: true);
