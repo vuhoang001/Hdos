@@ -4,6 +4,7 @@ using Hdos.Common.HealthChecks;
 using Hdos.Common.Logging;
 using Hdos.Common.Monitoring;
 using Hdos.Common.Swagger;
+using Hdos.NotificationService.API.BackgroundServices;
 using Hdos.NotificationService.API.Hubs;
 using Hdos.NotificationService.Application;
 using Hdos.NotificationService.Application.Realtime;
@@ -30,6 +31,9 @@ builder.Services.AddHdosHealthChecks(builder.Configuration, sqlConnectionStringK
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<IUserIdProvider, EmailUserIdProvider>();
 builder.Services.AddScoped<INotificationPusher, SignalRNotificationPusher>();
+
+if (builder.Environment.IsDevelopment())
+    builder.Services.AddHostedService<TestBroadcastService>();
 
 var app = builder.Build();
 
