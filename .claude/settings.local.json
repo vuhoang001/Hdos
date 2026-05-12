@@ -116,7 +116,29 @@
       "Bash([ -f \"$output_file\" ])",
       "Bash(gh run *)",
       "Bash(gh workflow *)",
-      "Bash(xargs ls)"
+      "Bash(xargs ls)",
+      "Bash(ping -c 2 192.168.100.60)",
+      "Bash(curl -s http://192.168.100.60:5000/health)",
+      "Bash(curl -s http://192.168.100.60:5000/)",
+      "Bash(curl -s http://192.168.100.60:5000/auth/health)",
+      "Bash(curl -s http://192.168.100.60:5000/orders/health/live)",
+      "Bash(curl -s http://192.168.100.60:5000/m01/health/live)",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' http://192.168.100.60:5000/__TRACKED_VAR__/swagger)",
+      "Bash(curl -s -o /dev/null -w 'OPTIONS /m01/dashboard/summary → HTTP %{http_code}\\\\n' -X OPTIONS http://192.168.100.60:5000/m01/dashboard/summary -H 'Origin: http://localhost:3000' -H 'Access-Control-Request-Method: GET')",
+      "Bash(curl -s -X POST http://192.168.100.60:5000/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"localtest@hdos.com\",\"password\":\"WrongPass\"}')",
+      "Bash(curl -s -o /dev/null -w 'HTTP:%{http_code} redirect_to:%{redirect_url}\\\\n' http://192.168.100.60:5000/__TRACKED_VAR__/swagger)",
+      "Bash(curl -s -o /dev/null -w 'HTTP:%{http_code} redirect_to:%{redirect_url}\\\\n' http://192.168.100.60:5000/__TRACKED_VAR__/swagger/)",
+      "Bash(curl -s -o /dev/null -w 'HTTP:%{http_code}\\\\n' http://192.168.100.60:5000/__TRACKED_VAR__/swagger/index.html)",
+      "Bash(curl -sL -w '\\\\nFinal HTTP: %{http_code}' -o /dev/null http://192.168.100.60:5000/auth/swagger -v)",
+      "Bash(curl -sL http://192.168.100.60:5000/auth/swagger/index.html)",
+      "Bash(curl -s -o /dev/null -w 'auth/swagger/index.js → HTTP:%{http_code}\\\\n' http://192.168.100.60:5000/auth/swagger/index.js)",
+      "Bash(curl -s -o /dev/null -w 'orders/swagger/index.js → HTTP:%{http_code}\\\\n' http://192.168.100.60:5000/orders/swagger/index.js)",
+      "Bash(curl -sL http://192.168.100.60:5000/orders/swagger/index.html)",
+      "Bash(curl -s -I -X OPTIONS http://192.168.100.60:5000/auth/login -H 'Origin: http://localhost:3000' -H 'Access-Control-Request-Method: POST')",
+      "Bash(curl -s -I -X POST http://192.168.100.60:5000/auth/login -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json')",
+      "Bash(curl -s -I -X OPTIONS http://192.168.100.60:5000/auth/login -H 'Origin: http://192.168.100.60:4000' -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: ngrok-skip-browser-warning, Authorization, Content-Type')",
+      "Bash(curl -s -X POST http://192.168.100.60:5000/auth/login -H 'Content-Type: application/json' -H 'Origin: http://192.168.100.60:4000' -H 'ngrok-skip-browser-warning: true' -d '{\"email\":\"localtest@hdos.com\",\"password\":\"Test@123456\"}')",
+      "Bash(curl -s -X POST http://192.168.100.60:5000/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"localtest@hdos.com\",\"password\":\"Test@123456\"}')"
     ]
   }
 }
