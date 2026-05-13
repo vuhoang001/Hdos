@@ -90,6 +90,11 @@ services:
       OpenTelemetry__OtlpEndpoint: http://tempo:4317
       Loki__Uri: http://loki:3100
 
+  asyncgateway:
+    environment:
+      OpenTelemetry__OtlpEndpoint: http://tempo:4317
+      Loki__Uri: http://loki:3100
+
 volumes:
   hdos-prometheus-data:
   hdos-loki-data:

@@ -32,3 +32,9 @@ scrape_configs:
       - targets: [m01service:8080]
         labels: { service: M01Service }
     metrics_path: /metrics
+
+  - job_name: asyncgateway
+    static_configs:
+      - targets: [asyncgateway:8080]
+        labels: { service: AsyncGateway }
+    metrics_path: /metrics

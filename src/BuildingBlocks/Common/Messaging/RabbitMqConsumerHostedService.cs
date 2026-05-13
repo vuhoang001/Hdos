@@ -93,6 +93,11 @@ public abstract class RabbitMqConsumerHostedService<TEvent, THandler> : Backgrou
 
             using var scope = _scopeFactory.CreateScope();
             var handler = scope.ServiceProvider.GetRequiredService<THandler>();
+            using var logScope = _logger.BeginScope(new Dictionary<string, object?>
+            {
+                ["TraceId"] = activity?.TraceId.ToHexString(),
+                ["SpanId"] = activity?.SpanId.ToHexString(),
+            });
             await handler.HandleAsync(@event, CancellationToken.None);
 
             _channel!.BasicAck(ea.DeliveryTag, multiple: false);

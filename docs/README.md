@@ -22,6 +22,9 @@ Bộ tài liệu này mô tả toàn bộ hệ thống **Hdos** — một nền 
 | [12 — Kiểm thử](./12-kiem-thu.md) | Strategy, stack, cách chạy tests |
 | [13 — Thêm tính năng](./13-them-tinh-nang.md) | Checklist thêm endpoint, event, service mới |
 | [14 — SignalR Realtime](./14-signalr-realtime.md) | Hub, envelope chuẩn, cách test từ frontend |
+| [15 — Async Gateway](./15-async-gateway.md) | HTTP→Queue→Service, endpoints, consumers |
+| [16 — Test Async Gateway](./16-test-async-gateway.md) | Testing guide cho các async endpoints |
+| [17 — Async Flow & Grafana](./17-async-flow-va-grafana.md) | Luồng kỹ thuật đầy đủ, distributed trace, hướng dẫn Grafana |
 
 ---
 
