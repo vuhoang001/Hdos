@@ -125,3 +125,4 @@ Xem thư mục [`docs/`](./docs/README.md) — 13 file giải thích chi tiết 
 | [10 — CI/CD Pipeline](./docs/10-cicd-pipeline.md) | GitHub Actions |
 | [13 — Thêm tính năng](./docs/13-them-tinh-nang.md) | Checklist thêm endpoint / event / service |
 | [15 — Async Gateway](./docs/15-async-gateway.md) | HTTP → Queue pattern, AsyncGateway service |
+| [16 — Test Async Gateway](./docs/16-test-async-gateway.md) | Luồng test đầy đủ, xem RabbitMQ Management UI |
