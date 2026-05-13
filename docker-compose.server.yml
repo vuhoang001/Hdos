@@ -15,7 +15,8 @@
 #   ├── authservice.env       ← biến riêng AuthService
 #   ├── orderservice.env      ← biến riêng OrderService
 #   ├── notificationservice.env
-#   └── m01service.env
+#   ├── m01service.env
+#   └── asyncgateway.env      ← biến riêng AsyncGateway
 
 services:
 
@@ -59,6 +60,15 @@ services:
     env_file:
       - ${ENV_DIR}/common.env
       - ${ENV_DIR}/m01service.env
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
+
+  asyncgateway:
+    image: ghcr.io/${GHCR_OWNER}/hdos-asyncgateway:${IMAGE_TAG}
+    build: !reset null
+    env_file:
+      - ${ENV_DIR}/common.env
+      - ${ENV_DIR}/asyncgateway.env
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
 
