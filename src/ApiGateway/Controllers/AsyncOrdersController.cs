@@ -1,4 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using Hdos.AsyncGateway.API.Models;
 using Hdos.Common.Messaging;
 using Hdos.Common.Responses;
@@ -33,7 +34,8 @@ public sealed class AsyncOrdersController : ControllerBase
         [FromBody] CreateOrderAsyncRequest request,
         CancellationToken ct)
     {
-        var sub = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+        var sub = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value
+                  ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (!Guid.TryParse(sub, out var customerId))
             return Unauthorized(ApiResponse<AsyncResponse>.Fail("Auth.InvalidToken", "Cannot resolve customer from token."));
 
