@@ -1,3 +1,4 @@
+using System.IdentityModel.Tokens.Jwt;
 using Hdos.AsyncGateway.API.Models;
 using Hdos.Common.Messaging;
 using Hdos.Common.Responses;
@@ -8,7 +9,6 @@ using Microsoft.AspNetCore.Mvc;
 namespace Hdos.AsyncGateway.API.Controllers;
 
 public sealed record CreateOrderAsyncRequest(
-    Guid CustomerId,
     IReadOnlyList<OrderItemDto> Items);
 
 [ApiController]
@@ -23,6 +23,7 @@ public sealed class AsyncOrdersController : ControllerBase
     /// <summary>
     /// Enqueues an order creation. Returns 202 immediately;
     /// OrderService processes the message asynchronously.
+    /// CustomerId is extracted from the JWT sub claim — no need to pass it in the body.
     /// Use the returned CorrelationId to correlate logs and traces.
     /// </summary>
     [HttpPost]
@@ -32,11 +33,15 @@ public sealed class AsyncOrdersController : ControllerBase
         [FromBody] CreateOrderAsyncRequest request,
         CancellationToken ct)
     {
+        var sub = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+        if (!Guid.TryParse(sub, out var customerId))
+            return Unauthorized(ApiResponse<AsyncResponse>.Fail("Auth.InvalidToken", "Cannot resolve customer from token."));
+
         var correlationId = Guid.NewGuid();
         await _eventBus.PublishAsync(
             new OrderCreateRequestedIntegrationEvent(
                 CorrelationId: correlationId,
-                CustomerId: request.CustomerId,
+                CustomerId: customerId,
                 Items: request.Items),
             ct);
 
