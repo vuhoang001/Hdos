@@ -156,7 +156,21 @@
       "Bash(curl -s -X POST http://localhost:5000/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"test@test.com\",\"password\":\"Test@123456\"}')",
       "Bash(curl -s http://localhost:5000/orders/)",
       "Bash(curl -s -o /dev/null -w '%{http_code}' -X OPTIONS http://localhost:5000/auth/login -H 'Origin: http://localhost:3000' -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: ngrok-skip-browser-warning,Content-Type,Authorization')",
-      "Bash(curl -si -X OPTIONS http://localhost:5000/auth/login -H 'Origin: http://localhost:3000' -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: ngrok-skip-browser-warning,Content-Type,Authorization')"
+      "Bash(curl -si -X OPTIONS http://localhost:5000/auth/login -H 'Origin: http://localhost:3000' -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: ngrok-skip-browser-warning,Content-Type,Authorization')",
+      "Bash(curl *)",
+      "Bash(docker run *)",
+      "Bash(traceroute -m 5 192.168.100.60)",
+      "Bash(ip route *)",
+      "Bash(hyprctl workspaces *)",
+      "Bash(hyprctl clients *)",
+      "Bash(xxd)",
+      "Bash(pkill -SIGUSR2 waybar)",
+      "Bash(killall waybar *)",
+      "Bash(waybar)",
+      "Bash(hyprctl monitors *)",
+      "Bash(waybar --version)",
+      "Bash(kill 5187)",
+      "Bash(apt list *)"
     ]
   }
 }
