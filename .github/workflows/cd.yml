@@ -54,6 +54,10 @@ jobs:
             -f docker-compose.monitoring.yml \
             up -d --remove-orphans
 
+          # nginx bind-mounts nginx.conf by inode; git checkout replaces the file
+          # so the running container sees the old config until restarted.
+          docker restart hdos-nginx-1
+
           docker image prune -f
 
       - name: Notify success
@@ -101,6 +105,10 @@ jobs:
             -f docker-compose.server.yml \
             -f docker-compose.monitoring.yml \
             up -d --remove-orphans
+
+          # nginx bind-mounts nginx.conf by inode; git checkout replaces the file
+          # so the running container sees the old config until restarted.
+          docker restart hdos-nginx-1
 
           docker image prune -f
 
