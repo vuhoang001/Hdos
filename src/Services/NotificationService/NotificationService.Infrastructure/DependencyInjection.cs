@@ -31,6 +31,7 @@ public static class DependencyInjection
         services.AddHostedService<UserLoggedInConsumer>();
         services.AddHostedService<UserRegisteredConsumer>();
         services.AddHostedService<OrderCreatedConsumer>();
+        services.AddHostedService<NotificationSendRequestedConsumer>();
         return services;
     }
 }

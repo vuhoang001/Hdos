@@ -24,6 +24,9 @@ public static class DependencyInjection
         services.AddScoped<IIntegrationEventHandler<OrderCreatedIntegrationEvent>, OrderCreatedEventHandler>();
         services.AddScoped<OrderCreatedEventHandler>();
 
+        services.AddScoped<IIntegrationEventHandler<NotificationSendRequestedIntegrationEvent>, NotificationSendRequestedEventHandler>();
+        services.AddScoped<NotificationSendRequestedEventHandler>();
+
         return services;
     }
 }

@@ -112,6 +112,23 @@ services:
         condition: service_healthy
     networks: [hdos-net]
 
+  asyncgateway:
+    image: hdos/asyncgateway:latest
+    build:
+      context: .
+      dockerfile: src/ApiGateway/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: 5672
+      Jwt__Secret: "${JWT_SECRET:-hdos-dev-secret-change-me-in-production-!!}"
+      Jwt__Issuer: "Hdos.Auth"
+      Jwt__Audience: "Hdos.Services"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks: [hdos-net]
+
   nginx:
     image: nginx:1.27-alpine
     volumes:
@@ -121,6 +138,7 @@ services:
       - orderservice
       - notificationservice
       - m01service
+      - asyncgateway
     ports:
       - "5000:8080"
     networks: [hdos-net]

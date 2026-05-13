@@ -12,11 +12,16 @@ Browser / Mobile
       ▼
  nginx :5000          ← API Gateway duy nhất, xử lý CORS + JWT validation
   ├── /auth/*         → AuthService :8080 (+ gRPC :8081)
-  ├── /orders/*       → OrderService :8080
-  ├── /notifications/*→ NotificationService :8080
-  └── /m01/*          → M01Service :8080
+  ├── /orders/*       → OrderService :8080          ┐ Sync (REST)
+  ├── /notifications/*→ NotificationService :8080   ┘
+  ├── /m01/*          → M01Service :8080
+  └── /async/*        → AsyncGateway :8080           ← Async (HTTP → Queue)
+                             │
+                        RabbitMQ hdos.events
+                             ├── OrderCreateRequested      → OrderService
+                             └── NotificationSendRequested → NotificationService
 
-Giao tiếp nội bộ:
+Giao tiếp nội bộ (sync):
   OrderService ──gRPC──► AuthService          (xác nhận user tồn tại)
   AuthService  ──────┐
   OrderService ───── ├──► RabbitMQ hdos.events ──► NotificationService
@@ -66,6 +71,7 @@ Swagger từng service:
 | http://localhost:5000/orders/swagger | OrderService |
 | http://localhost:5000/notifications/swagger | NotificationService |
 | http://localhost:5000/m01/swagger | M01Service |
+| http://localhost:5000/async/swagger | **AsyncGateway** (Async API) |
 | http://localhost:15672 | RabbitMQ Management (guest/guest) |
 
 ### Bật monitoring (Prometheus + Loki + Tempo + Grafana)
@@ -86,10 +92,11 @@ docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
 ```
 Hdos/
 ├── src/
+│   ├── ApiGateway/            ← Async API Gateway: HTTP → RabbitMQ (no DB, Swagger docs)
 │   ├── BuildingBlocks/        ← Shared: SharedKernel, Common, Contracts
 │   └── Services/
 │       ├── AuthService/       ← User, JWT, gRPC server
-│       ├── OrderService/      ← Order, gRPC client
+│       ├── OrderService/      ← Order, gRPC client + queue consumer
 │       ├── NotificationService/ ← RabbitMQ consumers, SignalR
 │       └── M01Service/        ← Nghiệp vụ bệnh viện
 ├── tests/                     ← xUnit + FluentAssertions + NSubstitute
@@ -117,3 +124,4 @@ Xem thư mục [`docs/`](./docs/README.md) — 13 file giải thích chi tiết 
 | [08 — Quan sát hệ thống](./docs/08-quan-sat-he-thong.md) | Prometheus, Loki, Tempo, Grafana |
 | [10 — CI/CD Pipeline](./docs/10-cicd-pipeline.md) | GitHub Actions |
 | [13 — Thêm tính năng](./docs/13-them-tinh-nang.md) | Checklist thêm endpoint / event / service |
+| [15 — Async Gateway](./docs/15-async-gateway.md) | HTTP → Queue pattern, AsyncGateway service |

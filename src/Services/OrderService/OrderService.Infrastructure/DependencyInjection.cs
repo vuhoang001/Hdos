@@ -3,6 +3,7 @@ using Hdos.Common.Persistence;
 using Hdos.Contracts.Grpc.Users;
 using Hdos.OrderService.Application.Abstractions;
 using Hdos.OrderService.Domain.Repositories;
+using Hdos.OrderService.Infrastructure.Consumers;
 using Hdos.OrderService.Infrastructure.Grpc;
 using Hdos.OrderService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -29,6 +30,7 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         services.AddRabbitMq(configuration);
+        services.AddHostedService<OrderCreateRequestedConsumer>();
 
         // gRPC client to AuthService — base address is read from config so docker
         // and local dev both work without code changes.
