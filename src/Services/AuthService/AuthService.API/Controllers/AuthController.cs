@@ -28,7 +28,9 @@ public sealed class AuthController(ISender sender) : ControllerBase
         if (sub is null || !Guid.TryParse(sub, out var userId))
             return Unauthorized();
 
-        var email    = User.FindFirstValue("email") ?? string.Empty;
+        var email    = User.FindFirstValue("email")
+                  ?? User.FindFirstValue(ClaimTypes.Email)
+                  ?? string.Empty;
         var fullName = User.FindFirstValue("preferred_username")
                        ?? User.FindFirstValue("name")
                        ?? email;
