@@ -15,15 +15,14 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         b.Property(u => u.Id).ValueGeneratedNever();
 
         b.Property(u => u.FullName).HasMaxLength(120).IsRequired();
-        b.Property(u => u.PasswordHash).HasMaxLength(500).IsRequired();
         b.Property(u => u.CreatedAtUtc).IsRequired();
         b.Property(u => u.UpdatedAtUtc);
-        b.Property(u => u.LastLoginUtc);
+        b.Property(u => u.LastSeenUtc);
 
         b.Property(u => u.Email)
             .HasConversion(
                 e => e.Value,
-                v => Email.Create(v).Value)
+                v => Email.Create(v).Value!)
             .HasMaxLength(255)
             .IsRequired();
 

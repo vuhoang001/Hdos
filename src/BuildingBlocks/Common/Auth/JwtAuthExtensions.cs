@@ -1,6 +1,4 @@
-using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
@@ -10,50 +8,49 @@ namespace Hdos.Common.Auth;
 public static class JwtAuthExtensions
 {
     /// <summary>
-    /// Wires up JWT bearer authentication using the "Jwt" config section.
-    /// Call this from Gateway and every service that should validate tokens.
+    /// Validates Keycloak-issued JWTs using JWKS discovery (asymmetric keys).
+    /// Authority is read from Keycloak:Authority in configuration.
+    /// Call this from every service that needs to authenticate requests.
     /// </summary>
     public static IServiceCollection AddHdosJwtAuth(
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var section = configuration.GetSection(JwtOptions.SectionName);
-        services.Configure<JwtOptions>(section);
-        var options = section.Get<JwtOptions>() ?? new JwtOptions();
+        var opts = configuration.GetSection(KeycloakOptions.SectionName).Get<KeycloakOptions>()
+                   ?? new KeycloakOptions();
+
+        services.Configure<KeycloakOptions>(configuration.GetSection(KeycloakOptions.SectionName));
 
         services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(o =>
             {
+                o.Authority = opts.Authority;
+                o.Audience = opts.Audience;
+                // Allow HTTP in dev/Docker environments (no TLS internally)
                 o.RequireHttpsMetadata = false;
                 o.SaveToken = true;
                 o.TokenValidationParameters = new TokenValidationParameters
                 {
-                    ValidateIssuer = true,
-                    ValidateAudience = true,
-                    ValidateLifetime = true,
-                    ValidateIssuerSigningKey = true,
-                    ValidIssuer = options.Issuer,
-                    ValidAudience = options.Audience,
-                    IssuerSigningKey = new SymmetricSecurityKey(
-                        Encoding.UTF8.GetBytes(options.Secret)),
-                    ClockSkew = TimeSpan.FromSeconds(30),
+                    ValidateIssuer           = !string.IsNullOrWhiteSpace(opts.Authority),
+                    ValidateAudience         = !string.IsNullOrWhiteSpace(opts.Audience),
+                    ValidateLifetime         = true,
+                    ClockSkew                = TimeSpan.FromSeconds(30),
+                    // Keycloak puts roles in "roles" claim (after realm-roles mapper is configured)
+                    RoleClaimType            = "roles",
+                    NameClaimType            = "preferred_username",
                 };
 
-                // SignalR (và bất kỳ WebSocket nào) không thể gắn header
-                // `Authorization` lúc upgrade — token được gửi qua query
-                // `?access_token=...`. Đọc query khi path chứa `/hubs/`.
+                // SignalR WebSocket: token arrives via ?access_token= query string
                 o.Events = new JwtBearerEvents
                 {
                     OnMessageReceived = ctx =>
                     {
-                        var accessToken = ctx.Request.Query["access_token"];
-                        var path = ctx.HttpContext.Request.Path;
-                        if (!string.IsNullOrEmpty(accessToken) && path.HasValue &&
+                        var token = ctx.Request.Query["access_token"];
+                        var path  = ctx.HttpContext.Request.Path;
+                        if (!string.IsNullOrEmpty(token) && path.HasValue &&
                             path.Value!.Contains("/hubs/", StringComparison.OrdinalIgnoreCase))
-                        {
-                            ctx.Token = accessToken;
-                        }
+                            ctx.Token = token;
                         return Task.CompletedTask;
                     }
                 };
@@ -64,14 +61,31 @@ public static class JwtAuthExtensions
     }
 
     /// <summary>
-    /// Registers <see cref="IJwtTokenIssuer"/>. Only AuthService needs this.
+    /// Registers fine-grained permission policies keyed by HdosPermissions constants.
+    /// Policies resolve permission claims injected by PermissionsMiddleware from the
+    /// X-User-Permissions header that nginx forwards from AuthService /auth/validate.
+    /// Call this from every service that uses [Authorize(Policy = HdosPermissions.Xxx)].
     /// </summary>
-    public static IServiceCollection AddHdosJwtIssuer(
-        this IServiceCollection services,
-        IConfiguration configuration)
+    public static IServiceCollection AddHdosAuthorization(this IServiceCollection services)
     {
-        services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
-        services.AddSingleton<IJwtTokenIssuer, JwtTokenIssuer>();
+        services.AddAuthorization(options =>
+        {
+            options.AddPolicy(HdosPermissions.OrdersCreate,      p => p.RequireClaim("permission", HdosPermissions.OrdersCreate));
+            options.AddPolicy(HdosPermissions.OrdersRead,        p => p.RequireClaim("permission", HdosPermissions.OrdersRead));
+            options.AddPolicy(HdosPermissions.OrdersUpdate,      p => p.RequireClaim("permission", HdosPermissions.OrdersUpdate));
+            options.AddPolicy(HdosPermissions.OrdersDelete,      p => p.RequireClaim("permission", HdosPermissions.OrdersDelete));
+
+            options.AddPolicy(HdosPermissions.NotificationsRead, p => p.RequireClaim("permission", HdosPermissions.NotificationsRead));
+            options.AddPolicy(HdosPermissions.NotificationsSend, p => p.RequireClaim("permission", HdosPermissions.NotificationsSend));
+
+            options.AddPolicy(HdosPermissions.M01Read,           p => p.RequireClaim("permission", HdosPermissions.M01Read));
+            options.AddPolicy(HdosPermissions.M01Write,          p => p.RequireClaim("permission", HdosPermissions.M01Write));
+
+            options.AddPolicy(HdosPermissions.AsyncSubmit,       p => p.RequireClaim("permission", HdosPermissions.AsyncSubmit));
+
+            options.AddPolicy(HdosPermissions.UsersManage,       p => p.RequireClaim("permission", HdosPermissions.UsersManage));
+            options.AddPolicy(HdosPermissions.RolesManage,       p => p.RequireClaim("permission", HdosPermissions.RolesManage));
+        });
         return services;
     }
 }

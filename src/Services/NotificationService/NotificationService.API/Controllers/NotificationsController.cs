@@ -1,3 +1,4 @@
+using Hdos.Common.Auth;
 using Hdos.Common.Responses;
 using Hdos.NotificationService.Application.DTOs;
 using Hdos.NotificationService.Application.Features.ListNotifications;
@@ -15,6 +16,7 @@ public sealed class NotificationsController : ControllerBase
     private readonly ISender _sender;
     public NotificationsController(ISender sender) => _sender = sender;
 
+    [Authorize(Policy = HdosPermissions.NotificationsRead)]
     [HttpGet]
     public async Task<IActionResult> ListRecent([FromQuery] int take = 50, CancellationToken ct = default)
     {

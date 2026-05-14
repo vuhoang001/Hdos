@@ -1,56 +1,61 @@
 using Hdos.AuthService.Application.DTOs;
 using Hdos.AuthService.Application.Features.GetUser;
-using Hdos.AuthService.Application.Features.Login;
-using Hdos.AuthService.Application.Features.Register;
+using Hdos.AuthService.Application.Features.ValidateToken;
 using Hdos.Common.Responses;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace Hdos.AuthService.API.Controllers;
 
 [ApiController]
 [Route("auth")]
-[Authorize]
-public sealed class AuthController : ControllerBase
+public sealed class AuthController(ISender sender) : ControllerBase
 {
-    private readonly ISender _sender;
-
-    public AuthController(ISender sender) => _sender = sender;
-
-    [AllowAnonymous]
-    [HttpPost("register")]
-    public async Task<IActionResult> Register([FromBody] RegisterUserCommand cmd, CancellationToken ct)
+    /// <summary>
+    /// Called by nginx auth_request on every protected request.
+    /// Validates the Keycloak JWT (via JwtBearer middleware), JIT-provisions the user profile,
+    /// resolves RBAC roles + permissions from the AuthService DB, and writes them to response
+    /// headers so nginx can forward them to upstream services.
+    /// </summary>
+    [Authorize]
+    [HttpGet("validate")]
+    public async Task<IActionResult> Validate(CancellationToken ct)
     {
-        var result = await _sender.Send(cmd, ct);
-        return result.IsSuccess
-            ? Ok(ApiResponse<UserDto>.Ok(result.Value))
-            : BadRequest(ApiResponse<UserDto>.Fail(result.Error.Code, result.Error.Message));
+        var sub = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                  ?? User.FindFirstValue("sub");
+        if (sub is null || !Guid.TryParse(sub, out var userId))
+            return Unauthorized();
+
+        var email    = User.FindFirstValue("email") ?? string.Empty;
+        var fullName = User.FindFirstValue("preferred_username")
+                       ?? User.FindFirstValue("name")
+                       ?? email;
+
+        var ctx = await sender.Send(new ValidateAndResolveQuery(userId, email, fullName), ct);
+
+        Response.Headers["X-User-Id"]          = userId.ToString();
+        Response.Headers["X-User-Email"]        = email;
+        Response.Headers["X-User-Roles"]        = string.Join(",", ctx.Roles);
+        Response.Headers["X-User-Permissions"]  = string.Join(",", ctx.Permissions);
+
+        return Ok();
     }
 
-    [AllowAnonymous]
-    [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginUserCommand cmd, CancellationToken ct)
-    {
-        var result = await _sender.Send(cmd, ct);
-        if (result.IsFailure)
-            return Unauthorized(ApiResponse<LoginResultDto>.Fail(result.Error.Code, result.Error.Message));
-        return Ok(ApiResponse<LoginResultDto>.Ok(result.Value));
-    }
-
+    /// <summary>Returns a user's local profile (keyed by Keycloak sub).</summary>
+    [Authorize(Roles = "admin")]
     [HttpGet("users/{id:guid}")]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
-        var result = await _sender.Send(new GetUserByIdQuery(id), ct);
+        var result = await sender.Send(new GetUserByIdQuery(id), ct);
         if (result.IsFailure)
             return NotFound(ApiResponse<UserDto>.Fail(result.Error.Code, result.Error.Message));
         return Ok(ApiResponse<UserDto>.Ok(result.Value));
     }
 
-    [HttpGet("validate")]
-    public IActionResult ValidateToken() => Ok();
-
     [AllowAnonymous]
     [HttpGet("health")]
-    public IActionResult Health() => Ok(new { status = "OK", service = "AuthService", at = DateTime.UtcNow });
+    public IActionResult Health() =>
+        Ok(new { status = "OK", service = "AuthService", at = DateTime.UtcNow });
 }

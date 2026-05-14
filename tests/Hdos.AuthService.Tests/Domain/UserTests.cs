@@ -8,54 +8,48 @@ namespace Hdos.AuthService.Tests.Domain;
 
 public sealed class UserTests
 {
-    private static Email AnEmail(string s = "alice@hdos.io") => Email.Create(s).Value;
+    private static Email AnEmail(string s = "alice@hdos.io") => Email.Create(s).Value!;
 
     [Fact]
-    public void Register_TrimsName_AndAssignsValues()
+    public void Provision_TrimsName_AndAssignsValues()
     {
-        var user = User.Register(AnEmail(), "  Alice  ", "hash");
+        var id = Guid.NewGuid();
+        var user = User.Provision(id, AnEmail(), "  Alice  ");
 
-        user.Id.Should().NotBe(Guid.Empty);
+        user.Id.Should().Be(id);
         user.Email.Value.Should().Be("alice@hdos.io");
         user.FullName.Should().Be("Alice");
-        user.PasswordHash.Should().Be("hash");
+        user.LastSeenUtc.Should().BeNull();
         user.CreatedAtUtc.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(2));
-        user.LastLoginUtc.Should().BeNull();
     }
 
     [Fact]
-    public void Register_RaisesUserRegisteredDomainEvent()
+    public void Provision_RaisesUserRegisteredDomainEvent()
     {
-        var user = User.Register(AnEmail(), "Alice", "hash");
+        var user = User.Provision(Guid.NewGuid(), AnEmail(), "Alice");
 
         user.DomainEvents.Should().ContainSingle()
             .Which.Should().BeOfType<UserRegisteredDomainEvent>()
             .Which.UserId.Should().Be(user.Id);
     }
 
-    [Theory]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void Register_BlankName_Throws(string fullName)
+    [Fact]
+    public void Provision_BlankName_FallsBackToEmail()
     {
-        var act = () => User.Register(AnEmail(), fullName, "hash");
-        act.Should().Throw<ArgumentException>().WithParameterName("fullName");
+        var user = User.Provision(Guid.NewGuid(), AnEmail("bob@hdos.io"), "   ");
+
+        user.FullName.Should().Be("bob@hdos.io");
     }
 
     [Fact]
-    public void RecordLogin_SetsTimestamp_AndRaisesEvent()
+    public void UpdateLastSeen_SetsTimestamp()
     {
-        var user = User.Register(AnEmail(), "Alice", "hash");
-        user.ClearDomainEvents();
+        var user = User.Provision(Guid.NewGuid(), AnEmail(), "Alice");
 
-        user.RecordLogin();
+        user.UpdateLastSeen();
 
-        user.LastLoginUtc.Should().NotBeNull();
-        user.LastLoginUtc!.Value.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(2));
+        user.LastSeenUtc.Should().NotBeNull();
+        user.LastSeenUtc!.Value.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(2));
         user.UpdatedAtUtc.Should().NotBeNull();
-
-        user.DomainEvents.Should().ContainSingle()
-            .Which.Should().BeOfType<UserLoggedInDomainEvent>()
-            .Which.UserId.Should().Be(user.Id);
     }
 }

@@ -13,10 +13,13 @@ public sealed class GetUserByIdQueryHandlerTests
     private readonly IUserRepository _users = Substitute.For<IUserRepository>();
     private GetUserByIdQueryHandler NewHandler() => new(_users);
 
+    private static User AUser(string email = "alice@hdos.io", string name = "Alice")
+        => User.Provision(Guid.NewGuid(), Email.Create(email).Value!, name);
+
     [Fact]
     public async Task Handle_Found_ReturnsDto()
     {
-        var user = User.Register(Email.Create("alice@hdos.io").Value, "Alice", "h");
+        var user = AUser();
         _users.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
 
         var result = await NewHandler().Handle(new GetUserByIdQuery(user.Id), CancellationToken.None);

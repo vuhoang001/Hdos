@@ -4,36 +4,39 @@ using Hdos.SharedKernel;
 
 namespace Hdos.AuthService.Domain.Entities;
 
+/// <summary>
+/// Profile store keyed by Keycloak subject (sub claim).
+/// Created lazily (JIT) the first time a Keycloak token is validated via /auth/validate.
+/// Authentication is fully delegated to Keycloak — no password stored here.
+/// </summary>
 public sealed class User : AggregateRoot<Guid>
 {
     public Email Email { get; private set; } = default!;
     public string FullName { get; private set; } = default!;
-    public string PasswordHash { get; private set; } = default!;
-    public DateTime? LastLoginUtc { get; private set; }
+    public DateTime? LastSeenUtc { get; private set; }
 
     private User() { }
 
-    public static User Register(Email email, string fullName, string passwordHash)
+    /// <summary>Creates a local profile for a Keycloak user on first token validation.</summary>
+    public static User Provision(Guid keycloakId, Email email, string fullName)
     {
         if (string.IsNullOrWhiteSpace(fullName))
-            throw new ArgumentException("Full name is required", nameof(fullName));
+            fullName = email.Value;
 
         var user = new User
         {
-            Id = Guid.NewGuid(),
-            Email = email,
+            Id       = keycloakId,
+            Email    = email,
             FullName = fullName.Trim(),
-            PasswordHash = passwordHash
         };
 
         user.RaiseDomainEvent(new UserRegisteredDomainEvent(user.Id, user.Email.Value, user.FullName));
         return user;
     }
 
-    public void RecordLogin()
+    public void UpdateLastSeen()
     {
-        LastLoginUtc = DateTime.UtcNow;
+        LastSeenUtc  = DateTime.UtcNow;
         UpdatedAtUtc = DateTime.UtcNow;
-        RaiseDomainEvent(new UserLoggedInDomainEvent(Id, Email.Value));
     }
 }

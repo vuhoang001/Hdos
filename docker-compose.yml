@@ -1,5 +1,43 @@
 services:
 
+  # ── Identity Provider ────────────────────────────────────────────────────────
+  postgres-keycloak:
+    image: postgres:16-alpine
+    container_name: hdos-postgres-kc
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: "${KC_DB_PASSWORD:-keycloak_dev_pass}"
+    volumes:
+      - hdos-kcdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [hdos-net]
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    container_name: hdos-keycloak
+    command: start-dev
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: "jdbc:postgresql://postgres-keycloak:5432/keycloak"
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: "${KC_DB_PASSWORD:-keycloak_dev_pass}"
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: "${KC_ADMIN_PASSWORD:-Admin1234!}"
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres-keycloak:
+        condition: service_healthy
+    networks: [hdos-net]
+
+  # ── Infrastructure ────────────────────────────────────────────────────────────
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: hdos-sqlserver
@@ -31,6 +69,7 @@ services:
       retries: 10
     networks: [hdos-net]
 
+  # ── Services ──────────────────────────────────────────────────────────────────
   authservice:
     image: hdos/authservice:latest
     build:
@@ -43,15 +82,15 @@ services:
       ConnectionStrings__AuthDb: "Server=sqlserver,1433;Database=AuthDb;User Id=sa;Password=${MSSQL_SA_PASSWORD:-Hdos!DevPass123};TrustServerCertificate=True;Encrypt=False"
       RabbitMq__Host: rabbitmq
       RabbitMq__Port: 5672
-      Jwt__Secret: "${JWT_SECRET:-hdos-dev-secret-change-me-in-production-!!}"
-      Jwt__Issuer: "Hdos.Auth"
-      Jwt__Audience: "Hdos.Services"
-      Jwt__ExpiresMinutes: "60"
+      Keycloak__Authority: "http://keycloak:8080/realms/hdos"
+      Keycloak__Audience: "hdos-backend"
     depends_on:
       sqlserver:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      keycloak:
+        condition: service_started
     networks: [hdos-net]
 
   orderservice:
@@ -65,9 +104,8 @@ services:
       RabbitMq__Host: rabbitmq
       RabbitMq__Port: 5672
       Services__Auth__GrpcUrl: "http://authservice:8081"
-      Jwt__Secret: "${JWT_SECRET:-hdos-dev-secret-change-me-in-production-!!}"
-      Jwt__Issuer: "Hdos.Auth"
-      Jwt__Audience: "Hdos.Services"
+      Keycloak__Authority: "http://keycloak:8080/realms/hdos"
+      Keycloak__Audience: "hdos-backend"
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -87,9 +125,8 @@ services:
       ConnectionStrings__NotificationDb: "Server=sqlserver,1433;Database=NotificationDb;User Id=sa;Password=${MSSQL_SA_PASSWORD:-Hdos!DevPass123};TrustServerCertificate=True;Encrypt=False"
       RabbitMq__Host: rabbitmq
       RabbitMq__Port: 5672
-      Jwt__Secret: "${JWT_SECRET:-hdos-dev-secret-change-me-in-production-!!}"
-      Jwt__Issuer: "Hdos.Auth"
-      Jwt__Audience: "Hdos.Services"
+      Keycloak__Authority: "http://keycloak:8080/realms/hdos"
+      Keycloak__Audience: "hdos-backend"
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -105,9 +142,8 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__M01Db: "Server=sqlserver,1433;Database=M01Db;User Id=sa;Password=${MSSQL_SA_PASSWORD:-Hdos!DevPass123};TrustServerCertificate=True;Encrypt=False"
-      Jwt__Secret: "${JWT_SECRET:-hdos-dev-secret-change-me-in-production-!!}"
-      Jwt__Issuer: "Hdos.Auth"
-      Jwt__Audience: "Hdos.Services"
+      Keycloak__Authority: "http://keycloak:8080/realms/hdos"
+      Keycloak__Audience: "hdos-backend"
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -122,9 +158,8 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       RabbitMq__Host: rabbitmq
       RabbitMq__Port: 5672
-      Jwt__Secret: "${JWT_SECRET:-hdos-dev-secret-change-me-in-production-!!}"
-      Jwt__Issuer: "Hdos.Auth"
-      Jwt__Audience: "Hdos.Services"
+      Keycloak__Authority: "http://keycloak:8080/realms/hdos"
+      Keycloak__Audience: "hdos-backend"
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -132,6 +167,7 @@ services:
 
   nginx:
     image: nginx:1.27-alpine
+    container_name: hdos-nginx
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
@@ -150,3 +186,4 @@ networks:
 
 volumes:
   hdos-sqldata:
+  hdos-kcdata:

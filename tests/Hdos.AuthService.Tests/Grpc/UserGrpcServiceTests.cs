@@ -20,10 +20,13 @@ public sealed class UserGrpcServiceTests
     private static ServerCallContext NewContext() =>
         TestServerCallContext.Create();
 
+    private static User AUser(string email = "alice@hdos.io", string name = "Alice")
+        => User.Provision(Guid.NewGuid(), Email.Create(email).Value!, name);
+
     [Fact]
     public async Task GetUserById_Found_MapsToReply()
     {
-        var user = User.Register(Email.Create("alice@hdos.io").Value, "Alice", "h");
+        var user = AUser();
         _users.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
 
         var reply = await NewService().GetUserById(
@@ -63,7 +66,7 @@ public sealed class UserGrpcServiceTests
     [Fact]
     public async Task UserExists_ReturnsTrueWhenFound()
     {
-        var user = User.Register(Email.Create("a@b.io").Value, "A", "h");
+        var user = AUser("a@b.io", "A");
         _users.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
 
         var reply = await NewService().UserExists(

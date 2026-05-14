@@ -33,7 +33,7 @@ builder.Services.AddGrpc();
 builder.Services.AddAuthApplication();
 builder.Services.AddAuthInfrastructure(builder.Configuration);
 builder.Services.AddHdosJwtAuth(builder.Configuration);
-builder.Services.AddHdosJwtIssuer(builder.Configuration);
+builder.Services.AddHdosAuthorization();
 builder.Services.AddHdosCors(builder.Configuration);
 
 builder.Services.AddHdosOpenTelemetry(builder.Configuration, "AuthService");

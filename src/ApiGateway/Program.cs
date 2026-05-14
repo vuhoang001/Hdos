@@ -14,6 +14,7 @@ builder.Services.AddHdosSwagger("AsyncGateway");
 
 builder.Services.AddRabbitMq(builder.Configuration);
 builder.Services.AddHdosJwtAuth(builder.Configuration);
+builder.Services.AddHdosAuthorization();
 builder.Services.AddHdosCors(builder.Configuration);
 
 builder.Services.AddHdosOpenTelemetry(builder.Configuration, "AsyncGateway");
@@ -31,6 +32,7 @@ app.UseSwaggerUI(c =>
 app.UseHdosMiddleware();
 app.UseHdosCors();
 app.UseAuthentication();
+app.UseHdosPermissions();
 app.UseAuthorization();
 app.MapControllers();
 app.UseHdosMonitoring();

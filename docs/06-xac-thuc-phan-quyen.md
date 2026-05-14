@@ -1,161 +1,124 @@
 # 06 — Xác thực & Phân quyền
 
+> Chi tiết đầy đủ về Keycloak setup, RBAC data model, Admin API và frontend integration xem tại **[docs/18-keycloak-rbac.md](./18-keycloak-rbac.md)**.
+
 ---
 
 ## Tổng quan: Defense in Depth
 
-Hệ thống dùng **hai lớp** JWT validation:
+Hệ thống dùng **hai lớp** bảo vệ:
 
 ```
-Client
-  │
+Browser
+  │  1. Login → Keycloak (OIDC)  → nhận JWT (RS256)
+  │  2. Gọi API + Bearer token
   ▼
-nginx          ← Lớp 1: auth_request → /auth/validate
-  │ (nếu pass)
+nginx          ← Lớp 1: auth_request → AuthService /auth/validate
+  │ (pass: 200, kèm X-User-Permissions header)
   ▼
-Service        ← Lớp 2: [Authorize] attribute + JWT middleware
+Service        ← Lớp 2: [Authorize(Policy = "perm")] + PermissionsMiddleware
 ```
 
 **Tại sao cần hai lớp?**
-- Nếu chỉ có nginx: ai đó bypass nginx (VPN nội bộ, lỗi config) → service không có bảo vệ
-- Nếu chỉ có service: mỗi service phải tự query AuthService để validate → coupling cao
-- Cả hai: nginx filter phần lớn request không hợp lệ, service là lớp cuối cùng
+- nginx filter sớm mọi request không hợp lệ trước khi chạm service
+- Service tự validate JWT (defense in depth nếu ai bypass nginx)
+- X-User-Permissions chứa permissions đã resolve từ AuthService DB — service không cần biết về Keycloak roles
 
 ---
 
-## JWT Token
+## Keycloak: Identity Provider
 
-### Cấu trúc
+Keycloak quản lý **toàn bộ authentication**:
+- Đăng nhập / đăng ký / quên mật khẩu qua UI Keycloak
+- OIDC Authorization Code + PKCE cho frontend
+- Phát hành JWT (RS256, validate bằng JWKS)
+- Quản lý session, refresh token
+
 ```
-Header.Payload.Signature
-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.
-eyJzdWIiOiJ7dXNlcklkfSIsImVtYWlsIjoiLi4uIiwianRpIjoiLi4uIiwibmJmIjoxNzAwMDAwMDAwLCJleHAiOjE3MDAwMDM2MDAsImlzcyI6Ikhkb3MuQXV0aCIsImF1ZCI6Ikhkb3MuU2VydmljZXMifQ.
-{signature}
+Authority: http://keycloak:8080/realms/hdos  (Docker)
+           http://localhost:8080/realms/hdos  (local dev)
+Audience:  hdos-backend
 ```
-
-### Claims
-| Claim | Giá trị | Mô tả |
-|-------|---------|-------|
-| `sub` | userId (Guid) | User ID |
-| `email` | user@example.com | Email |
-| `jti` | random Guid | JWT ID (unique per token) |
-| `nbf` | Unix timestamp | Not Before — token chưa valid trước thời điểm này |
-| `exp` | Unix timestamp | Expires — token hết hạn |
-| `iss` | `Hdos.Auth` | Issuer |
-| `aud` | `Hdos.Services` | Audience |
-
-### Tạo token (AuthService only)
-```csharp
-// LoginUserCommandHandler.cs
-var token = _tokenIssuer.Issue(user);
-// JwtTokenIssuer tạo HS256 JWT với secret key từ config
-```
-
-### Config JWT
-```json
-// appsettings.json
-{
-  "Jwt": {
-    "Secret": "BuSehDqHnOAoGDzmxgIlSPmTtSARXpsVN+/VUcTGC45LkuohRmgU0E6BlXpnqfEP",
-    "Issuer": "Hdos.Auth",
-    "Audience": "Hdos.Services",
-    "ExpiresMinutes": 60
-  }
-}
-```
-
-**Quan trọng:** Secret phải giống nhau ở tất cả services (để validate). Trên server, inject qua environment variable `/opt/hdos-prod/common.env`.
 
 ---
 
-## Luồng Login
+## AuthService: RBAC & Validation
+
+AuthService **không** xử lý login/register. Trách nhiệm duy nhất:
+
+1. **Validate JWT** — dùng JWKS từ Keycloak (`Authority/.well-known/openid-configuration`)
+2. **JIT Provision** — tạo user profile local lần đầu nhận token hợp lệ
+3. **Resolve RBAC** — tra Roles → Permissions từ DB của AuthService
+4. **Emit X-headers** — ghi `X-User-Permissions: perm1,perm2,...` để nginx forward
+
+### RBAC hierarchy
 
 ```
-POST /auth/login
-Body: { "email": "user@example.com", "password": "Pass123!" }
-         │
-         ▼
-[nginx location /auth/] → proxy thẳng, không auth_request
-         │
-         ▼
-AuthService: LoginUserCommandHandler
-  1. FindByEmail(email)
-  2. VerifyPassword(password, user.PasswordHash)    ← BCrypt compare
-  3. Nếu fail → Result.Failure("Invalid credentials")
-  4. Nếu pass → jwtTokenIssuer.Issue(user)
-  5. Raise UserLoggedInDomainEvent
-         │
-         ▼
-Response 200:
-{
-  "success": true,
-  "data": {
-    "userId": "...",
-    "email": "user@example.com",
-    "token": "eyJhbGci..."
-  }
-}
+Roles ──< RolePermissions >── Permissions (resource:action)
+  └──< UserRoles >── User (keyed by Keycloak sub)
 ```
+
+Endpoint admin (yêu cầu Keycloak role `admin`):
+- `POST   /auth/admin/roles` — tạo role
+- `POST   /auth/admin/permissions` — tạo permission  
+- `POST   /auth/admin/roles/{roleId}/permissions/{permId}` — gán permission cho role
+- `POST   /auth/admin/users/{userId}/roles/{roleId}` — gán role cho user
 
 ---
 
 ## Luồng gọi Protected API
 
 ```
-GET /m01/dashboard/summary
-Headers:
-  Authorization: Bearer eyJhbGci...
-  Content-Type: application/json
+GET /orders/
+Authorization: Bearer <keycloak-jwt>
          │
          ▼
-nginx: location /m01/
-  ├── auth_request → GET /_auth_validate (internal)
-  │      │
-  │      ▼
-  │   nginx gửi subrequest → AuthService /auth/validate
-  │      Headers: Authorization: Bearer eyJhbGci... (forward từ request gốc)
-  │      │
-  │      ▼
-  │   AuthService: ValidateToken()
-  │      • JWT middleware parse token
-  │      • Kiểm tra: chữ ký, issuer, audience, expiry
-  │      • Nếu valid → [Authorize] pass → 200 OK
-  │      • Nếu invalid → 401 Unauthorized
-  │      │
-  │   ┌──┴──┐
-  │   200   401
-  │   │     └── nginx error_page 401 = @unauthorized
-  │   │         return 401 '{"error":"Unauthorized",...}'
-  │   │
-  ▼   ▼ (tiếp theo nếu 200)
-nginx forward request gốc → M01Service
-  Headers: Authorization: Bearer eyJhbGci... (vẫn giữ)
+nginx: auth_request → /_auth_validate → AuthService /auth/validate
+         │
+    AuthService:
+    • Validate JWKS chữ ký JWT
+    • JIT provision user nếu chưa có
+    • Query Roles + Permissions từ DB
+    • Response 200 + headers:
+        X-User-Id: {guid}
+        X-User-Permissions: orders:read,orders:create,...
          │
          ▼
-M01Service: JWT middleware validate lại token (lần 2)
-  → [Authorize] pass → Controller action chạy
+nginx: auth_request_set → proxy_set_header X-User-Permissions ...
+nginx forward request + X-User-Permissions → OrderService
          │
          ▼
-Response 200: { "tongLuotKham": 128, ... }
+OrderService:
+• JwtBearer validate token (lần 2, defense in depth)
+• PermissionsMiddleware đọc X-User-Permissions → thêm claim("permission", "orders:read")
+• [Authorize(Policy = HdosPermissions.OrdersRead)] → pass
+         │
+         ▼
+Response 200
 ```
 
 ---
 
-## Authorization trong Controller
+## Fine-grained Authorization
+
+Mỗi action dùng permission policy cụ thể:
 
 ```csharp
-[ApiController]
-[Route("m01")]
-[Authorize]                    // Tất cả action trong controller yêu cầu JWT
-public class M01Controller : ControllerBase
-{
-    [HttpGet("dashboard/summary")]
-    public async Task<IActionResult> GetSummary() { ... }
+// OrdersController
+[Authorize(Policy = HdosPermissions.OrdersCreate)]
+[HttpPost]
+public async Task<IActionResult> Create(...)
 
-    [HttpGet("health")]
-    [AllowAnonymous]           // Override class-level [Authorize]
-    public IActionResult Health() => Ok();
-}
+[Authorize(Policy = HdosPermissions.OrdersRead)]
+[HttpGet("{id:guid}")]
+public async Task<IActionResult> GetById(...)
+```
+
+AuthService admin endpoints dùng Keycloak role trực tiếp:
+```csharp
+[Authorize(Roles = "admin")]
+[Route("auth/admin/roles")]
+public sealed class RolesAdminController : ControllerBase
 ```
 
 ---
@@ -165,26 +128,12 @@ public class M01Controller : ControllerBase
 WebSocket không cho phép gửi custom header trong browser. SignalR dùng query string:
 
 ```javascript
-// Client
 const connection = new HubConnectionBuilder()
-    .withUrl("http://server:5000/notifications/hubs/notifications?access_token=" + token)
+    .withUrl("/notifications/hubs/notifications?access_token=" + keycloak.token)
     .build();
 ```
 
-```csharp
-// Trong JwtAuthExtensions.cs (server)
-o.Events = new JwtBearerEvents
-{
-    OnMessageReceived = ctx =>
-    {
-        var accessToken = ctx.Request.Query["access_token"];
-        var path = ctx.HttpContext.Request.Path;
-        if (!string.IsNullOrEmpty(accessToken) && path.Value!.Contains("/hubs/"))
-            ctx.Token = accessToken;
-        return Task.CompletedTask;
-    }
-};
-```
+nginx **không** dùng `auth_request` cho `/notifications/hubs/` — WebSocket upgrade không tương thích. Service tự validate token qua `OnMessageReceived` trong `JwtAuthExtensions`.
 
 ---
 
@@ -192,9 +141,8 @@ o.Events = new JwtBearerEvents
 
 | Triệu chứng | Nguyên nhân | Fix |
 |------------|------------|-----|
-| `401` mọi request có JWT | `/auth/validate` endpoint thiếu hoặc 404 | Kiểm tra authservice đã deploy chưa |
-| `500` thay vì `401` | `/auth/validate` trả code khác 2xx/401/403 | Check authservice logs |
-| `401` dù token đúng | Sai `Jwt__Secret` ở một service | Đảm bảo tất cả services dùng cùng secret |
-| `401` token hết hạn | Token quá 60 phút | Client cần refresh token / login lại |
-| CORS error + 401 | CORS preflight bị từ chối trước | Kiểm tra `Access-Control-Allow-Headers` trong nginx |
-| 401 chỉ với header custom | Header không có trong `Access-Control-Allow-Headers` | Thêm header vào nginx config hoặc dùng `*` |
+| `401` mọi request | Keycloak chưa chạy hoặc realm `hdos` chưa tạo | `docker compose up keycloak`, tạo realm |
+| `401` dù token đúng | `Keycloak__Authority` sai URL | URL phải khớp realm, ví dụ `.../realms/hdos` |
+| `403` dù authenticated | User chưa có permission cần thiết | Gán permission cho role qua Admin API |
+| Token `aud` không khớp | Thiếu audience mapper | Thêm Audience mapper `hdos-backend` vào client scope |
+| `403` AuthService admin | User không có role `admin` trong Keycloak | Gán realm role `admin` cho user |

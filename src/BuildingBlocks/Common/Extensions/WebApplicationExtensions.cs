@@ -15,6 +15,13 @@ public static class WebApplicationExtensions
         return app;
     }
 
+    /// <summary>
+    /// Reads X-User-Permissions header (injected by nginx from AuthService /auth/validate)
+    /// and maps each value to a "permission" claim. Call between UseAuthentication() and UseAuthorization().
+    /// </summary>
+    public static IApplicationBuilder UseHdosPermissions(this IApplicationBuilder app)
+        => app.UseMiddleware<PermissionsMiddleware>();
+
     public static IApplicationBuilder UseHdosCors(this IApplicationBuilder app)
     {
         return app.UseCors(ServiceCollectionExtensions.HdosCorsPolicy);

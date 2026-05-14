@@ -1,3 +1,4 @@
+using Hdos.Common.Auth;
 using Hdos.Common.Responses;
 using Hdos.OrderService.Application.DTOs;
 using Hdos.OrderService.Application.Features.CreateOrder;
@@ -17,6 +18,7 @@ public sealed class OrdersController : ControllerBase
 
     public OrdersController(ISender sender) => _sender = sender;
 
+    [Authorize(Policy = HdosPermissions.OrdersCreate)]
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateOrderCommand cmd, CancellationToken ct)
     {
@@ -27,6 +29,7 @@ public sealed class OrdersController : ControllerBase
             ApiResponse<OrderDto>.Ok(result.Value));
     }
 
+    [Authorize(Policy = HdosPermissions.OrdersRead)]
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {

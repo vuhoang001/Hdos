@@ -23,6 +23,7 @@ builder.Services.AddHdosSwagger("NotificationService");
 builder.Services.AddNotificationApplication();
 builder.Services.AddNotificationInfrastructure(builder.Configuration);
 builder.Services.AddHdosJwtAuth(builder.Configuration);
+builder.Services.AddHdosAuthorization();
 builder.Services.AddHdosCors(builder.Configuration);
 
 builder.Services.AddHdosOpenTelemetry(builder.Configuration, "NotificationService");
@@ -46,6 +47,7 @@ app.UseSwaggerUI(c =>
 app.UseHdosMiddleware();
 app.UseHdosCors();
 app.UseAuthentication();
+app.UseHdosPermissions();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<NotificationHub>("/notifications/hubs/notifications");

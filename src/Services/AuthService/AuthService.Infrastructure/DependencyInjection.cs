@@ -1,7 +1,5 @@
-using Hdos.AuthService.Application.Abstractions;
 using Hdos.AuthService.Domain.Repositories;
 using Hdos.AuthService.Infrastructure.Persistence;
-using Hdos.AuthService.Infrastructure.Security;
 using Hdos.Common.Extensions;
 using Hdos.Common.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -25,8 +23,10 @@ public static class DependencyInjection
                 .AddInterceptors(sp.GetRequiredService<PublishDomainEventsInterceptor>()));
 
         services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IRoleRepository, RoleRepository>();
+        services.AddScoped<IPermissionRepository, PermissionRepository>();
+        services.AddScoped<IUserRoleRepository, UserRoleRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
-        services.AddSingleton<IPasswordHasher, PasswordHasher>();
 
         services.AddRabbitMq(configuration);
         return services;

@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Hdos.AsyncGateway.API.Models;
+using Hdos.Common.Auth;
 using Hdos.Common.Messaging;
 using Hdos.Common.Responses;
 using Hdos.Contracts.IntegrationEvents;
@@ -14,7 +15,7 @@ public sealed record CreateOrderAsyncRequest(
 
 [ApiController]
 [Route("async/orders")]
-[Authorize]
+[Authorize(Policy = HdosPermissions.AsyncSubmit)]
 public sealed class AsyncOrdersController : ControllerBase
 {
     private readonly IEventBus _eventBus;

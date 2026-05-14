@@ -19,6 +19,7 @@ builder.Services.AddHdosSwagger("M01Service");
 builder.Services.AddM01Application();
 builder.Services.AddM01Infrastructure(builder.Configuration);
 builder.Services.AddHdosJwtAuth(builder.Configuration);
+builder.Services.AddHdosAuthorization();
 builder.Services.AddHdosCors(builder.Configuration);
 
 builder.Services.AddHdosOpenTelemetry(builder.Configuration, "M01Service");
@@ -36,6 +37,7 @@ app.UseSwaggerUI(c =>
 app.UseHdosMiddleware();
 app.UseHdosCors();
 app.UseAuthentication();
+app.UseHdosPermissions();
 app.UseAuthorization();
 app.MapControllers();
 app.UseHdosMonitoring();

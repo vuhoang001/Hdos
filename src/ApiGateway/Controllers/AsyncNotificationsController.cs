@@ -1,4 +1,5 @@
 using Hdos.AsyncGateway.API.Models;
+using Hdos.Common.Auth;
 using Hdos.Common.Messaging;
 using Hdos.Common.Responses;
 using Hdos.Contracts.IntegrationEvents;
@@ -14,7 +15,7 @@ public sealed record SendNotificationAsyncRequest(
 
 [ApiController]
 [Route("async/notifications")]
-[Authorize]
+[Authorize(Policy = HdosPermissions.NotificationsSend)]
 public sealed class AsyncNotificationsController : ControllerBase
 {
     private readonly IEventBus _eventBus;

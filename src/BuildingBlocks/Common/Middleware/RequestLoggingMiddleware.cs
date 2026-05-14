@@ -5,17 +5,8 @@ using Serilog.Context;
 
 namespace Hdos.Common.Middleware;
 
-public sealed class RequestLoggingMiddleware
+public sealed class RequestLoggingMiddleware(RequestDelegate next, ILogger<RequestLoggingMiddleware> logger)
 {
-    private readonly RequestDelegate _next;
-    private readonly ILogger<RequestLoggingMiddleware> _logger;
-
-    public RequestLoggingMiddleware(RequestDelegate next, ILogger<RequestLoggingMiddleware> logger)
-    {
-        _next = next;
-        _logger = logger;
-    }
-
     public async Task InvokeAsync(HttpContext context)
     {
         // Push TraceId/SpanId into Serilog log context so every log entry
@@ -31,12 +22,12 @@ public sealed class RequestLoggingMiddleware
         var sw = Stopwatch.StartNew();
         try
         {
-            await _next(context);
+            await next(context);
         }
         finally
         {
             sw.Stop();
-            _logger.LogInformation(
+            logger.LogInformation(
                 "HTTP {Method} {Path} responded {Status} in {Elapsed}ms",
                 context.Request.Method,
                 context.Request.Path,
