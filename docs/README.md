@@ -26,6 +26,7 @@ Bộ tài liệu này mô tả toàn bộ hệ thống **Hdos** — một nền 
 | [16 — Test Async Gateway](./16-test-async-gateway.md) | Testing guide cho các async endpoints |
 | [17 — Async Flow & Grafana](./17-async-flow-va-grafana.md) | Luồng kỹ thuật đầy đủ, distributed trace, hướng dẫn Grafana |
 | [18 — Keycloak & RBAC](./18-keycloak-rbac.md) | Identity Provider, RBAC data model, Admin API, frontend OIDC |
+| [19 — Keycloak Chi tiết](./19-keycloak-chi-tiet.md) | Đặc tả đầy đủ: luồng xác thực, clients, JIT provision, Admin UI, troubleshooting |
 
 ---
 
