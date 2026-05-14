@@ -170,7 +170,19 @@
       "Bash(hyprctl monitors *)",
       "Bash(waybar --version)",
       "Bash(kill 5187)",
-      "Bash(apt list *)"
+      "Bash(apt list *)",
+      "Bash(/usr/share/dotnet/dotnet build *)",
+      "Bash(sudo -n apt-get install -y sshpass)",
+      "Bash(snap install *)",
+      "Bash(nix-env -iA nixpkgs.sshpass)",
+      "Bash(apt-cache show *)",
+      "Bash(SSH_ASKPASS_REQUIRE=never SSHPASS='Foxai@!@#' ssh -o StrictHostKeyChecking=no -o PasswordAuthentication=yes ubuntu@192.168.100.60 'echo connected')",
+      "Bash(command -v expect)",
+      "Bash(export PATH=\"$PATH:/home/hoanggggf/.dotnet\")",
+      "Bash(export PATH=\"$PATH:/home/hoanggggf/.dotnet:$HOME/.dotnet/tools\")",
+      "Bash(export DOTNET_ROOT=/home/hoanggggf/.dotnet)",
+      "Bash(export PATH=\"$PATH:/home/hoanggggf/.dotnet:/home/hoanggggf/.dotnet/tools\")",
+      "Bash(SSH_ASKPASS_REQUIRE=never SSHPASS='Foxai@!@#' sshpass -e ssh -o StrictHostKeyChecking=no ubuntu@192.168.100.60 'docker ps --format \"table {{.Names}}\\\\t{{.Status}}\\\\t{{.Ports}}\"')"
     ]
   }
 }

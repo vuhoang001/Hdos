@@ -13,20 +13,15 @@ Bộ tài liệu này mô tả toàn bộ hệ thống **Hdos** — một nền 
 | [03 — Building Blocks](./03-building-blocks.md) | Thư viện dùng chung: SharedKernel, Common, Contracts |
 | [04 — Các Services](./04-cac-services.md) | AuthService, OrderService, NotificationService, M01Service |
 | [05 — Nginx Gateway](./05-nginx-gateway.md) | Config chi tiết, CORS, JWT validation, routing |
-| [06 — Xác thực & Phân quyền](./06-xac-thuc-phan-quyen.md) | JWT flow đầu cuối, middleware stack |
+| [06 — Xác thực & Keycloak](./06-xac-thuc-va-keycloak.md) | Defense in depth, Keycloak setup, RBAC, Admin API, frontend OIDC |
 | [07 — Giao tiếp nội bộ](./07-giao-tiep-noi-bo.md) | gRPC (sync) + RabbitMQ (async) |
-| [08 — Quan sát hệ thống](./08-quan-sat-he-thong.md) | Prometheus, Loki, Tempo, Grafana |
-| [09 — W3C Trace Context](./09-w3c-trace-context.md) | Distributed tracing qua HTTP và RabbitMQ |
+| [08 — Quan sát hệ thống](./08-quan-sat-he-thong.md) | Prometheus, Loki, Tempo, Grafana, W3C distributed tracing |
 | [10 — CI/CD Pipeline](./10-cicd-pipeline.md) | GitHub Actions build → test → push → deploy |
 | [11 — Local Dev & Deploy](./11-local-dev-va-deploy.md) | Setup máy local, chạy monitoring, deploy production |
 | [12 — Kiểm thử](./12-kiem-thu.md) | Strategy, stack, cách chạy tests |
 | [13 — Thêm tính năng](./13-them-tinh-nang.md) | Checklist thêm endpoint, event, service mới |
 | [14 — SignalR Realtime](./14-signalr-realtime.md) | Hub, envelope chuẩn, cách test từ frontend |
-| [15 — Async Gateway](./15-async-gateway.md) | HTTP→Queue→Service, endpoints, consumers |
-| [16 — Test Async Gateway](./16-test-async-gateway.md) | Testing guide cho các async endpoints |
-| [17 — Async Flow & Grafana](./17-async-flow-va-grafana.md) | Luồng kỹ thuật đầy đủ, distributed trace, hướng dẫn Grafana |
-| [18 — Keycloak & RBAC](./18-keycloak-rbac.md) | Identity Provider, RBAC data model, Admin API, frontend OIDC |
-| [19 — Keycloak Chi tiết](./19-keycloak-chi-tiet.md) | Đặc tả đầy đủ: luồng xác thực, clients, JIT provision, Admin UI, troubleshooting |
+| [15 — Async Gateway](./15-async-gateway.md) | HTTP→Queue→Service, endpoints, test guide, Grafana observability |
 
 ---
 
@@ -73,6 +68,7 @@ Sau khi chạy:
 | `http://localhost:5000/auth/swagger` | Swagger AuthService |
 | `http://localhost:5000/orders/swagger` | Swagger OrderService |
 | `http://localhost:5000/m01/swagger` | Swagger M01Service |
+| `http://localhost:8080` | Keycloak Admin UI (admin / Admin1234!) |
 | `http://localhost:15672` | RabbitMQ Management (guest/guest) |
 | `http://localhost:3030` | Grafana (admin/admin) |
 | `http://localhost:9090` | Prometheus |
