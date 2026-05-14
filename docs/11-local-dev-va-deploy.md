@@ -20,11 +20,13 @@
 git clone https://github.com/<owner>/Hdos.git
 cd Hdos
 
-# Khởi động SQL Server + RabbitMQ + nginx (không có monitoring)
-docker compose up -d sqlserver rabbitmq nginx
+# Khởi động toàn bộ infrastructure (SQL Server, RabbitMQ, Keycloak, nginx)
+docker compose up -d sqlserver rabbitmq postgres-keycloak keycloak nginx
 ```
 
 SQL Server cần ~30 giây để start. Kiểm tra: `docker compose ps` — sqlserver phải `healthy`.
+
+Keycloak tự import realm `hdos` khi khởi động lần đầu (xem [18 — Keycloak & RBAC](./18-keycloak-rbac.md)).
 
 ### 2. Chạy services
 
@@ -278,14 +280,16 @@ cd ~/Hdos
 git pull
 
 # Kiểm tra syntax
-docker exec hdos-nginx-1 nginx -t
+docker exec hdos-nginx nginx -t
 
 # Reload (không downtime)
-docker exec hdos-nginx-1 nginx -s reload
+docker exec hdos-nginx nginx -s reload
 
 # Nếu thêm upstream mới (cần restart):
-docker restart hdos-nginx-1
+docker restart hdos-nginx
 ```
+
+> **Lưu ý:** Container nginx có `container_name: hdos-nginx` (không có suffix `-1`). Dùng tên này trong mọi lệnh `docker exec`/`docker restart`.
 
 ---
 

@@ -23,55 +23,122 @@ Browser → nginx (request + Bearer token)
 
 ## Keycloak setup
 
-### 1. Khởi động
+### Cách 1 — Auto-import từ realm export (khuyến nghị)
+
+Realm `hdos` được định nghĩa sẵn trong `keycloak/hdos-realm.json`. `docker-compose.yml` đã được cấu hình để **tự động import** khi Keycloak khởi động lần đầu:
 
 ```bash
-docker compose up keycloak postgres-keycloak
+# Chỉ cần start — realm được import tự động
+docker compose up -d postgres-keycloak keycloak
 ```
 
-- Admin UI: `http://localhost:8080`
-- Username/password: `admin` / `Admin1234!` (thay bằng `KC_ADMIN_PASSWORD` env)
+Keycloak sẽ import realm khi **volume `hdos-kcdata` chưa tồn tại** (tức là lần đầu start hoặc sau khi xóa volume). Nếu realm đã tồn tại, import bị bỏ qua.
 
-### 2. Tạo Realm `hdos`
+**Thông tin có sẵn sau import:**
 
-1. Admin UI → **Create realm** → Name: `hdos`
+| | Giá trị |
+|--|---------|
+| Admin UI | `http://localhost:8080` |
+| Admin username | `admin` / `Admin1234!` |
+| Realm | `hdos` |
+| Client ID | `hdos-backend` |
+| Client Secret | `hdos-backend-dev-secret` |
+| Test users | `admin@hdos.dev` / `Admin1234!` (roles: admin, user) |
+| | `testuser@hdos.dev` / `Test1234!` (role: user) |
 
-### 3. Tạo Client `hdos-backend`
+**Reset Keycloak về trạng thái ban đầu:**
+
+```bash
+docker compose down
+docker volume rm hdos-kcdata
+docker compose up -d postgres-keycloak keycloak
+# Keycloak sẽ import lại realm từ đầu
+```
+
+---
+
+### Cách 2 — Setup thủ công qua Admin UI
+
+Dùng khi cần tùy chỉnh hoặc thêm client mới (ví dụ `hdos-frontend`).
+
+#### 1. Khởi động
+
+```bash
+docker compose up -d postgres-keycloak keycloak
+```
+
+#### 2. Tạo Realm `hdos`
+
+Admin UI `http://localhost:8080` → **Create realm** → Name: `hdos`
+
+#### 3. Tạo Client `hdos-backend`
 
 1. **Clients** → **Create client**
-2. Client ID: `hdos-backend`
-3. Client authentication: **OFF** (public) — chỉ dùng để validate audience
-4. **Valid redirect URIs**: `http://localhost:*`
+2. Client ID: `hdos-backend`, Client authentication: **ON** (confidential)
+3. Authentication flows: Standard flow + Direct access grants
+4. **Valid redirect URIs**: `*`, **Web origins**: `*`
+5. **Credentials tab** → ghi lại client secret
 
-### 4. Tạo Client `hdos-frontend`
+#### 4. Thêm Audience mapper (bắt buộc)
 
-1. **Clients** → **Create client**
-2. Client ID: `hdos-frontend`
-3. Client authentication: **OFF**
-4. **Valid redirect URIs**: `http://localhost:5173/*`, `http://localhost:3000/*`
-5. **Web origins**: `+`
+Để JWT chứa `aud: hdos-backend` (AuthService validate audience):
 
-### 5. Thêm audience mapper
+1. `hdos-backend` → **Client scopes** → `hdos-backend-dedicated`
+2. **Add mapper** → **Audience**
+3. Included Client Audience: `hdos-backend`, Add to access token: ON
 
-Để JWT chứa `aud: hdos-backend`:
-
-1. `hdos-frontend` → **Client scopes** → `hdos-frontend-dedicated`
-2. **Add mapper** → **By configuration** → **Audience**
-3. Name: `hdos-backend-aud`, Included Client Audience: `hdos-backend`
-
-### 6. Thêm roles mapper
+#### 5. Thêm Roles mapper (bắt buộc)
 
 Để JWT chứa `roles: ["admin", ...]` ở top-level (AuthService dùng `RoleClaimType = "roles"`):
 
-1. **Realm settings** → **User profile** — không cần thay đổi
-2. `hdos-frontend` → **Client scopes** → `hdos-frontend-dedicated`
-3. **Add mapper** → **By configuration** → **User Realm Role**
-4. Name: `realm-roles`, Token Claim Name: `roles`, Add to ID token: ON, Add to access token: ON
+1. `hdos-backend` → **Client scopes** → `hdos-backend-dedicated`
+2. **Add mapper** → **User Realm Role**
+3. Token Claim Name: `roles`, Add to ID token: ON, Add to access token: ON
 
-### 7. Tạo Role `admin`
+#### 6. Tạo Realm roles
 
-1. **Realm roles** → **Create role** → Name: `admin`
-2. Assign cho admin user
+**Realm roles** → Create role: `admin`, `user`
+
+#### 7. Tạo user
+
+**Users** → Create → đặt email, Set password (Temporary: OFF) → **Role mapping** → assign roles
+
+---
+
+### Lấy token và test luồng đăng nhập
+
+```bash
+# Lấy access token
+TOKEN=$(curl -s -X POST http://localhost:8080/realms/hdos/protocol/openid-connect/token \
+  -d 'grant_type=password' \
+  -d 'client_id=hdos-backend' \
+  -d 'client_secret=hdos-backend-dev-secret' \
+  -d 'username=admin' \
+  -d 'password=Admin1234!' | jq -r .access_token)
+
+# Kiểm tra claims trong token
+echo $TOKEN | cut -d. -f2 | base64 -d 2>/dev/null | jq '{iss,aud,roles,email}'
+
+# Test anonymous endpoint
+curl http://localhost:5000/auth/health
+
+# Test /auth/validate — trả về 200 + X-User-* headers
+curl -v -H "Authorization: Bearer $TOKEN" http://localhost:5000/auth/validate
+
+# Test protected endpoint
+curl -H "Authorization: Bearer $TOKEN" http://localhost:5000/orders/
+```
+
+**Lưu ý quan trọng về `iss` (issuer):**
+
+Token phải được lấy qua URL mà Keycloak thấy từ bên trong — cùng URL với `Keycloak__Authority` của services. Trong Docker, services dùng `http://keycloak:8080`, nên:
+
+| Ngữ cảnh | Token endpoint | `iss` trong JWT |
+|---------|---------------|-----------------|
+| Local dev (`dotnet run`) | `http://localhost:8080/...` | `http://localhost:8080/realms/hdos` |
+| Docker compose | `http://keycloak:8080/...` | `http://keycloak:8080/realms/hdos` |
+
+Nếu lấy token từ `localhost:8080` nhưng services validate với authority `keycloak:8080`, token sẽ bị từ chối 401 vì `iss` không khớp.
 
 ---
 
@@ -296,13 +363,48 @@ const response = await fetch('/orders/', {
 
 ---
 
+## Database Migration — InitRbac
+
+Migration `20260514063243_InitRbac` thêm bảng RBAC (`Roles`, `Permissions`, `RolePermissions`, `UserRoles`) và cột `LastSeenUtc` vào `Users`.
+
+Migration được viết với `IF NOT EXISTS` SQL để xử lý **cả hai trường hợp**:
+
+- **Fresh install** (volume mới): Tạo bảng `Users` từ đầu + tạo RBAC tables.
+- **Upgrade từ schema cũ** (`Init` migration đã apply): Chỉ thêm cột `LastSeenUtc`, xóa `PasswordHash` + `LastLoginUtc`, rồi tạo RBAC tables.
+
+Migration tự chạy khi service khởi động (`context.Database.MigrateAsync()`). Không cần thao tác thủ công.
+
+**Nếu migration bị stuck (server có DB cũ và migration fail):**
+
+```bash
+# 1. Xóa migration cũ khỏi history (nếu Init đã apply nhưng InitRbac chưa)
+docker exec hdos-sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P '<password>' -C -d AuthDb \
+  -Q "DELETE FROM __EFMigrationsHistory WHERE MigrationId='20260508014638_Init'"
+
+# 2. Restart AuthService — migration InitRbac sẽ tự apply
+docker restart hdos-authservice-1
+
+# 3. Kiểm tra
+docker exec hdos-sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P '<password>' -C -d AuthDb \
+  -Q "SELECT MigrationId FROM __EFMigrationsHistory"
+```
+
+---
+
 ## Troubleshooting
 
 | Triệu chứng | Nguyên nhân | Fix |
 |------------|------------|-----|
-| `401` mọi request | Keycloak chưa chạy hoặc realm `hdos` chưa tạo | `docker compose up keycloak`, tạo realm |
-| `401` dù token đúng | `Keycloak__Authority` sai URL | Đảm bảo URL khớp realm, ví dụ `.../realms/hdos` |
-| `403` dù authenticated | User chưa có permission cần thiết | Gán permission cho role của user qua Admin API |
-| Token `aud` không khớp | Thiếu audience mapper trong Keycloak | Thêm Audience mapper `hdos-backend` vào client scope |
-| `roles` claim trống | Thiếu Realm Role mapper | Thêm User Realm Role mapper vào client scope |
+| `401` mọi request | Keycloak chưa chạy hoặc realm `hdos` chưa tạo | `docker compose up keycloak`, hoặc xóa volume + restart để re-import |
+| `401` dù token đúng | `Keycloak__Authority` sai URL hoặc `iss` không khớp | URL phải khớp từ phía service; trong Docker dùng `http://keycloak:8080/realms/hdos` |
+| `401` dù iss đúng | `aud` trong JWT không phải `hdos-backend` | Thêm Audience mapper vào client `hdos-backend` |
+| `/auth/validate` → `500` | Migration chưa apply (`LastSeenUtc` thiếu) | Xem mục "Database Migration" ở trên |
+| `/auth/validate` → `500` | EF Include after Select (đã fix) | Cập nhật lên commit mới nhất |
+| Email trong `X-User-Email` trống | ASP.NET Core map `email` → `ClaimTypes.Email` (đã fix) | Cập nhật lên commit mới nhất |
+| JIT provision trả về `unknown@unknown.com` | `email` claim không được tìm thấy | Cập nhật lên commit mới nhất; xóa row lỗi: `DELETE FROM Users WHERE Email='unknown@unknown.com'` |
+| `403` dù authenticated | User chưa có permission cần thiết trong AuthService DB | Gán permission cho role của user qua Admin API |
+| `roles` claim trống trong JWT | Thiếu Realm Role mapper trong Keycloak client | Thêm User Realm Role mapper, Token Claim Name: `roles` |
+| Realm không tự import | Volume `hdos-kcdata` đã tồn tại (Keycloak chỉ import lần đầu) | `docker volume rm hdos-kcdata` rồi start lại |
 | JIT provision không chạy | `/auth/validate` bị skip | Kiểm tra nginx `auth_request /_auth_validate` |
