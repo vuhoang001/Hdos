@@ -7,9 +7,8 @@ namespace Hdos.AuthService.Infrastructure.Persistence;
 public sealed class UserRoleRepository(AuthDbContext db) : IUserRoleRepository
 {
     public async Task<IReadOnlyList<Role>> GetRolesWithPermissionsAsync(Guid userId, CancellationToken ct) =>
-        await db.UserRoles
-            .Where(ur => ur.UserId == userId)
-            .Select(ur => ur.Role)
+        await db.Roles
+            .Where(r => db.UserRoles.Any(ur => ur.UserId == userId && ur.RoleId == r.Id))
             .Include(r => r.RolePermissions)
                 .ThenInclude(rp => rp.Permission)
             .ToListAsync(ct);
