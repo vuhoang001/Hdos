@@ -29,9 +29,11 @@ public static class DependencyInjection
         services.AddRabbitMq(configuration);
 
         services.AddHostedService<UserLoggedInConsumer>();
+        
         services.AddHostedService<UserRegisteredConsumer>();
         services.AddHostedService<OrderCreatedConsumer>();
         services.AddHostedService<NotificationSendRequestedConsumer>();
+        services.AddHostedService<TestConsumer>();
         return services;
     }
 }
