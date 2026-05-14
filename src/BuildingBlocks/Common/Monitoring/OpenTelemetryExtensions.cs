@@ -14,6 +14,17 @@ public static class OpenTelemetryExtensions
         string serviceName)
     {
         var environment = configuration["ASPNETCORE_ENVIRONMENT"] ?? "production";
+        var otlpEndpoint = configuration["OpenTelemetry:OtlpEndpoint"];
+        // 1.0 = sample everything (dev default). Lower for high-traffic production (e.g., 0.1 = 10%).
+        var samplingRatio = configuration.GetValue<double>("OpenTelemetry:SamplingRatio", 1.0);
+
+        if (string.IsNullOrWhiteSpace(otlpEndpoint))
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"[WARN][{serviceName}] OpenTelemetry:OtlpEndpoint is not configured — traces will not be exported. " +
+                              "Set it to http://localhost:4317 (local) or http://tempo:4317 (Docker) to enable tracing.");
+            Console.ResetColor();
+        }
 
         // Traces only — metrics handled by prometheus-net (avoids OTel pre-release dependency conflicts)
         services.AddOpenTelemetry()
@@ -26,6 +37,7 @@ public static class OpenTelemetryExtensions
             .WithTracing(tracing =>
             {
                 tracing
+                    .SetSampler(new ParentBasedSampler(new TraceIdRatioBasedSampler(samplingRatio)))
                     .AddAspNetCoreInstrumentation(opts =>
                     {
                         opts.RecordException = true;
@@ -36,7 +48,6 @@ public static class OpenTelemetryExtensions
                     .AddHttpClientInstrumentation(opts => opts.RecordException = true)
                     .AddSource("Hdos.Messaging");
 
-                var otlpEndpoint = configuration["OpenTelemetry:OtlpEndpoint"];
                 if (!string.IsNullOrWhiteSpace(otlpEndpoint))
                     tracing.AddOtlpExporter(otlp => otlp.Endpoint = new Uri(otlpEndpoint));
             });

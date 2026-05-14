@@ -4,11 +4,16 @@ global:
   external_labels:
     cluster: hdos
 
+# NAMING CONVENTION: job_name phải khớp với tên service trong docker-compose.yml.
+# Khi thêm service mới: thêm 1 job ở đây + 1 env-inject block trong docker-compose.monitoring.yml.
+
 scrape_configs:
+  # ── Prometheus self ───────────────────────────────────────────────────────
   - job_name: prometheus
     static_configs:
       - targets: [localhost:9090]
 
+  # ── Application services (/metrics exposed by prometheus-net) ────────────
   - job_name: authservice
     static_configs:
       - targets: [authservice:8080]
@@ -38,3 +43,17 @@ scrape_configs:
       - targets: [asyncgateway:8080]
         labels: { service: AsyncGateway }
     metrics_path: /metrics
+
+  # ── Nginx gateway (via nginx-prometheus-exporter sidecar) ─────────────────
+  # Scrapes nginx stub_status at nginx:8081/nginx_status and converts to Prometheus metrics.
+  # Metrics: nginx_connections_active, nginx_http_requests_total, etc.
+  - job_name: nginx
+    static_configs:
+      - targets: [nginx-exporter:9113]
+        labels: { service: Nginx }
+
+  # ── Health check status (published by PrometheusHealthPublisher every 15s) ─
+  # Metric: hdos_health_check_status{check="sqlserver"|"rabbitmq"} 1=Healthy 0=Unhealthy
+  # Alert example: hdos_health_check_status == 0
+  # These are already included in the /metrics scrape of each service above —
+  # no separate job needed. This comment is for documentation purposes.

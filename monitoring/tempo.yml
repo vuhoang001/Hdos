@@ -15,7 +15,8 @@ ingester:
 
 compactor:
   compaction:
-    block_retention: 1h
+    # Dev default: 24h. Production: set via TEMPO_BLOCK_RETENTION env var (e.g., 7d)
+    block_retention: 24h
 
 storage:
   trace:

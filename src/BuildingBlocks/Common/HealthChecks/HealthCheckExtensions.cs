@@ -18,6 +18,9 @@ public static class HealthCheckExtensions
     {
         var builder = services.AddHealthChecks();
 
+        services.AddSingleton<IHealthCheckPublisher, PrometheusHealthPublisher>();
+        services.Configure<HealthCheckPublisherOptions>(opts => opts.Period = TimeSpan.FromSeconds(15));
+
         if (sqlConnectionStringKey is not null)
         {
             var connectionString = configuration.GetConnectionString(sqlConnectionStringKey) ?? "";

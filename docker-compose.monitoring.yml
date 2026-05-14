@@ -95,6 +95,32 @@ services:
       OpenTelemetry__OtlpEndpoint: http://tempo:4317
       Loki__Uri: http://loki:3100
 
+  # ── Give nginx a stable container name so Promtail can discover it ─────────
+  nginx:
+    container_name: hdos-nginx
+
+  # ── nginx-prometheus-exporter: converts nginx stub_status → Prometheus ─────
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:1.4.0
+    container_name: hdos-nginx-exporter
+    command: --nginx.scrape-uri=http://nginx:8081/nginx_status
+    depends_on: [nginx]
+    networks: [hdos-net]
+    restart: unless-stopped
+
+  # ── Promtail: collects nginx container logs → Loki ────────────────────────
+  # Requires Docker socket access to discover container logs.
+  promtail:
+    image: grafana/promtail:3.2.0
+    container_name: hdos-promtail
+    command: -config.file=/etc/promtail/promtail.yml
+    volumes:
+      - ./monitoring/promtail.yml:/etc/promtail/promtail.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on: [loki, nginx]
+    networks: [hdos-net]
+    restart: unless-stopped
+
 volumes:
   hdos-prometheus-data:
   hdos-loki-data:
