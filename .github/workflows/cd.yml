@@ -8,16 +8,7 @@ on:
     branches: [dev]
 
   # ── Thủ công: chỉ dùng nút "Run workflow" trên GitHub để deploy production ─
-  workflow_dispatch:
-    inputs:
-      ref:
-        description: "Branch cần deploy lên production"
-        required: true
-        default: "main"
-        type: choice
-        options:
-          - main
-          - dev
+  workflow_dispatch: {}
 
 jobs:
   # ─── Staging: tự động sau mỗi lần CI trên nhánh dev thành công ────────────
@@ -107,27 +98,18 @@ jobs:
       cancel-in-progress: false   # queue, không cancel deploy đang chạy
 
     steps:
-      - name: Validate ref & resolve SHA
-        id: sha
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          REF="${{ inputs.ref }}"
-          SHA=$(gh api "repos/${{ github.repository }}/commits/$REF" --jq '.sha' 2>/dev/null) || {
-            echo "❌ Ref '$REF' không tồn tại. Nhập branch (main, dev), tag (v1.2.3), hoặc commit SHA."
-            exit 1
-          }
-          echo "value=$SHA" >> "$GITHUB_OUTPUT"
-          echo "✅ $REF → $SHA"
-
       - uses: actions/checkout@v4
         with:
-          ref: ${{ steps.sha.outputs.value }}
+          ref: main
+
+      - name: Resolve SHA
+        id: sha
+        run: echo "value=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Deploy
         env:
           GHCR_OWNER: ${{ vars.GHCR_USER }}
-          IMAGE_TAG: ${{ steps.sha.outputs.value }}   # luôn là full SHA cụ thể
+          IMAGE_TAG: ${{ steps.sha.outputs.value }}
           ENV_DIR: /opt/hdos-prod
           ASPNETCORE_ENVIRONMENT: Production
         run: |
@@ -171,7 +153,7 @@ jobs:
         run: |
           {
             echo "## ✅ Production Deploy OK"
-            echo "**SHA:** \`${{ steps.sha.outputs.value }}\` (ref: \`${{ inputs.ref }}\`)  |  **Time:** $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo "**SHA:** \`${{ steps.sha.outputs.value }}\`  |  **Time:** $(date -u '+%Y-%m-%d %H:%M UTC')"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Summary (failure)
@@ -179,6 +161,6 @@ jobs:
         run: |
           {
             echo "## ❌ Production Deploy FAILED"
-            echo "**SHA:** \`${{ steps.sha.outputs.value }}\` (ref: \`${{ inputs.ref }}\`)  |  **Time:** $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo "**SHA:** \`${{ steps.sha.outputs.value }}\`  |  **Time:** $(date -u '+%Y-%m-%d %H:%M UTC')"
           } >> "$GITHUB_STEP_SUMMARY"
           exit 1
