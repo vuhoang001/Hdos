@@ -10,9 +10,10 @@ on:
   # ── Thủ công: chỉ dùng nút "Run workflow" trên GitHub để deploy production ─
   workflow_dispatch:
     inputs:
-      sha:
-        description: "SHA commit cần deploy lên production (bắt buộc)"
+      ref:
+        description: "Branch, tag, hoặc commit SHA cần deploy (vd: main, v1.2.3, abc1234)"
         required: true
+        default: "main"
 
 jobs:
   # ─── Staging: tự động sau mỗi lần CI trên nhánh dev thành công ────────────
@@ -104,12 +105,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.sha }}
+          ref: ${{ inputs.ref }}
+
+      - name: Resolve SHA
+        id: sha
+        run: echo "value=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Deploy
         env:
           GHCR_OWNER: ${{ vars.GHCR_USER }}
-          IMAGE_TAG: ${{ inputs.sha }}   # SHA bắt buộc, không có mutable tag
+          IMAGE_TAG: ${{ steps.sha.outputs.value }}   # luôn là full SHA cụ thể
           ENV_DIR: /opt/hdos-prod
           ASPNETCORE_ENVIRONMENT: Production
         run: |
@@ -153,7 +158,7 @@ jobs:
         run: |
           {
             echo "## ✅ Production Deploy OK"
-            echo "**SHA:** \`${{ inputs.sha }}\`  |  **Time:** $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo "**SHA:** \`${{ steps.sha.outputs.value }}\` (ref: \`${{ inputs.ref }}\`)  |  **Time:** $(date -u '+%Y-%m-%d %H:%M UTC')"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Summary (failure)
@@ -161,6 +166,6 @@ jobs:
         run: |
           {
             echo "## ❌ Production Deploy FAILED"
-            echo "**SHA:** \`${{ inputs.sha }}\`  |  **Time:** $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo "**SHA:** \`${{ steps.sha.outputs.value }}\` (ref: \`${{ inputs.ref }}\`)  |  **Time:** $(date -u '+%Y-%m-%d %H:%M UTC')"
           } >> "$GITHUB_STEP_SUMMARY"
           exit 1
