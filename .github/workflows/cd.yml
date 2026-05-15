@@ -11,9 +11,13 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Branch, tag, hoặc commit SHA cần deploy (vd: main, v1.2.3, abc1234)"
+        description: "Branch cần deploy lên production"
         required: true
         default: "main"
+        type: choice
+        options:
+          - main
+          - dev
 
 jobs:
   # ─── Staging: tự động sau mỗi lần CI trên nhánh dev thành công ────────────
