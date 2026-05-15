@@ -11,9 +11,8 @@ on:
   workflow_dispatch:
     inputs:
       sha:
-        description: "SHA cụ thể cần deploy (để trống = HEAD của main)"
-        required: false
-        default: ""
+        description: "SHA commit cần deploy lên production (bắt buộc)"
+        required: true
 
 jobs:
   # ─── Staging: tự động sau mỗi lần CI trên nhánh dev thành công ────────────
@@ -22,6 +21,10 @@ jobs:
     if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
     runs-on: self-hosted
     environment: staging
+    timeout-minutes: 15
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: false   # queue, không cancel deploy đang chạy
 
     steps:
       - uses: actions/checkout@v4
@@ -35,7 +38,7 @@ jobs:
           ENV_DIR: /opt/hdos-staging
           ASPNETCORE_ENVIRONMENT: Staging
         run: |
-          set -e
+          set -euo pipefail
 
           echo "${{ secrets.GHCR_TOKEN }}" | \
             docker login ghcr.io -u "$GHCR_OWNER" --password-stdin
@@ -44,24 +47,48 @@ jobs:
 
           docker compose $COMPOSE_ARGS pull
 
-          # Stop + remove all project containers to avoid name conflicts on re-deploy
-          docker compose $COMPOSE_ARGS rm -sf || true
+          # Chỉ xóa container ở trạng thái exited/created để fix naming conflict,
+          # không động vào container đang running → tránh downtime không cần thiết
+          docker ps -a --filter status=exited --filter status=created \
+            --format '{{.Names}}' | grep '^hdos-' | xargs -r docker rm -f
 
-          docker compose $COMPOSE_ARGS up -d --remove-orphans --force-recreate
+          docker compose $COMPOSE_ARGS up -d --remove-orphans
 
-          # nginx bind-mounts nginx.conf by inode; git checkout replaces the file
-          # so the running container sees the old config until restarted.
-          docker restart hdos-nginx
+          # Reload nginx config — bind-mount thay đổi inode sau git checkout
+          docker compose $COMPOSE_ARGS restart nginx
 
           docker image prune -f
 
-      - name: Notify success
-        if: success()
-        run: echo "Staging deploy OK — $(date) — ${{ github.event.workflow_run.head_sha }}"
+      - name: Health check
+        env:
+          ENV_DIR: /opt/hdos-staging
+        run: |
+          sleep 15
+          COMPOSE_ARGS="--env-file ${ENV_DIR}/.env -f docker-compose.yml -f docker-compose.server.yml -f docker-compose.monitoring.yml"
+          FAILED=$(docker compose $COMPOSE_ARGS ps 2>/dev/null | grep -E ' Exit| Restarting' || true)
+          if [ -n "$FAILED" ]; then
+            echo "Containers in bad state:"
+            docker compose $COMPOSE_ARGS ps
+            docker compose $COMPOSE_ARGS logs --tail=100
+            exit 1
+          fi
 
-      - name: Notify failure
+      - name: Summary (success)
+        if: success()
+        run: |
+          {
+            echo "## ✅ Staging Deploy OK"
+            echo "**SHA:** \`${{ github.event.workflow_run.head_sha }}\`  |  **Time:** $(date -u '+%Y-%m-%d %H:%M UTC')"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Summary (failure)
         if: failure()
-        run: echo "Staging deploy FAILED — $(date)" && exit 1
+        run: |
+          {
+            echo "## ❌ Staging Deploy FAILED"
+            echo "**SHA:** \`${{ github.event.workflow_run.head_sha }}\`  |  **Time:** $(date -u '+%Y-%m-%d %H:%M UTC')"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
 
   # ─── Production: CHỈ chạy khi bấm nút "Run workflow" thủ công ────────────
   deploy-production:
@@ -69,20 +96,24 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: self-hosted
     environment: production
+    timeout-minutes: 15
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false   # queue, không cancel deploy đang chạy
 
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.sha || 'main' }}
+          ref: ${{ inputs.sha }}
 
       - name: Deploy
         env:
           GHCR_OWNER: ${{ vars.GHCR_USER }}
-          IMAGE_TAG: ${{ inputs.sha || 'prod-latest' }}
+          IMAGE_TAG: ${{ inputs.sha }}   # SHA bắt buộc, không có mutable tag
           ENV_DIR: /opt/hdos-prod
           ASPNETCORE_ENVIRONMENT: Production
         run: |
-          set -e
+          set -euo pipefail
 
           echo "${{ secrets.GHCR_TOKEN }}" | \
             docker login ghcr.io -u "$GHCR_OWNER" --password-stdin
@@ -91,21 +122,45 @@ jobs:
 
           docker compose $COMPOSE_ARGS pull
 
-          # Stop + remove all project containers to avoid name conflicts on re-deploy
-          docker compose $COMPOSE_ARGS rm -sf || true
+          # Chỉ xóa container ở trạng thái exited/created để fix naming conflict,
+          # không động vào container đang running → tránh downtime không cần thiết
+          docker ps -a --filter status=exited --filter status=created \
+            --format '{{.Names}}' | grep '^hdos-' | xargs -r docker rm -f
 
-          docker compose $COMPOSE_ARGS up -d --remove-orphans --force-recreate
+          docker compose $COMPOSE_ARGS up -d --remove-orphans
 
-          # nginx bind-mounts nginx.conf by inode; git checkout replaces the file
-          # so the running container sees the old config until restarted.
-          docker restart hdos-nginx
+          # Reload nginx config — bind-mount thay đổi inode sau git checkout
+          docker compose $COMPOSE_ARGS restart nginx
 
           docker image prune -f
 
-      - name: Notify success
-        if: success()
-        run: echo "Production deploy OK — $(date) — SHA=${{ inputs.sha || 'prod-latest' }}"
+      - name: Health check
+        env:
+          ENV_DIR: /opt/hdos-prod
+        run: |
+          sleep 15
+          COMPOSE_ARGS="--env-file ${ENV_DIR}/.env -f docker-compose.yml -f docker-compose.server.yml -f docker-compose.monitoring.yml"
+          FAILED=$(docker compose $COMPOSE_ARGS ps 2>/dev/null | grep -E ' Exit| Restarting' || true)
+          if [ -n "$FAILED" ]; then
+            echo "Containers in bad state:"
+            docker compose $COMPOSE_ARGS ps
+            docker compose $COMPOSE_ARGS logs --tail=100
+            exit 1
+          fi
 
-      - name: Notify failure
+      - name: Summary (success)
+        if: success()
+        run: |
+          {
+            echo "## ✅ Production Deploy OK"
+            echo "**SHA:** \`${{ inputs.sha }}\`  |  **Time:** $(date -u '+%Y-%m-%d %H:%M UTC')"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Summary (failure)
         if: failure()
-        run: echo "Production deploy FAILED — $(date)" && exit 1
+        run: |
+          {
+            echo "## ❌ Production Deploy FAILED"
+            echo "**SHA:** \`${{ inputs.sha }}\`  |  **Time:** $(date -u '+%Y-%m-%d %H:%M UTC')"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
