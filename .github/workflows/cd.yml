@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 15
     concurrency:
       group: deploy-staging
-      cancel-in-progress: false   # queue, không cancel deploy đang chạy
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v4
@@ -43,8 +43,7 @@ jobs:
 
           docker compose $COMPOSE_ARGS pull
 
-          # Chỉ xóa container ở trạng thái exited/created để fix naming conflict,
-          # không động vào container đang running → tránh downtime không cần thiết
+          # Chỉ xóa container ở trạng thái exited/created để fix naming conflict
           docker ps -a --filter status=exited --filter status=created \
             --format '{{.Names}}' | grep '^hdos-' | xargs -r docker rm -f
 
@@ -54,6 +53,9 @@ jobs:
           docker compose $COMPOSE_ARGS restart nginx
 
           docker image prune -f
+
+          # Lưu SHA đã deploy staging thành công để production dùng lại
+          echo "$IMAGE_TAG" > /opt/hdos-staging/.last-sha
 
       - name: Health check
         env:
@@ -95,16 +97,24 @@ jobs:
     timeout-minutes: 15
     concurrency:
       group: deploy-production
-      cancel-in-progress: false   # queue, không cancel deploy đang chạy
+      cancel-in-progress: false
 
     steps:
+      - name: Load staging SHA
+        id: sha
+        run: |
+          SHA_FILE=/opt/hdos-staging/.last-sha
+          if [ ! -f "$SHA_FILE" ]; then
+            echo "❌ Chưa có staging deploy nào thành công. Deploy staging trước rồi mới promote production."
+            exit 1
+          fi
+          SHA=$(cat "$SHA_FILE")
+          echo "value=$SHA" >> "$GITHUB_OUTPUT"
+          echo "✅ Promoting staging SHA: $SHA"
+
       - uses: actions/checkout@v4
         with:
-          ref: main
-
-      - name: Resolve SHA
-        id: sha
-        run: echo "value=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          ref: ${{ steps.sha.outputs.value }}
 
       - name: Deploy
         env:
@@ -122,8 +132,7 @@ jobs:
 
           docker compose $COMPOSE_ARGS pull
 
-          # Chỉ xóa container ở trạng thái exited/created để fix naming conflict,
-          # không động vào container đang running → tránh downtime không cần thiết
+          # Chỉ xóa container ở trạng thái exited/created để fix naming conflict
           docker ps -a --filter status=exited --filter status=created \
             --format '{{.Names}}' | grep '^hdos-' | xargs -r docker rm -f
 
