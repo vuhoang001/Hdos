@@ -45,8 +45,10 @@ jobs:
     steps:
       - id: resolve
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo 'services=["authservice","orderservice","notificationservice","m01service","asyncgateway"]' >> $GITHUB_OUTPUT
+          ALL='["authservice","orderservice","notificationservice","m01service","asyncgateway"]'
+          # main luôn build tất cả để đảm bảo image SHA luôn tồn tại trên GHCR
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.ref_name }}" = "main" ]; then
+            echo "services=$ALL" >> $GITHUB_OUTPUT
             echo 'should_build=true' >> $GITHUB_OUTPUT
           else
             CHANGED='${{ needs.detect-changes.outputs.changed }}'
