@@ -40,19 +40,14 @@ jobs:
           echo "${{ secrets.GHCR_TOKEN }}" | \
             docker login ghcr.io -u "$GHCR_OWNER" --password-stdin
 
-          docker compose \
-            --env-file "${ENV_DIR}/.env" \
-            -f docker-compose.yml \
-            -f docker-compose.server.yml \
-            -f docker-compose.monitoring.yml \
-            pull
+          COMPOSE_ARGS="--env-file ${ENV_DIR}/.env -f docker-compose.yml -f docker-compose.server.yml -f docker-compose.monitoring.yml"
 
-          docker compose \
-            --env-file "${ENV_DIR}/.env" \
-            -f docker-compose.yml \
-            -f docker-compose.server.yml \
-            -f docker-compose.monitoring.yml \
-            up -d --remove-orphans
+          docker compose $COMPOSE_ARGS pull
+
+          # Remove stopped/failed containers to avoid name conflicts on re-deploy
+          docker compose $COMPOSE_ARGS rm -f || true
+
+          docker compose $COMPOSE_ARGS up -d --remove-orphans
 
           # nginx bind-mounts nginx.conf by inode; git checkout replaces the file
           # so the running container sees the old config until restarted.
@@ -92,19 +87,14 @@ jobs:
           echo "${{ secrets.GHCR_TOKEN }}" | \
             docker login ghcr.io -u "$GHCR_OWNER" --password-stdin
 
-          docker compose \
-            --env-file "${ENV_DIR}/.env" \
-            -f docker-compose.yml \
-            -f docker-compose.server.yml \
-            -f docker-compose.monitoring.yml \
-            pull
+          COMPOSE_ARGS="--env-file ${ENV_DIR}/.env -f docker-compose.yml -f docker-compose.server.yml -f docker-compose.monitoring.yml"
 
-          docker compose \
-            --env-file "${ENV_DIR}/.env" \
-            -f docker-compose.yml \
-            -f docker-compose.server.yml \
-            -f docker-compose.monitoring.yml \
-            up -d --remove-orphans
+          docker compose $COMPOSE_ARGS pull
+
+          # Remove stopped/failed containers to avoid name conflicts on re-deploy
+          docker compose $COMPOSE_ARGS rm -f || true
+
+          docker compose $COMPOSE_ARGS up -d --remove-orphans
 
           # nginx bind-mounts nginx.conf by inode; git checkout replaces the file
           # so the running container sees the old config until restarted.
