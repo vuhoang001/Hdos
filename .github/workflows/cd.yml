@@ -103,6 +103,14 @@ jobs:
       cancel-in-progress: false   # queue, không cancel deploy đang chạy
 
     steps:
+      - name: Validate ref
+        run: |
+          REF="${{ inputs.ref }}"
+          if [[ "$REF" =~ [[:space:]:\*\?\[\\\^~] ]]; then
+            echo "❌ Invalid ref: '$REF' — contains characters not allowed in git refs"
+            exit 1
+          fi
+
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
