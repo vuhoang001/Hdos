@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main, staging]
   pull_request:
-    branches: [main, dev]
+    branches: [main, staging]
   # Bấm nút thủ công để force build tất cả service (dùng lần đầu hoặc khi cần rebuild)
   workflow_dispatch:
     inputs:

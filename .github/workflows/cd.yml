@@ -1,20 +1,18 @@
 name: CD
 
 on:
-  # ── Tự động: CI pass trên nhánh dev → deploy staging ─────────────────────
   workflow_run:
     workflows: [CI]
     types: [completed]
-    branches: [dev]
-
-  # ── Thủ công: chỉ dùng nút "Run workflow" trên GitHub để deploy production ─
-  workflow_dispatch: {}
+    branches: [main, staging]
 
 jobs:
-  # ─── Staging: tự động sau mỗi lần CI trên nhánh dev thành công ────────────
+  # ─── Staging: tự động khi CI pass trên nhánh staging ──────────────────────
   deploy-staging:
-    name: Deploy → Staging (auto)
-    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
+    name: Deploy → Staging
+    if: |
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'staging'
     runs-on: self-hosted
     environment: staging
     timeout-minutes: 15
@@ -43,19 +41,14 @@ jobs:
 
           docker compose $COMPOSE_ARGS pull
 
-          # Chỉ xóa container ở trạng thái exited/created để fix naming conflict
           docker ps -a --filter status=exited --filter status=created \
             --format '{{.Names}}' | grep '^hdos-' | xargs -r docker rm -f
 
           docker compose $COMPOSE_ARGS up -d --remove-orphans
 
-          # Reload nginx config — bind-mount thay đổi inode sau git checkout
           docker compose $COMPOSE_ARGS restart nginx
 
           docker image prune -f
-
-          # Lưu SHA đã deploy staging thành công để production dùng lại
-          echo "$IMAGE_TAG" > /opt/hdos-staging/.last-sha
 
       - name: Health check
         env:
@@ -88,10 +81,12 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           exit 1
 
-  # ─── Production: CHỈ chạy khi bấm nút "Run workflow" thủ công ────────────
+  # ─── Production: tự động khi CI pass trên nhánh main ─────────────────────
   deploy-production:
-    name: Deploy → Production (manual)
-    if: github.event_name == 'workflow_dispatch'
+    name: Deploy → Production
+    if: |
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
     runs-on: self-hosted
     environment: production
     timeout-minutes: 15
@@ -100,26 +95,14 @@ jobs:
       cancel-in-progress: false
 
     steps:
-      - name: Load staging SHA
-        id: sha
-        run: |
-          SHA_FILE=/opt/hdos-staging/.last-sha
-          if [ ! -f "$SHA_FILE" ]; then
-            echo "❌ Chưa có staging deploy nào thành công. Deploy staging trước rồi mới promote production."
-            exit 1
-          fi
-          SHA=$(cat "$SHA_FILE")
-          echo "value=$SHA" >> "$GITHUB_OUTPUT"
-          echo "✅ Promoting staging SHA: $SHA"
-
       - uses: actions/checkout@v4
         with:
-          ref: ${{ steps.sha.outputs.value }}
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Deploy
         env:
           GHCR_OWNER: ${{ vars.GHCR_USER }}
-          IMAGE_TAG: ${{ steps.sha.outputs.value }}
+          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
           ENV_DIR: /opt/hdos-prod
           ASPNETCORE_ENVIRONMENT: Production
         run: |
@@ -132,13 +115,11 @@ jobs:
 
           docker compose $COMPOSE_ARGS pull
 
-          # Chỉ xóa container ở trạng thái exited/created để fix naming conflict
           docker ps -a --filter status=exited --filter status=created \
             --format '{{.Names}}' | grep '^hdos-' | xargs -r docker rm -f
 
           docker compose $COMPOSE_ARGS up -d --remove-orphans
 
-          # Reload nginx config — bind-mount thay đổi inode sau git checkout
           docker compose $COMPOSE_ARGS restart nginx
 
           docker image prune -f
@@ -162,7 +143,7 @@ jobs:
         run: |
           {
             echo "## ✅ Production Deploy OK"
-            echo "**SHA:** \`${{ steps.sha.outputs.value }}\`  |  **Time:** $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo "**SHA:** \`${{ github.event.workflow_run.head_sha }}\`  |  **Time:** $(date -u '+%Y-%m-%d %H:%M UTC')"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Summary (failure)
@@ -170,6 +151,6 @@ jobs:
         run: |
           {
             echo "## ❌ Production Deploy FAILED"
-            echo "**SHA:** \`${{ steps.sha.outputs.value }}\`  |  **Time:** $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo "**SHA:** \`${{ github.event.workflow_run.head_sha }}\`  |  **Time:** $(date -u '+%Y-%m-%d %H:%M UTC')"
           } >> "$GITHUB_STEP_SUMMARY"
           exit 1
