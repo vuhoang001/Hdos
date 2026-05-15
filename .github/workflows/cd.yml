@@ -103,21 +103,22 @@ jobs:
       cancel-in-progress: false   # queue, không cancel deploy đang chạy
 
     steps:
-      - name: Validate ref
+      - name: Validate ref & resolve SHA
+        id: sha
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           REF="${{ inputs.ref }}"
-          if [[ "$REF" =~ [[:space:]:\*\?\[\\\^~] ]]; then
-            echo "❌ Invalid ref: '$REF' — contains characters not allowed in git refs"
+          SHA=$(gh api "repos/${{ github.repository }}/commits/$REF" --jq '.sha' 2>/dev/null) || {
+            echo "❌ Ref '$REF' không tồn tại. Nhập branch (main, dev), tag (v1.2.3), hoặc commit SHA."
             exit 1
-          fi
+          }
+          echo "value=$SHA" >> "$GITHUB_OUTPUT"
+          echo "✅ $REF → $SHA"
 
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref }}
-
-      - name: Resolve SHA
-        id: sha
-        run: echo "value=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          ref: ${{ steps.sha.outputs.value }}
 
       - name: Deploy
         env:
