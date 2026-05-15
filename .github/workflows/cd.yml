@@ -44,10 +44,10 @@ jobs:
 
           docker compose $COMPOSE_ARGS pull
 
-          # Remove stopped/failed containers to avoid name conflicts on re-deploy
-          docker compose $COMPOSE_ARGS rm -f || true
+          # Stop + remove all project containers to avoid name conflicts on re-deploy
+          docker compose $COMPOSE_ARGS rm -sf || true
 
-          docker compose $COMPOSE_ARGS up -d --remove-orphans
+          docker compose $COMPOSE_ARGS up -d --remove-orphans --force-recreate
 
           # nginx bind-mounts nginx.conf by inode; git checkout replaces the file
           # so the running container sees the old config until restarted.
@@ -91,10 +91,10 @@ jobs:
 
           docker compose $COMPOSE_ARGS pull
 
-          # Remove stopped/failed containers to avoid name conflicts on re-deploy
-          docker compose $COMPOSE_ARGS rm -f || true
+          # Stop + remove all project containers to avoid name conflicts on re-deploy
+          docker compose $COMPOSE_ARGS rm -sf || true
 
-          docker compose $COMPOSE_ARGS up -d --remove-orphans
+          docker compose $COMPOSE_ARGS up -d --remove-orphans --force-recreate
 
           # nginx bind-mounts nginx.conf by inode; git checkout replaces the file
           # so the running container sees the old config until restarted.
