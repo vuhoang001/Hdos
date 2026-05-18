@@ -33,13 +33,25 @@ public sealed class ValidateAndResolveQueryHandler(
             var emailResult = Email.Create(request.Email);
             var email = emailResult.IsSuccess ? emailResult.Value : Email.Create("unknown@unknown.com").Value;
 
-            user = User.Provision(request.UserId, email, request.FullName);
-            await users.AddAsync(user, ct);
-            await uow.SaveChangesAsync(ct);
+            // Guard: Keycloak sub may have changed (user deleted & recreated) while the
+            // email-unique constraint still holds — look up by email before inserting.
+            var existingByEmail = await users.GetByEmailAsync(email, ct);
+            if (existingByEmail is not null)
+            {
+                user = existingByEmail;
+                user.UpdateLastSeen();
+                users.Update(user);
+                await uow.SaveChangesAsync(ct);
+            }
+            else
+            {
+                user = User.Provision(request.UserId, email, request.FullName);
+                await users.AddAsync(user, ct);
+                await uow.SaveChangesAsync(ct);
 
-            // Notify other services (NotificationService subscribes to this)
-            await eventBus.PublishAsync(
-                new UserRegisteredIntegrationEvent(user.Id, user.Email.Value, user.FullName), ct);
+                await eventBus.PublishAsync(
+                    new UserRegisteredIntegrationEvent(user.Id, user.Email.Value, user.FullName), ct);
+            }
         }
         else
         {
