@@ -3,10 +3,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Hdos.NotificationService.Infrastructure.Persistence;
 
-public sealed class NotificationDbContext : DbContext
+public sealed class NotificationDbContext(DbContextOptions<NotificationDbContext> options) : DbContext(options)
 {
-    public NotificationDbContext(DbContextOptions<NotificationDbContext> options) : base(options) { }
-
     public DbSet<Notification> Notifications => Set<Notification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
