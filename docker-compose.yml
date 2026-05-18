@@ -170,8 +170,11 @@ services:
   nginx:
     image: nginx:1.27-alpine
     container_name: hdos-nginx
+    entrypoint: ["/bin/sh", "/etc/nginx/entrypoint.sh"]
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/entrypoint.sh:/etc/nginx/entrypoint.sh:ro
+      - hdos-nginx-ssl:/etc/nginx/ssl
     depends_on:
       - authservice
       - orderservice
@@ -180,6 +183,7 @@ services:
       - asyncgateway
     ports:
       - "5000:8080"
+      - "443:8443"
     networks: [hdos-net]
 
 networks:
@@ -189,3 +193,4 @@ networks:
 volumes:
   hdos-sqldata:
   hdos-kcdata:
+  hdos-nginx-ssl:

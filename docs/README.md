@@ -22,6 +22,7 @@ Bộ tài liệu này mô tả toàn bộ hệ thống **Hdos** — một nền 
 | [13 — Thêm tính năng](./13-them-tinh-nang.md) | Checklist thêm endpoint, event, service mới |
 | [14 — SignalR Realtime](./14-signalr-realtime.md) | Hub, envelope chuẩn, cách test từ frontend |
 | [15 — Async Gateway](./15-async-gateway.md) | HTTP→Queue→Service, endpoints, test guide, Grafana observability |
+| [16 — HTTPS / TLS](./16-https-ssl.md) | Self-signed cert, nginx HTTPS setup, fix Web Crypto API error, hướng dẫn production cert |
 
 ---
 
@@ -64,10 +65,11 @@ Sau khi chạy:
 
 | URL | Mô tả |
 |-----|-------|
-| `http://localhost:5000` | API Gateway |
-| `http://localhost:5000/auth/swagger` | Swagger AuthService |
-| `http://localhost:5000/orders/swagger` | Swagger OrderService |
-| `http://localhost:5000/m01/swagger` | Swagger M01Service |
+| `https://localhost` | API Gateway (HTTPS — port 443) |
+| `http://localhost:5000` | HTTP → redirect sang HTTPS |
+| `https://localhost/auth/swagger` | Swagger AuthService |
+| `https://localhost/orders/swagger` | Swagger OrderService |
+| `https://localhost/m01/swagger` | Swagger M01Service |
 | `http://localhost:8080` | Keycloak Admin UI (admin / Admin1234!) |
 | `http://localhost:15672` | RabbitMQ Management (guest/guest) |
 | `http://localhost:3030` | Grafana (admin/admin) |
