@@ -183,7 +183,7 @@ services:
       - asyncgateway
     ports:
       - "5000:8080"
-      - "443:8443"
+      - "8443:8443"
     networks: [hdos-net]
 
 networks:
