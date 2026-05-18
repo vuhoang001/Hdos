@@ -41,7 +41,10 @@ jobs:
 
           docker compose $COMPOSE_ARGS pull
 
-          docker compose $COMPOSE_ARGS up -d --remove-orphans --force-recreate
+          # down trước để xóa sạch cả container orphan không nằm trong Compose state
+          docker compose $COMPOSE_ARGS down --remove-orphans --timeout 30
+
+          docker compose $COMPOSE_ARGS up -d
 
           docker image prune -f
 
@@ -110,7 +113,10 @@ jobs:
 
           docker compose $COMPOSE_ARGS pull
 
-          docker compose $COMPOSE_ARGS up -d --remove-orphans --force-recreate
+          # down trước để xóa sạch cả container orphan không nằm trong Compose state
+          docker compose $COMPOSE_ARGS down --remove-orphans --timeout 30
+
+          docker compose $COMPOSE_ARGS up -d
 
           docker image prune -f
 
