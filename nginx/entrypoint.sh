@@ -8,6 +8,9 @@ KEY="$SSL_DIR/hdos.key"
 CERT="$SSL_DIR/hdos.crt"
 
 if [ ! -f "$KEY" ] || [ ! -f "$CERT" ]; then
+    # nginx:alpine ships only the SSL shared library, not the openssl CLI.
+    command -v openssl >/dev/null 2>&1 || apk add --no-cache openssl >/dev/null 2>&1
+
     echo "[nginx] Generating self-signed TLS certificate..."
     mkdir -p "$SSL_DIR"
     openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
