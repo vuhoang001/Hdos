@@ -36,8 +36,10 @@ services:
   # → mỗi client dùng URL khác nhau → issuer loạn → 401 ở mọi service.
   keycloak:
     environment:
-      KC_HOSTNAME: "${SERVER_IP}"
+      KC_HOSTNAME_URL: "https://${SERVER_IP}:8443"
       KC_HTTP_PORT: "8080"
+      KC_PROXY: "edge"
+      KC_HOSTNAME_STRICT: "false"
 
   authservice:
     image: ghcr.io/${GHCR_OWNER}/hdos-authservice:${IMAGE_TAG}
@@ -47,7 +49,8 @@ services:
       - ${ENV_DIR}/authservice.env
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
-      Keycloak__Authority: "http://${SERVER_IP}:8080/realms/hdos"
+      Keycloak__Authority: "https://${SERVER_IP}:8443/realms/hdos"
+      Keycloak__MetadataAddress: "http://keycloak:8080/realms/hdos/.well-known/openid-configuration"
 
   orderservice:
     image: ghcr.io/${GHCR_OWNER}/hdos-orderservice:${IMAGE_TAG}
@@ -57,7 +60,8 @@ services:
       - ${ENV_DIR}/orderservice.env
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
-      Keycloak__Authority: "http://${SERVER_IP}:8080/realms/hdos"
+      Keycloak__Authority: "https://${SERVER_IP}:8443/realms/hdos"
+      Keycloak__MetadataAddress: "http://keycloak:8080/realms/hdos/.well-known/openid-configuration"
 
   notificationservice:
     image: ghcr.io/${GHCR_OWNER}/hdos-notificationservice:${IMAGE_TAG}
@@ -67,7 +71,8 @@ services:
       - ${ENV_DIR}/notificationservice.env
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
-      Keycloak__Authority: "http://${SERVER_IP}:8080/realms/hdos"
+      Keycloak__Authority: "https://${SERVER_IP}:8443/realms/hdos"
+      Keycloak__MetadataAddress: "http://keycloak:8080/realms/hdos/.well-known/openid-configuration"
 
   m01service:
     image: ghcr.io/${GHCR_OWNER}/hdos-m01service:${IMAGE_TAG}
@@ -77,7 +82,8 @@ services:
       - ${ENV_DIR}/m01service.env
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
-      Keycloak__Authority: "http://${SERVER_IP}:8080/realms/hdos"
+      Keycloak__Authority: "https://${SERVER_IP}:8443/realms/hdos"
+      Keycloak__MetadataAddress: "http://keycloak:8080/realms/hdos/.well-known/openid-configuration"
 
   asyncgateway:
     image: ghcr.io/${GHCR_OWNER}/hdos-asyncgateway:${IMAGE_TAG}
@@ -87,7 +93,8 @@ services:
       - ${ENV_DIR}/asyncgateway.env
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
-      Keycloak__Authority: "http://${SERVER_IP}:8080/realms/hdos"
+      Keycloak__Authority: "https://${SERVER_IP}:8443/realms/hdos"
+      Keycloak__MetadataAddress: "http://keycloak:8080/realms/hdos/.well-known/openid-configuration"
 
   nginx:
     image: nginx:1.27-alpine

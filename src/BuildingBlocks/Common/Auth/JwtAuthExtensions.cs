@@ -29,6 +29,10 @@ public static class JwtAuthExtensions
                 o.Audience = opts.Audience;
                 // Allow HTTP in dev/Docker environments (no TLS internally)
                 o.RequireHttpsMetadata = false;
+                // When Authority is a public HTTPS URL but services run inside Docker,
+                // use the internal Keycloak URL for JWKS discovery to avoid cert issues.
+                if (!string.IsNullOrWhiteSpace(opts.MetadataAddress))
+                    o.MetadataAddress = opts.MetadataAddress;
                 o.SaveToken = true;
                 o.TokenValidationParameters = new TokenValidationParameters
                 {
