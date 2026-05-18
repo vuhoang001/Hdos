@@ -41,8 +41,10 @@ jobs:
 
           docker compose $COMPOSE_ARGS pull
 
-          # down trước để xóa sạch cả container orphan không nằm trong Compose state
+          # Xóa container do compose quản lý
           docker compose $COMPOSE_ARGS down --remove-orphans --timeout 30
+          # Xóa container hdos-* không có compose label (tạo tay, không bị down ở trên)
+          docker ps -a --format '{{.Names}}' | grep '^hdos-' | xargs -r docker rm -f 2>/dev/null || true
 
           docker compose $COMPOSE_ARGS up -d
 
@@ -113,8 +115,10 @@ jobs:
 
           docker compose $COMPOSE_ARGS pull
 
-          # down trước để xóa sạch cả container orphan không nằm trong Compose state
+          # Xóa container do compose quản lý
           docker compose $COMPOSE_ARGS down --remove-orphans --timeout 30
+          # Xóa container hdos-* không có compose label (tạo tay, không bị down ở trên)
+          docker ps -a --format '{{.Names}}' | grep '^hdos-' | xargs -r docker rm -f 2>/dev/null || true
 
           docker compose $COMPOSE_ARGS up -d
 
