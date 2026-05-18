@@ -22,7 +22,7 @@ Bộ tài liệu này mô tả toàn bộ hệ thống **Hdos** — một nền 
 | [13 — Thêm tính năng](./13-them-tinh-nang.md) | Checklist thêm endpoint, event, service mới |
 | [14 — SignalR Realtime](./14-signalr-realtime.md) | Hub, envelope chuẩn, cách test từ frontend |
 | [15 — Async Gateway](./15-async-gateway.md) | HTTP→Queue→Service, endpoints, test guide, Grafana observability |
-| [16 — HTTPS / TLS](./16-https-ssl.md) | Self-signed cert, nginx HTTPS setup, fix Web Crypto API error, hướng dẫn production cert |
+| [16 — HTTPS, Keycloak Proxy & Issuer](./16-https-ssl.md) | Self-signed cert, proxy Keycloak qua nginx, MetadataAddress pattern, fix Mixed Content & JWT 401, điểm mạnh/yếu, hướng dẫn production |
 
 ---
 
@@ -30,13 +30,16 @@ Bộ tài liệu này mô tả toàn bộ hệ thống **Hdos** — một nền 
 
 ```
 Browser / Mobile
-       │  HTTP
+       │  HTTPS
        ▼
-  nginx (port 5000)          ← API Gateway duy nhất ra ngoài
-  ├── /auth/*  → AuthService
-  ├── /orders/* → OrderService
+  nginx :8443 (SSL)          ← API Gateway duy nhất ra ngoài
+  ├── /realms/*  → Keycloak  (proxy — tránh Mixed Content)
+  ├── /auth/*    → AuthService
+  ├── /orders/*  → OrderService
   ├── /notifications/* → NotificationService
-  └── /m01/*   → M01Service
+  ├── /m01/*     → M01Service
+  ├── /async/*   → AsyncGateway
+  └── /          → Frontend :4000
        │
        ├── SQL Server  (mỗi service 1 database)
        ├── RabbitMQ    (async events giữa services)
@@ -65,12 +68,16 @@ Sau khi chạy:
 
 | URL | Mô tả |
 |-----|-------|
-| `https://localhost` | API Gateway (HTTPS — port 443) |
-| `http://localhost:5000` | HTTP → redirect sang HTTPS |
-| `https://localhost/auth/swagger` | Swagger AuthService |
-| `https://localhost/orders/swagger` | Swagger OrderService |
-| `https://localhost/m01/swagger` | Swagger M01Service |
-| `http://localhost:8080` | Keycloak Admin UI (admin / Admin1234!) |
+| `https://localhost:8443` | API Gateway + Frontend (HTTPS) |
+| `http://localhost:5000` | HTTP → redirect 301 sang HTTPS |
+| `https://localhost:8443/auth/swagger` | Swagger AuthService |
+| `https://localhost:8443/orders/swagger` | Swagger OrderService |
+| `https://localhost:8443/notifications/swagger` | Swagger NotificationService |
+| `https://localhost:8443/m01/swagger` | Swagger M01Service |
+| `https://localhost:8443/realms/hdos` | Keycloak realm (qua nginx proxy) |
+| `http://localhost:8080` | Keycloak Admin UI trực tiếp (admin / Admin1234!) |
 | `http://localhost:15672` | RabbitMQ Management (guest/guest) |
 | `http://localhost:3030` | Grafana (admin/admin) |
 | `http://localhost:9090` | Prometheus |
+
+> **Lưu ý cert:** Lần đầu vào `https://localhost:8443`, browser cảnh báo self-signed cert → click **Advanced → Proceed** một lần là xong.
