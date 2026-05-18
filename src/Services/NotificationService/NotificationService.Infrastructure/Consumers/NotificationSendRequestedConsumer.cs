@@ -7,15 +7,11 @@ using Microsoft.Extensions.Options;
 
 namespace Hdos.NotificationService.Infrastructure.Consumers;
 
-public sealed class NotificationSendRequestedConsumer
-    : RabbitMqConsumerHostedService<NotificationSendRequestedIntegrationEvent, NotificationSendRequestedEventHandler>
-{
-    public NotificationSendRequestedConsumer(
-        RabbitMqConnection connection,
-        IOptions<RabbitMqOptions> options,
-        IServiceScopeFactory scopeFactory,
-        ILogger<NotificationSendRequestedConsumer> logger)
-        : base(connection, options, scopeFactory, logger,
-            queueName: "notification.send-requested")
-    { }
-}
+public sealed class NotificationSendRequestedConsumer(
+    RabbitMqConnection connection,
+    IOptions<RabbitMqOptions> options,
+    IServiceScopeFactory scopeFactory,
+    ILogger<NotificationSendRequestedConsumer> logger)
+    : RabbitMqConsumerHostedService<NotificationSendRequestedIntegrationEvent, NotificationSendRequestedEventHandler>(
+        connection, options, scopeFactory, logger,
+        queueName: "notification.send-requested");
