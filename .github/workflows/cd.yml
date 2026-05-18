@@ -41,12 +41,7 @@ jobs:
 
           docker compose $COMPOSE_ARGS pull
 
-          docker ps -a --filter status=exited --filter status=created \
-            --format '{{.Names}}' | grep '^hdos-' | xargs -r docker rm -f
-
-          docker compose $COMPOSE_ARGS up -d --remove-orphans
-
-          docker compose $COMPOSE_ARGS restart nginx
+          docker compose $COMPOSE_ARGS up -d --remove-orphans --force-recreate
 
           docker image prune -f
 
@@ -115,12 +110,7 @@ jobs:
 
           docker compose $COMPOSE_ARGS pull
 
-          docker ps -a --filter status=exited --filter status=created \
-            --format '{{.Names}}' | grep '^hdos-' | xargs -r docker rm -f
-
-          docker compose $COMPOSE_ARGS up -d --remove-orphans
-
-          docker compose $COMPOSE_ARGS restart nginx
+          docker compose $COMPOSE_ARGS up -d --remove-orphans --force-recreate
 
           docker image prune -f
 
