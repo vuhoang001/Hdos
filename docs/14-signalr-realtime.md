@@ -20,12 +20,13 @@ RabbitMQ Event
 
 ## Hub endpoint
 
-| Property | Giá trị |
-|----------|---------|
-| Path (qua Gateway) | `ws://localhost/notifications/hubs/notifications` |
-| Path (direct) | `ws://localhost:PORT/notifications/hubs/notifications` |
-| Auth | JWT bắt buộc (`[Authorize]`) |
-| Transport | WebSocket (ưu tiên) → Server-Sent Events → Long Polling |
+
+| Property           | Giá trị                                                   |
+| ------------------ | ----------------------------------------------------------- |
+| Path (qua Gateway) | `ws://localhost/notifications/hubs/notifications`           |
+| Path (direct)      | `ws://localhost:PORT/notifications/hubs/notifications`      |
+| Auth               | JWT bắt buộc (`[Authorize]`)                              |
+| Transport          | WebSocket (ưu tiên) → Server-Sent Events → Long Polling |
 
 ---
 
@@ -76,35 +77,37 @@ public sealed record SignalREnvelope<T>(
   }
 }
 ```
-
 ### Field `type` hiện tại
 
-| `type` | Khi nào | Payload |
-|--------|---------|---------|
+
+| `type`           | Khi nào                                          | Payload           |
+| ---------------- | ------------------------------------------------- | ----------------- |
 | `"notification"` | Mọi notification push (login, register, order…) | `NotificationDto` |
 
 > Khi thêm event type mới, định nghĩa tại đây và cập nhật bảng này.
 
 ### Payload: `NotificationDto`
 
-| Field | Kiểu | Mô tả |
-|-------|------|-------|
-| `id` | `string (UUID)` | ID notification trong DB |
-| `recipient` | `string` | Email người nhận |
-| `subject` | `string` | Tiêu đề ngắn |
-| `body` | `string` | Nội dung chi tiết |
-| `channel` | `string` | Luôn là `"SignalR"` hiện tại |
-| `status` | `string` | `"Pending"` / `"Sent"` / `"Failed"` |
-| `createdAtUtc` | `string (ISO 8601)` | Thời điểm tạo notification |
-| `sentAtUtc` | `string (ISO 8601)` \| `null` | Thời điểm push thành công |
+
+| Field          | Kiểu                         | Mô tả                             |
+| -------------- | ----------------------------- | ----------------------------------- |
+| `id`           | `string (UUID)`               | ID notification trong DB            |
+| `recipient`    | `string`                      | Email người nhận                 |
+| `subject`      | `string`                      | Tiêu đề ngắn                    |
+| `body`         | `string`                      | Nội dung chi tiết                 |
+| `channel`      | `string`                      | Luôn là`"SignalR"` hiện tại     |
+| `status`       | `string`                      | `"Pending"` / `"Sent"` / `"Failed"` |
+| `createdAtUtc` | `string (ISO 8601)`           | Thời điểm tạo notification      |
+| `sentAtUtc`    | `string (ISO 8601)` \| `null` | Thời điểm push thành công      |
 
 ---
 
 ## Client → Server methods
 
-| Method | Tham số | Trả về | Mục đích |
-|--------|---------|--------|---------|
-| `Ping()` | — | `"pong"` | Smoke-test kết nối còn sống |
+
+| Method   | Tham số | Trả về | Mục đích                     |
+| -------- | -------- | -------- | ------------------------------- |
+| `Ping()` | —       | `"pong"` | Smoke-test kết nối còn sống |
 
 ---
 
@@ -184,8 +187,8 @@ Tạo file `signalr-test.html`, mở bằng browser bất kỳ:
 </body>
 </html>
 ```
-
 **Bước test:**
+
 1. Chạy stack: `docker compose up -d`
 2. Lấy JWT: `POST http://localhost/auth/login` → copy `token` từ response
 3. Mở `signalr-test.html` trong browser, paste JWT, click **Connect**
@@ -197,11 +200,12 @@ Tạo file `signalr-test.html`, mở bằng browser bất kỳ:
 ### 2. React / Vue / Angular (TypeScript)
 
 Cài package:
+
 ```bash
 npm install @microsoft/signalr
 ```
-
 Hook mẫu (React):
+
 ```typescript
 import * as signalR from '@microsoft/signalr';
 
@@ -243,7 +247,6 @@ export function useNotificationHub(token: string) {
   }, [token]);
 }
 ```
-
 ---
 
 ## Cơ chế user targeting
@@ -257,17 +260,17 @@ JWT claim "email" = "user@example.com"
   ↓ IHubContext.Clients.User("user@example.com").SendAsync(...)
   ↓ Chỉ connection của đúng user đó nhận được
 ```
-
 Server không cần biết connectionId — chỉ cần email. Một user nhiều tab/device đều nhận đủ.
 
 ---
 
 ## Lưu ý scale
 
-| Scenario | Cần làm |
-|---------|---------|
-| 1 replica | Hoạt động ngay, không cần gì thêm |
-| Nhiều replica | Cần **Redis backplane** (`AddSignalR().AddStackExchangeRedis(...)`) |
+
+| Scenario       | Cần làm                                                           |
+| -------------- | ------------------------------------------------------------------- |
+| 1 replica      | Hoạt động ngay, không cần gì thêm                            |
+| Nhiều replica | Cần**Redis backplane** (`AddSignalR().AddStackExchangeRedis(...)`) |
 
 Không có Redis backplane: notification chỉ reach user kết nối với replica đang xử lý event, các replica khác không biết.
 
