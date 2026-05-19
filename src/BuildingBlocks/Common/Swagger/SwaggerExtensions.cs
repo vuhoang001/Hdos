@@ -11,27 +11,32 @@ public static class SwaggerExtensions
     /// - OAuth2 Authorization Code + PKCE (Keycloak) khi truyền keycloakAuthority — click Authorize, login Keycloak, token tự điền.
     /// - JWT Bearer paste thủ công làm fallback.
     /// </summary>
+    /// <param name="keycloakPublicAuthority">
+    /// URL browser có thể truy cập được (ví dụ http://localhost:8080/realms/hdos).
+    /// Dùng cho Swagger Password flow — KHÔNG dùng Docker-internal URL ở đây.
+    /// </param>
     public static IServiceCollection AddHdosSwagger(
         this IServiceCollection services,
         string serviceName,
-        string? keycloakAuthority = null,
+        string? keycloakPublicAuthority = null,
         string version = "v1")
     {
         services.AddSwaggerGen(c =>
         {
             c.SwaggerDoc(version, new OpenApiInfo { Title = $"Hdos {serviceName}", Version = version });
 
-            if (keycloakAuthority is not null)
+            if (keycloakPublicAuthority is not null)
             {
+                // Password flow: nhập thẳng username/password trong Swagger — không cần browser redirect.
+                // Dùng PublicAuthority (localhost:8080) vì browser gọi token endpoint trực tiếp.
                 c.AddSecurityDefinition("oauth2", new OpenApiSecurityScheme
                 {
                     Type = SecuritySchemeType.OAuth2,
                     Flows = new OpenApiOAuthFlows
                     {
-                        AuthorizationCode = new OpenApiOAuthFlow
+                        Password = new OpenApiOAuthFlow
                         {
-                            AuthorizationUrl = new Uri($"{keycloakAuthority}/protocol/openid-connect/auth"),
-                            TokenUrl         = new Uri($"{keycloakAuthority}/protocol/openid-connect/token"),
+                            TokenUrl = new Uri($"{keycloakPublicAuthority}/protocol/openid-connect/token"),
                             Scopes = new Dictionary<string, string>
                             {
                                 ["openid"]  = "OpenID Connect",
@@ -51,7 +56,7 @@ public static class SwaggerExtensions
                 });
             }
 
-            // Bearer paste thủ công — luôn có để fallback hoặc dùng khi không có Keycloak
+            // Bearer paste thủ công — fallback khi cần
             c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
             {
                 Name         = "Authorization",
@@ -90,7 +95,6 @@ public static class SwaggerExtensions
             c.SwaggerEndpoint($"/{servicePrefix}/swagger/v1/swagger.json", serviceTitle);
             c.RoutePrefix = $"{servicePrefix}/swagger";
             c.OAuthClientId(oauthClientId);
-            c.OAuthUsePkce();
             c.OAuthScopes("openid", "profile", "email");
         });
     }

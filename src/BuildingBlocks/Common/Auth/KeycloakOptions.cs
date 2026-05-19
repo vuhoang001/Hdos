@@ -4,8 +4,15 @@ public sealed class KeycloakOptions
 {
     public const string SectionName = "Keycloak";
 
-    /// <summary>http://keycloak:8080/realms/hdos (Docker) or http://localhost:8180/realms/hdos (local)</summary>
+    /// <summary>Internal URL dùng cho JWT validation (Docker: http://keycloak:8080/realms/hdos, local: http://localhost:8080/realms/hdos)</summary>
     public string Authority { get; set; } = string.Empty;
+
+    /// <summary>
+    /// URL browser có thể truy cập được, dùng cho Swagger OAuth2 token endpoint.
+    /// Luôn là http://localhost:8080/realms/hdos vì Keycloak map port 8080 ra host.
+    /// KHÔNG override trong docker-compose — giữ nguyên giá trị từ appsettings.json.
+    /// </summary>
+    public string PublicAuthority { get; set; } = string.Empty;
 
     /// <summary>Client ID configured in Keycloak as the resource server audience.</summary>
     public string Audience { get; set; } = "hdos-backend";

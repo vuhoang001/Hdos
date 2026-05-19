@@ -16,7 +16,7 @@ builder.UseHdosLogging("OrderService");
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddHdosSwagger("OrderService", builder.Configuration["Keycloak:Authority"]);
+builder.Services.AddHdosSwagger("OrderService", builder.Configuration["Keycloak:PublicAuthority"]);
 
 builder.Services.AddOrderApplication();
 builder.Services.AddOrderInfrastructure(builder.Configuration);

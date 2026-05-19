@@ -14,7 +14,7 @@ builder.UseHdosLogging("M01Service");
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddHdosSwagger("M01Service", builder.Configuration["Keycloak:Authority"]);
+builder.Services.AddHdosSwagger("M01Service", builder.Configuration["Keycloak:PublicAuthority"]);
 
 builder.Services.AddM01Application();
 builder.Services.AddM01Infrastructure(builder.Configuration);

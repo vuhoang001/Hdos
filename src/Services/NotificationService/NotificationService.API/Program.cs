@@ -17,7 +17,7 @@ builder.UseHdosLogging("NotificationService");
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddHdosSwagger("NotificationService", builder.Configuration["Keycloak:Authority"]);
+builder.Services.AddHdosSwagger("NotificationService", builder.Configuration["Keycloak:PublicAuthority"]);
 
 builder.Services.AddNotificationApplication();
 builder.Services.AddNotificationInfrastructure(builder.Configuration);
