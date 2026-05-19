@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>Hdos — SSE End-to-End Test Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0f1117;
+      --surface:  #1a1d27;
+      --border:   #2a2d3e;
+      --text:     #e2e8f0;
+      --muted:    #64748b;
+      --green:    #22c55e;
+      --red:      #ef4444;
+      --yellow:   #eab308;
+      --blue:     #3b82f6;
+      --purple:   #a855f7;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    h2 { font-size: 13px; font-weight: 600; text-transform: uppercase;
+         letter-spacing: .08em; color: var(--muted); margin-bottom: 12px; }
+    p.sub { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 16px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+    }
+    .card + .card { margin-top: 16px; }
+
+    label { display: block; font-size: 12px; color: var(--muted);
+            margin-bottom: 4px; margin-top: 12px; }
+    label:first-of-type { margin-top: 0; }
+
+    input, select {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 13px;
+      padding: 7px 10px;
+      outline: none;
+      transition: border-color .15s;
+    }
+    input:focus, select:focus { border-color: var(--blue); }
+
+    button {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--blue);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 14px;
+      cursor: pointer;
+      transition: opacity .15s;
+      margin-top: 14px;
+      width: 100%;
+      justify-content: center;
+    }
+    button:hover { opacity: .85; }
+    button:disabled { opacity: .4; cursor: not-allowed; }
+    button.danger  { background: var(--red); }
+    button.success { background: var(--green); }
+    button.sm { padding: 5px 10px; font-size: 12px; margin-top: 0; width: auto; }
+
+    .badge {
+      display: inline-block;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      text-transform: uppercase;
+    }
+    .badge.ok     { background: #16a34a22; color: var(--green); border: 1px solid #16a34a55; }
+    .badge.err    { background: #dc262622; color: var(--red);   border: 1px solid #dc262655; }
+    .badge.wait   { background: #ca8a0422; color: var(--yellow);border: 1px solid #ca8a0455; }
+    .badge.info   { background: #1d4ed822; color: var(--blue);  border: 1px solid #1d4ed855; }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    /* Log panel */
+    .log-panel {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 12px;
+      height: 280px;
+      overflow-y: auto;
+      padding: 10px;
+    }
+    .log-panel .entry { padding: 2px 0; line-height: 1.6; }
+    .log-panel .ts    { color: var(--muted); margin-right: 8px; }
+    .log-panel .ok    { color: var(--green); }
+    .log-panel .err   { color: var(--red); }
+    .log-panel .warn  { color: var(--yellow); }
+    .log-panel .info  { color: var(--blue); }
+    .log-panel .ev    { color: var(--purple); }
+
+    /* Events feed */
+    .events-feed {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      min-height: 320px;
+      max-height: 480px;
+      overflow-y: auto;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .event-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--purple);
+      border-radius: 6px;
+      padding: 10px 12px;
+      animation: slideIn .2s ease;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .event-card .ev-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .event-card .ev-type  { color: var(--purple); font-weight: 700; font-size: 12px; }
+    .event-card .ev-time  { color: var(--muted);  font-size: 11px; }
+    .event-card .ev-subj  { font-weight: 600; margin-bottom: 4px; }
+    .event-card .ev-body  { color: var(--muted); font-size: 12px; white-space: pre-wrap; }
+    .event-card pre {
+      background: var(--bg);
+      border-radius: 4px;
+      color: #94a3b8;
+      font-size: 11px;
+      margin-top: 8px;
+      overflow-x: auto;
+      padding: 8px;
+    }
+
+    .empty-state {
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+      padding: 40px 0;
+    }
+
+    .sep { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+
+    .token-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      font-family: monospace;
+      font-size: 11px;
+      margin-top: 8px;
+      max-height: 56px;
+      overflow: hidden;
+      padding: 8px;
+      word-break: break-all;
+    }
+
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .stat {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+    }
+    .stat .val { font-size: 22px; font-weight: 700; }
+    .stat .lbl { color: var(--muted); font-size: 11px; margin-top: 2px; }
+
+    .row { display: flex; gap: 8px; align-items: flex-end; }
+    .row > * { flex: 1; }
+    .row > button { flex: 0 0 auto; }
+  </style>
+</head>
+<body>
+
+<div style="max-width:1200px;margin:0 auto 20px">
+  <h1>🧪 Hdos — SSE End-to-End Test Dashboard</h1>
+  <p class="sub">Test toàn bộ flow: Keycloak login → SSE connect → tạo order → nhận notification realtime</p>
+</div>
+
+<div class="grid">
+
+  <!-- ─── LEFT COLUMN ─── -->
+  <div>
+
+    <!-- 1. Config -->
+    <div class="card">
+      <h2>⚙️ Cấu hình</h2>
+      <label>Base URL (nginx gateway)</label>
+      <input id="baseUrl" value="https://192.168.100.60:8443" />
+
+      <label>Keycloak Realm URL</label>
+      <input id="kcUrl" value="https://192.168.100.60:8443/realms/hdos" />
+
+      <label>Client ID</label>
+      <input id="clientId" value="hdos-backend" />
+
+      <label>Client Secret</label>
+      <input id="clientSecret" value="hdos-backend-dev-secret" type="password" />
+    </div>
+
+    <!-- 2. Login -->
+    <div class="card">
+      <h2>🔐 Bước 1 — Lấy JWT Token</h2>
+      <label>Username</label>
+      <input id="username" value="testuser" />
+      <label>Password</label>
+      <input id="password" value="Test1234!" type="password" />
+      <button onclick="login()">Lấy Token từ Keycloak</button>
+
+      <div id="tokenSection" style="display:none">
+        <hr class="sep" />
+        <div class="status-row">
+          <span>Token</span>
+          <span id="tokenBadge" class="badge ok">OK</span>
+        </div>
+        <div class="token-box" id="tokenBox"></div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="sm" onclick="copyToken()">Copy</button>
+          <button class="sm" onclick="decodeToken()">Decode</button>
+        </div>
+        <div id="tokenDecoded" style="display:none;margin-top:8px">
+          <pre id="tokenPayload" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:11px;overflow:auto;max-height:120px;color:#94a3b8"></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. SSE -->
+    <div class="card">
+      <h2>📡 Bước 2 — Kết nối SSE</h2>
+      <div class="status-row">
+        <span>Trạng thái</span>
+        <span id="sseBadge" class="badge wait">Chưa kết nối</span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="connectSse()" id="btnConnect">Kết nối SSE</button>
+        <button class="danger sm" onclick="disconnectSse()" id="btnDisconnect" disabled style="width:auto;margin-top:14px">Ngắt</button>
+      </div>
+    </div>
+
+    <!-- 4. Actions -->
+    <div class="card">
+      <h2>🚀 Bước 3 — Trigger Events</h2>
+
+      <label>Customer ID (UUID)</label>
+      <div class="row">
+        <input id="customerId" value="" placeholder="auto-fill sau khi login" />
+        <button class="sm success" onclick="randomUuid()" style="margin-top:0;white-space:nowrap">Random</button>
+      </div>
+
+      <label>Tên sản phẩm</label>
+      <input id="productName" value="Paracetamol 500mg" />
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <label>Số lượng</label>
+          <input id="qty" type="number" value="2" min="1" />
+        </div>
+        <div>
+          <label>Đơn giá (VND)</label>
+          <input id="price" type="number" value="50000" min="0" />
+        </div>
+      </div>
+
+      <button class="success" onclick="createOrder()">Tạo Order → nhận SSE notification</button>
+
+      <hr class="sep" />
+
+      <h2>📨 Gửi notification trực tiếp</h2>
+      <label>Email người nhận</label>
+      <input id="notifEmail" value="testuser@hdos.dev" />
+      <label>Subject</label>
+      <input id="notifSubject" value="Test notification thủ công" />
+      <label>Body</label>
+      <input id="notifBody" value="Đây là test SSE realtime." />
+      <button onclick="sendNotification()">Gửi Notification</button>
+    </div>
+
+  </div>
+
+  <!-- ─── RIGHT COLUMN ─── -->
+  <div>
+
+    <!-- Stats -->
+    <div class="stat-row">
+      <div class="stat">
+        <div class="val" id="statEvents" style="color:var(--purple)">0</div>
+        <div class="lbl">SSE events nhận</div>
+      </div>
+      <div class="stat">
+        <div class="val" id="statOrders" style="color:var(--green)">0</div>
+        <div class="lbl">Orders đã tạo</div>
+      </div>
+      <div class="stat">
+        <div class="val" id="statErrors" style="color:var(--red)">0</div>
+        <div class="lbl">Lỗi</div>
+      </div>
+    </div>
+
+    <!-- Events feed -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="status-row">
+        <h2 style="margin:0">📬 SSE Events nhận được</h2>
+        <button class="sm danger" onclick="clearEvents()" style="margin-top:0">Xóa</button>
+      </div>
+      <div class="events-feed" id="eventsFeed">
+        <div class="empty-state">Chưa có event nào — kết nối SSE rồi trigger event</div>
+      </div>
+    </div>
+
+    <!-- Log -->
+    <div class="card">
+      <div class="status-row">
+        <h2 style="margin:0">🖥️ Console Log</h2>
+        <button class="sm" onclick="clearLog()" style="margin-top:0">Xóa</button>
+      </div>
+      <div class="log-panel" id="logPanel"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+let token      = null;
+let sse        = null;
+let statEvt    = 0;
+let statOrd    = 0;
+let statErr    = 0;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const $  = id => document.getElementById(id);
+const ts = () => new Date().toTimeString().slice(0, 8);
+
+function log(msg, type = 'info') {
+  const panel = $('logPanel');
+  const div   = document.createElement('div');
+  div.className = 'entry';
+  div.innerHTML = `<span class="ts">${ts()}</span><span class="${type}">${msg}</span>`;
+  panel.appendChild(div);
+  panel.scrollTop = panel.scrollHeight;
+}
+
+function updateStats() {
+  $('statEvents').textContent = statEvt;
+  $('statOrders').textContent = statOrd;
+  $('statErrors').textContent = statErr;
+}
+
+function cfg(key) { return $(key).value.trim(); }
+
+function randomUuid() {
+  $('customerId').value = crypto.randomUUID();
+}
+
+function clearLog()    { $('logPanel').innerHTML = ''; }
+function clearEvents() {
+  $('eventsFeed').innerHTML = '<div class="empty-state">Đã xóa — đang chờ event mới...</div>';
+  statEvt = 0; updateStats();
+}
+
+function copyToken() {
+  navigator.clipboard.writeText(token || '');
+  log('Token đã copy vào clipboard', 'ok');
+}
+
+function decodeToken() {
+  if (!token) return;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    $('tokenPayload').textContent = JSON.stringify(payload, null, 2);
+    const decoded = $('tokenDecoded');
+    decoded.style.display = decoded.style.display === 'none' ? 'block' : 'none';
+    // Auto-fill customerId từ sub claim
+    if (payload.sub) $('customerId').value = payload.sub;
+    if (payload.email) $('notifEmail').value = payload.email;
+  } catch(e) { log('Không decode được token: ' + e.message, 'err'); }
+}
+
+// ─── Step 1: Login ────────────────────────────────────────────────────────────
+async function login() {
+  log('Đang lấy token từ Keycloak...', 'info');
+  try {
+    const res = await fetch(
+      `${cfg('kcUrl')}/protocol/openid-connect/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type:    'password',
+        client_id:     cfg('clientId'),
+        client_secret: cfg('clientSecret'),
+        username:      cfg('username'),
+        password:      cfg('password'),
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.access_token) {
+      statErr++; updateStats();
+      log(`❌ Login thất bại: ${data.error_description || data.error}`, 'err');
+      return;
+    }
+
+    token = data.access_token;
+
+    // Hiện token section
+    $('tokenSection').style.display = 'block';
+    $('tokenBadge').textContent = 'OK';
+    $('tokenBadge').className   = 'badge ok';
+    $('tokenBox').textContent   = token.slice(0, 80) + '...';
+
+    // Auto-decode để fill customerId
+    try {
+      const p = JSON.parse(atob(token.split('.')[1]));
+      if (p.sub)   $('customerId').value = p.sub;
+      if (p.email) $('notifEmail').value = p.email;
+      log(`✅ Token OK — user: ${p.preferred_username} (${p.email}), exp: ${new Date(p.exp * 1000).toLocaleTimeString()}`, 'ok');
+    } catch(_) {
+      log('✅ Token OK', 'ok');
+    }
+
+  } catch(e) {
+    statErr++; updateStats();
+    log(`❌ Không kết nối được Keycloak: ${e.message}`, 'err');
+  }
+}
+
+// ─── Step 2: SSE ──────────────────────────────────────────────────────────────
+function connectSse() {
+  if (!token) { log('⚠️  Chưa có token — login trước', 'warn'); return; }
+  if (sse)    { log('⚠️  SSE đang kết nối rồi', 'warn'); return; }
+
+  const url = `${cfg('baseUrl')}/notifications/sse?access_token=${token}`;
+  log(`Đang kết nối SSE: ${cfg('baseUrl')}/notifications/sse`, 'info');
+
+  sse = new EventSource(url);
+
+  sse.onopen = () => {
+    $('sseBadge').textContent = 'Đang kết nối';
+    $('sseBadge').className   = 'badge wait';
+    log('SSE connection opened', 'info');
+  };
+
+  // ── Comment ": connected" từ server ──
+  sse.addEventListener('message', e => {
+    log(`SSE message: ${e.data}`, 'info');
+  });
+
+  // ── Named event "notification" ──
+  sse.addEventListener('notification', e => {
+    try {
+      const envelope = JSON.parse(e.data);
+      renderEvent(envelope);
+      statEvt++; updateStats();
+      log(`📨 SSE event nhận: ${envelope.payload?.subject || 'notification'}`, 'ev');
+    } catch(err) {
+      log(`❌ Parse event lỗi: ${err.message}`, 'err');
+    }
+  });
+
+  sse.onerror = () => {
+    if (sse.readyState === EventSource.CLOSED) {
+      $('sseBadge').textContent = 'Đã ngắt';
+      $('sseBadge').className   = 'badge err';
+      $('btnConnect').disabled    = false;
+      $('btnDisconnect').disabled = true;
+      log('SSE connection closed', 'warn');
+      sse = null;
+    } else {
+      log('SSE error — đang retry...', 'warn');
+    }
+    statErr++; updateStats();
+  };
+
+  // ── Sau 1s nếu không bị error thì coi là connected ──
+  setTimeout(() => {
+    if (sse && sse.readyState === EventSource.OPEN) {
+      $('sseBadge').textContent = 'Connected';
+      $('sseBadge').className   = 'badge ok';
+      $('btnConnect').disabled    = true;
+      $('btnDisconnect').disabled = false;
+      log('✅ SSE connected thành công', 'ok');
+    }
+  }, 1000);
+}
+
+function disconnectSse() {
+  if (sse) { sse.close(); sse = null; }
+  $('sseBadge').textContent = 'Đã ngắt';
+  $('sseBadge').className   = 'badge err';
+  $('btnConnect').disabled    = false;
+  $('btnDisconnect').disabled = true;
+  log('SSE ngắt kết nối thủ công', 'warn');
+}
+
+function renderEvent(envelope) {
+  const feed = $('eventsFeed');
+
+  // Xóa empty state
+  const empty = feed.querySelector('.empty-state');
+  if (empty) empty.remove();
+
+  const p = envelope.payload || {};
+  const div = document.createElement('div');
+  div.className = 'event-card';
+  div.innerHTML = `
+    <div class="ev-header">
+      <span class="ev-type">▶ ${envelope.type || 'notification'}</span>
+      <span class="ev-time">${new Date(envelope.occurredAtUtc).toLocaleTimeString()}</span>
+    </div>
+    <div class="ev-subj">${p.subject || '—'}</div>
+    <div class="ev-body">${p.body || ''}</div>
+    <pre>${JSON.stringify(envelope, null, 2)}</pre>
+  `;
+  feed.insertBefore(div, feed.firstChild);
+}
+
+// ─── Step 3a: Create Order ────────────────────────────────────────────────────
+async function createOrder() {
+  if (!token) { log('⚠️  Chưa có token', 'warn'); return; }
+
+  const body = {
+    customerId: cfg('customerId') || crypto.randomUUID(),
+    items: [{
+      productName: cfg('productName'),
+      quantity:    parseInt($('qty').value) || 1,
+      unitPrice:   parseFloat($('price').value) || 0,
+      currency:    'VND'
+    }]
+  };
+
+  log(`Đang tạo order: ${JSON.stringify(body.items[0])}`, 'info');
+
+  try {
+    const res = await fetch(`${cfg('baseUrl')}/orders/`, {
+      method:  'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(body)
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      statErr++; updateStats();
+      log(`❌ Tạo order thất bại ${res.status}: ${JSON.stringify(data)}`, 'err');
+      return;
+    }
+
+    statOrd++; updateStats();
+    const orderId = data.value?.id || data.id || '?';
+    log(`✅ Order tạo thành công: ${orderId} — chờ SSE notification...`, 'ok');
+
+  } catch(e) {
+    statErr++; updateStats();
+    log(`❌ Lỗi tạo order: ${e.message}`, 'err');
+  }
+}
+
+// ─── Step 3b: Send Notification trực tiếp ────────────────────────────────────
+async function sendNotification() {
+  if (!token) { log('⚠️  Chưa có token', 'warn'); return; }
+
+  const body = {
+    recipientEmail: cfg('notifEmail'),
+    subject:        cfg('notifSubject'),
+    body:           cfg('notifBody')
+  };
+
+  log(`Đang gửi notification tới ${body.recipientEmail}...`, 'info');
+
+  try {
+    // Gửi qua async gateway (publish sang RabbitMQ)
+    const res = await fetch(`${cfg('baseUrl')}/async/notifications`, {
+      method:  'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (res.ok) {
+      log(`✅ Notification đã publish — chờ SSE event...`, 'ok');
+    } else {
+      const data = await res.text();
+      statErr++; updateStats();
+      log(`❌ Gửi thất bại ${res.status}: ${data}`, 'err');
+    }
+
+  } catch(e) {
+    statErr++; updateStats();
+    log(`❌ Lỗi: ${e.message}`, 'err');
+  }
+}
+</script>
+</body>
+</html>
