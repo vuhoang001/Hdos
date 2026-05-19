@@ -72,8 +72,15 @@ public sealed class AuthController(
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken ct)
     {
-        var opts     = keycloakOptions.Value;
-        var tokenUrl = $"{opts.Authority}/protocol/openid-connect/token";
+        var opts = keycloakOptions.Value;
+        // Dùng URL nội bộ Docker cho server-side call.
+        // MetadataAddress = "http://keycloak:8080/realms/hdos/.well-known/openid-configuration"
+        // → base = "http://keycloak:8080/realms/hdos"
+        // Nếu không có MetadataAddress (local dev) thì dùng Authority.
+        var baseUrl  = string.IsNullOrEmpty(opts.MetadataAddress)
+            ? opts.Authority
+            : opts.MetadataAddress[..opts.MetadataAddress.IndexOf("/.well-known", StringComparison.Ordinal)];
+        var tokenUrl = $"{baseUrl}/protocol/openid-connect/token";
 
         logger.LogInformation("Login attempt for {Username} via {TokenUrl}", request.Username, tokenUrl);
 
