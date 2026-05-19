@@ -45,6 +45,17 @@
             "multivalued": "true",
             "userinfo.token.claim": "true"
           }
+        },
+        {
+          "name": "hdos-backend-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "hdos-backend",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
         }
       ]
     },
