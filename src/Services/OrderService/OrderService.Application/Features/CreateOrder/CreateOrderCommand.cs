@@ -33,9 +33,9 @@ public sealed class CreateOrderCommandValidator : AbstractValidator<CreateOrderC
 
 public sealed class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Result<OrderDto>>
 {
-    private readonly IOrderRepository _orders;
-    private readonly IUnitOfWork _uow;
-    private readonly IEventBus _eventBus;
+    private readonly IOrderRepository   _orders;
+    private readonly IUnitOfWork        _uow;
+    private readonly IEventBus          _eventBus;
     private readonly IUserLookupService _users;
 
     public CreateOrderCommandHandler(
@@ -44,10 +44,10 @@ public sealed class CreateOrderCommandHandler : IRequestHandler<CreateOrderComma
         IEventBus eventBus,
         IUserLookupService users)
     {
-        _orders = orders;
-        _uow = uow;
+        _orders   = orders;
+        _uow      = uow;
         _eventBus = eventBus;
-        _users = users;
+        _users    = users;
     }
 
     public async Task<Result<OrderDto>> Handle(CreateOrderCommand request, CancellationToken ct)
@@ -92,6 +92,7 @@ public sealed class CreateOrderCommandHandler : IRequestHandler<CreateOrderComma
         order.Total.Currency,
         order.CreatedAtUtc,
         order.Items.Select(i =>
-            new OrderItemDto(i.Id, i.ProductName, i.Quantity, i.UnitPrice.Amount, i.UnitPrice.Currency)
+                               new OrderItemDto(i.Id, i.ProductName, i.Quantity, i.UnitPrice.Amount,
+                                                i.UnitPrice.Currency)
         ).ToList());
 }

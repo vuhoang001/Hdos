@@ -2,6 +2,7 @@ namespace Hdos.OrderService.Application.DTOs;
 
 public sealed record OrderItemInputDto(string ProductName, int Quantity, decimal UnitPrice, string Currency);
 
+
 public sealed record OrderItemDto(Guid Id, string ProductName, int Quantity, decimal UnitPrice, string Currency);
 
 public sealed record OrderDto(

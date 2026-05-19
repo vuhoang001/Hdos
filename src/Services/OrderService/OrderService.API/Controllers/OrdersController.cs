@@ -1,8 +1,10 @@
 using Hdos.Common.Auth;
 using Hdos.Common.Responses;
 using Hdos.OrderService.Application.DTOs;
+using Hdos.OrderService.Application.Features.ConfirmOrder;
 using Hdos.OrderService.Application.Features.CreateOrder;
 using Hdos.OrderService.Application.Features.GetOrder;
+using Hdos.OrderService.Domain.Entities;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -26,7 +28,17 @@ public sealed class OrdersController : ControllerBase
         if (result.IsFailure)
             return BadRequest(ApiResponse<OrderDto>.Fail(result.Error.Code, result.Error.Message));
         return CreatedAtAction(nameof(GetById), new { id = result.Value.Id },
-            ApiResponse<OrderDto>.Ok(result.Value));
+                               ApiResponse<OrderDto>.Ok(result.Value));
+    }
+
+    [HttpPost("/confirm-order")]
+    public async Task<IActionResult> ConfirmOrder([FromBody] ConfirmOrderCommand cmd, CancellationToken ct)
+    {
+        var result = await _sender.Send(cmd, ct);
+        if (result.IsFailure)
+            return BadRequest(ApiResponse<OrderDto>.Fail(result.Error.Code, result.Error.Message));
+        return CreatedAtAction(nameof(GetById), new { id = result.Value.Id },
+                               ApiResponse<Order>.Ok(result.Value));
     }
 
     [Authorize(Policy = HdosPermissions.OrdersRead)]

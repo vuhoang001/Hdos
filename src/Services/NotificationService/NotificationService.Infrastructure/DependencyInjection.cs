@@ -31,6 +31,7 @@ public static class DependencyInjection
             x.AddConsumer<UserLoggedInConsumer>();
             x.AddConsumer<UserRegisteredConsumer>();
             x.AddConsumer<OrderCreatedConsumer>();
+            x.AddConsumer<OrderConfirmedConsumer>();
             x.AddConsumer<NotificationSendRequestedConsumer>();
             x.AddConsumer<TestConsumer>();
         });

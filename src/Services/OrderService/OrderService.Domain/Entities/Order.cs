@@ -6,7 +6,7 @@ namespace Hdos.OrderService.Domain.Entities;
 
 public enum OrderStatus
 {
-    Pending = 0,
+    Pending   = 0,
     Confirmed = 1,
     Cancelled = 2
 }
@@ -22,7 +22,9 @@ public sealed class Order : AggregateRoot<Guid>
 
     public IReadOnlyCollection<OrderItem> Items => _items.AsReadOnly();
 
-    private Order() { }
+    private Order()
+    {
+    }
 
     public static Order Create(Guid customerId, string customerEmail,
         IEnumerable<(string product, int qty, decimal unit, string currency)> lines)
@@ -32,11 +34,11 @@ public sealed class Order : AggregateRoot<Guid>
 
         var order = new Order
         {
-            Id = Guid.NewGuid(),
-            CustomerId = customerId,
+            Id            = Guid.NewGuid(),
+            CustomerId    = customerId,
             CustomerEmail = customerEmail.Trim().ToLowerInvariant(),
-            Status = OrderStatus.Pending,
-            Total = Money.Zero()
+            Status        = OrderStatus.Pending,
+            Total         = Money.Zero()
         };
 
         var any = false;
@@ -49,24 +51,27 @@ public sealed class Order : AggregateRoot<Guid>
         if (!any) throw new InvalidOperationException("Order must contain at least one item.");
 
         order.Total = order._items.Aggregate(Money.Zero(order._items[0].UnitPrice.Currency),
-            (acc, item) => acc.Add(item.LineTotal));
+                                             (acc, item) => acc.Add(item.LineTotal));
 
         order.RaiseDomainEvent(new OrderCreatedDomainEvent(order.Id, order.CustomerId, order.Total.Amount));
         return order;
     }
 
+
     public void Confirm()
     {
         if (Status != OrderStatus.Pending)
             throw new InvalidOperationException("Only pending orders can be confirmed.");
-        Status = OrderStatus.Confirmed;
+        Status       = OrderStatus.Confirmed;
         UpdatedAtUtc = DateTime.UtcNow;
+
+        RaiseDomainEvent(new OrderConfirmedDomainEvent(Id, CustomerId, CustomerEmail, Status.ToString()));
     }
 
     public void Cancel()
     {
         if (Status == OrderStatus.Cancelled) return;
-        Status = OrderStatus.Cancelled;
+        Status       = OrderStatus.Cancelled;
         UpdatedAtUtc = DateTime.UtcNow;
     }
 }

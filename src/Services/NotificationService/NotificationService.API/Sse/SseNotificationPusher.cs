@@ -4,20 +4,12 @@ using Hdos.NotificationService.Application.Realtime;
 
 namespace Hdos.NotificationService.API.Sse;
 
-public sealed class SseNotificationPusher : INotificationPusher
+public sealed class SseNotificationPusher(SseConnectionManager manager, ILogger<SseNotificationPusher> logger)
+    : INotificationPusher
 {
-    public const string EventName = "notification";
+    private const string EventName = "notification";
 
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
-
-    private readonly SseConnectionManager _manager;
-    private readonly ILogger<SseNotificationPusher> _logger;
-
-    public SseNotificationPusher(SseConnectionManager manager, ILogger<SseNotificationPusher> logger)
-    {
-        _manager = manager;
-        _logger  = logger;
-    }
 
     public async Task PushToUserAsync(string userEmail, NotificationDto notification, CancellationToken ct = default)
     {
@@ -30,9 +22,9 @@ public sealed class SseNotificationPusher : INotificationPusher
 
         var data = JsonSerializer.Serialize(envelope, JsonOpts);
 
-        await _manager.SendToUserAsync(userEmail, data, ct);
+        await manager.SendToUserAsync(userEmail, data, ct);
 
-        _logger.LogInformation("Pushed SSE notification {NotificationId} → {User}",
+        logger.LogInformation("Pushed SSE notification {NotificationId} → {User}",
             notification.Id, userEmail);
     }
 }

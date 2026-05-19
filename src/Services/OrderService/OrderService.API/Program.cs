@@ -9,8 +9,6 @@ using Hdos.OrderService.Infrastructure;
 using Hdos.OrderService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
-// Required so the gRPC client can speak HTTP/2 over plain http:// to AuthService.
-// Without TLS, .NET refuses HTTP/2 by default.
 AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
 
 var builder = WebApplication.CreateBuilder(args);
@@ -52,13 +50,17 @@ app.Run();
 
 static async Task EnsureDatabaseAsync(WebApplication app)
 {
-    using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
-    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-    var attempts = 0;
+    using var scope    = app.Services.CreateScope();
+    var       db       = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+    var       logger   = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    var       attempts = 0;
     while (attempts < 10)
     {
-        try { await db.Database.MigrateAsync(); return; }
+        try
+        {
+            await db.Database.MigrateAsync();
+            return;
+        }
         catch (Exception ex)
         {
             attempts++;

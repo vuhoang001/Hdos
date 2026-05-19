@@ -16,12 +16,8 @@ public sealed record SendNotificationAsyncRequest(
 [ApiController]
 [Route("async/notifications")]
 [Authorize(Policy = HdosPermissions.NotificationsSend)]
-public sealed class AsyncNotificationsController : ControllerBase
+public sealed class AsyncNotificationsController(IEventBus eventBus) : ControllerBase
 {
-    private readonly IEventBus _eventBus;
-
-    public AsyncNotificationsController(IEventBus eventBus) => _eventBus = eventBus;
-
     /// <summary>
     /// Enqueues a notification. Returns 202 immediately;
     /// NotificationService processes and delivers it asynchronously.
@@ -35,7 +31,7 @@ public sealed class AsyncNotificationsController : ControllerBase
         CancellationToken ct)
     {
         var correlationId = Guid.NewGuid();
-        await _eventBus.PublishAsync(
+        await eventBus.PublishAsync(
             new NotificationSendRequestedIntegrationEvent(
                 CorrelationId: correlationId,
                 RecipientEmail: request.RecipientEmail,
