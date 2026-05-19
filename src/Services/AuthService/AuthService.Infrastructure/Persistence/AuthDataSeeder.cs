@@ -1,4 +1,5 @@
 using Hdos.AuthService.Domain.Entities;
+using Hdos.AuthService.Domain.Repositories;
 using Hdos.AuthService.Domain.ValueObjects;
 using Hdos.Common.Auth;
 using Microsoft.AspNetCore.Identity;
@@ -24,6 +25,7 @@ public static class AuthDataSeeder
         using var scope = services.CreateScope();
         var sp     = scope.ServiceProvider;
         var db     = sp.GetRequiredService<AuthDbContext>();
+        var users  = sp.GetRequiredService<IUserRepository>();
         var hasher = sp.GetRequiredService<IPasswordHasher<User>>();
         var config = sp.GetRequiredService<IConfiguration>();
 
@@ -31,16 +33,18 @@ public static class AuthDataSeeder
         var (adminRole, userRole) = await SeedRolesAsync(db, ct);
         await db.SaveChangesAsync(ct);
 
-        await SeedUserAsync(db, hasher, adminRole,
+        await SeedUserAsync(db, users, hasher, adminRole,
             email: "admin@hdos.dev",
             fullName: "Hdos Admin",
             password: config["Seed:AdminPassword"] ?? "Admin1234!",
+            logger,
             ct);
 
-        await SeedUserAsync(db, hasher, userRole,
+        await SeedUserAsync(db, users, hasher, userRole,
             email: "testuser@hdos.dev",
             fullName: "Test User",
             password: config["Seed:TestUserPassword"] ?? "Test1234!",
+            logger,
             ct);
 
         await db.SaveChangesAsync(ct);
@@ -102,30 +106,41 @@ public static class AuthDataSeeder
 
     private static async Task SeedUserAsync(
         AuthDbContext db,
+        IUserRepository users,
         IPasswordHasher<User> hasher,
         Role role,
         string email,
         string fullName,
         string password,
+        ILogger logger,
         CancellationToken ct)
     {
         var emailVo = Email.Create(email).Value!;
-        var existing = await db.Users.FirstOrDefaultAsync(u => u.Email.Value == emailVo.Value, ct);
+        var existing = await users.GetByEmailAsync(emailVo, ct);
+
         if (existing is null)
         {
             var u = User.Create(emailVo, fullName, passwordHash: "placeholder");
             u.SetPasswordHash(hasher.HashPassword(u, password));
             db.Users.Add(u);
             db.UserRoles.Add(UserRole.Assign(u.Id, role.Id));
+            logger.LogInformation("Seeded new user {Email}", email);
             return;
         }
 
-        // User cũ (vd JIT từ Keycloak) có thể có PasswordHash rỗng — set lại để login được.
+        // User cũ có PasswordHash rỗng (vd JIT từ Keycloak trước migration) → set lại để login được.
         if (string.IsNullOrEmpty(existing.PasswordHash))
+        {
             existing.SetPasswordHash(hasher.HashPassword(existing, password));
+            users.Update(existing);
+            logger.LogInformation("Re-seeded password for legacy user {Email}", email);
+        }
 
         var assigned = await db.UserRoles.AnyAsync(ur => ur.UserId == existing.Id && ur.RoleId == role.Id, ct);
         if (!assigned)
+        {
             db.UserRoles.Add(UserRole.Assign(existing.Id, role.Id));
+            logger.LogInformation("Assigned role {Role} to existing user {Email}", role.Name, email);
+        }
     }
 }
