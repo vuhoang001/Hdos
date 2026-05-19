@@ -1,11 +1,14 @@
 using Hdos.AuthService.Application.DTOs;
 using Hdos.AuthService.Application.Features.GetUser;
 using Hdos.AuthService.Application.Features.ValidateToken;
+using Hdos.Common.Auth;
 using Hdos.Common.Responses;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using System.Security.Claims;
+using System.Text.Json;
 
 namespace Hdos.AuthService.API.Controllers;
 
@@ -56,8 +59,52 @@ public sealed class AuthController(ISender sender) : ControllerBase
         return Ok(ApiResponse<UserDto>.Ok(result.Value));
     }
 
+    /// <summary>
+    /// Lấy JWT token từ Keycloak bằng username/password.
+    /// Dùng để test API qua Swagger — copy accessToken rồi paste vào ô Authorize (Bearer).
+    /// </summary>
+    [AllowAnonymous]
+    [HttpPost("login")]
+    public async Task<IActionResult> Login(
+        [FromBody] LoginRequest request,
+        [FromServices] IHttpClientFactory httpClientFactory,
+        [FromServices] IOptions<KeycloakOptions> keycloakOptions,
+        CancellationToken ct)
+    {
+        var opts     = keycloakOptions.Value;
+        var tokenUrl = $"{opts.Authority}/protocol/openid-connect/token";
+
+        var form = new Dictionary<string, string>
+        {
+            ["grant_type"] = "password",
+            ["client_id"]  = opts.ClientId,
+            ["username"]   = request.Username,
+            ["password"]   = request.Password,
+            ["scope"]      = "openid"
+        };
+
+        var http     = httpClientFactory.CreateClient();
+        var response = await http.PostAsync(tokenUrl, new FormUrlEncodedContent(form), ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var err = await response.Content.ReadAsStringAsync(ct);
+            return Unauthorized(new { error = err });
+        }
+
+        var json        = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+        var accessToken = json.GetProperty("access_token").GetString()!;
+        var tokenType   = json.GetProperty("token_type").GetString()!;
+        var expiresIn   = json.GetProperty("expires_in").GetInt32();
+        var refreshToken = json.TryGetProperty("refresh_token", out var rt) ? rt.GetString() : null;
+
+        return Ok(new { accessToken, tokenType, expiresIn, refreshToken });
+    }
+
     [AllowAnonymous]
     [HttpGet("health")]
     public IActionResult Health() =>
         Ok(new { status = "OK", service = "AuthService", at = DateTime.UtcNow });
 }
+
+public sealed record LoginRequest(string Username, string Password);
