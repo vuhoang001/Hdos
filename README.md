@@ -39,7 +39,7 @@ Giao tiếp nội bộ (sync):
 | Database | SQL Server — EF Core Code First (1 DB / service) |
 | Sync comm | gRPC (Protobuf, HTTP/2) |
 | Async comm | RabbitMQ — topic exchange |
-| Real-time | SignalR |
+| Real-time | Server-Sent Events (SSE) |
 | Auth | JWT HS256 (issued by AuthService, validated tại nginx + mỗi service) |
 | Metrics | Prometheus + prometheus-net |
 | Logs | Serilog → Grafana Loki |
@@ -97,7 +97,7 @@ Hdos/
 │   └── Services/
 │       ├── AuthService/       ← User, JWT, gRPC server
 │       ├── OrderService/      ← Order, gRPC client + queue consumer
-│       ├── NotificationService/ ← RabbitMQ consumers, SignalR
+│       ├── NotificationService/ ← RabbitMQ consumers, SSE
 │       └── M01Service/        ← Nghiệp vụ bệnh viện
 ├── tests/                     ← xUnit + FluentAssertions + NSubstitute
 ├── nginx/nginx.conf           ← API Gateway config

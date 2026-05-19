@@ -5,12 +5,11 @@ using Hdos.Common.Logging;
 using Hdos.Common.Monitoring;
 using Hdos.Common.Swagger;
 using Hdos.NotificationService.API.BackgroundServices;
-using Hdos.NotificationService.API.Hubs;
+using Hdos.NotificationService.API.Sse;
 using Hdos.NotificationService.Application;
 using Hdos.NotificationService.Application.Realtime;
 using Hdos.NotificationService.Infrastructure;
 using Hdos.NotificationService.Infrastructure.Persistence;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -29,9 +28,9 @@ builder.Services.AddHdosCors(builder.Configuration);
 builder.Services.AddHdosOpenTelemetry(builder.Configuration, "NotificationService");
 builder.Services.AddHdosHealthChecks(builder.Configuration, sqlConnectionStringKey: "NotificationDb", checkRabbitMq: true);
 
-builder.Services.AddSignalR();
-builder.Services.AddSingleton<IUserIdProvider, EmailUserIdProvider>();
-builder.Services.AddScoped<INotificationPusher, SignalRNotificationPusher>();
+// SSE
+builder.Services.AddSingleton<SseConnectionManager>();
+builder.Services.AddScoped<INotificationPusher, SseNotificationPusher>();
 
 builder.Services.AddHostedService<TestBroadcastService>();
 
@@ -50,7 +49,6 @@ app.UseAuthentication();
 app.UseHdosPermissions();
 app.UseAuthorization();
 app.MapControllers();
-app.MapHub<NotificationHub>("/notifications/hubs/notifications");
 app.UseHdosMonitoring();
 
 await EnsureDatabaseAsync(app);
@@ -60,7 +58,7 @@ app.Run();
 static async Task EnsureDatabaseAsync(WebApplication app)
 {
     using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+    var db     = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     var attempts = 0;
     while (attempts < 10)

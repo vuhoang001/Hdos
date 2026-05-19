@@ -53,7 +53,8 @@ public static class JwtAuthExtensions
                         var token = ctx.Request.Query["access_token"];
                         var path  = ctx.HttpContext.Request.Path;
                         if (!string.IsNullOrEmpty(token) && path.HasValue &&
-                            path.Value!.Contains("/hubs/", StringComparison.OrdinalIgnoreCase))
+                            (path.Value!.Contains("/hubs/", StringComparison.OrdinalIgnoreCase) ||
+                             path.Value!.Contains("/sse",   StringComparison.OrdinalIgnoreCase)))
                             ctx.Token = token;
                         return Task.CompletedTask;
                     }
