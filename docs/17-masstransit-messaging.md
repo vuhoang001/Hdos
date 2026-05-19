@@ -154,11 +154,54 @@ public sealed class CreateOrderCommandHandler(
 
 ## Hướng dẫn: Thêm consumer mới
 
-Tiếp tục ví dụ trên — giả sử **PaymentService** muốn nhận `PaymentRequestedIntegrationEvent`.
+### Kiến trúc 2 tầng
 
-### Bước 1 — Viết Application Handler
+Mỗi consumer trong Hdos được tách thành 2 lớp:
 
-Handler nằm trong `Application` layer, **không import MassTransit**:
+```
+Infrastructure layer              Application layer
+────────────────────              ─────────────────
+XxxConsumer                       XxxEventHandler
+  IConsumer<TEvent>   ──────────►   IIntegrationEventHandler<TEvent>
+  thin adapter                      business logic
+  import MassTransit                không import MassTransit
+```
+
+Consumer trong Infrastructure chỉ là dây nối giữa MassTransit và business logic. Tách handler ra Application layer để business logic không phụ thuộc framework và dễ unit test hơn.
+
+Ví dụ từ code thực tế trong project:
+
+| Consumer (Infrastructure) | Handler (Application) | Queue |
+|---|---|---|
+| `UserLoggedInConsumer` | `UserLoggedInEventHandler` | `user-logged-in` |
+| `UserRegisteredConsumer` | `UserRegisteredEventHandler` | `user-registered` |
+| `OrderCreatedConsumer` | `OrderCreatedEventHandler` | `order-created` |
+| `OrderCreateRequestedConsumer` | `OrderCreateRequestedEventHandler` | `order-create-requested` |
+
+---
+
+Tiếp tục ví dụ từ phần publisher — giả sử **PaymentService** muốn nhận `PaymentRequestedIntegrationEvent`.
+
+### Bước 1 — Kiểm tra / định nghĩa contract
+
+Contract phải nằm trong `src/BuildingBlocks/Contracts/IntegrationEvents/`. Nếu event chưa có, tạo mới:
+
+```csharp
+// src/BuildingBlocks/Contracts/IntegrationEvents/PaymentRequestedIntegrationEvent.cs
+namespace Hdos.Contracts.IntegrationEvents;
+
+public sealed record PaymentRequestedIntegrationEvent(
+    Guid OrderId,
+    Guid CustomerId,
+    decimal Amount,
+    string Currency) : IntegrationEvent;
+```
+
+Nếu event đã có (do publisher tạo ở bước trước), bỏ qua bước này.
+
+### Bước 2 — Viết Application Handler
+
+Handler nằm trong `{Service}.Application/EventHandlers/`, **không import MassTransit**:
 
 ```
 src/Services/PaymentService/PaymentService.Application/EventHandlers/PaymentRequestedEventHandler.cs
@@ -189,9 +232,35 @@ public sealed class PaymentRequestedEventHandler(
 }
 ```
 
-### Bước 2 — Viết Consumer (Infrastructure)
+Tham khảo handler thực tế: `NotificationService.Application/EventHandlers/UserLoggedInEventHandler.cs`.
 
-Consumer là adapter mỏng, nằm trong `Infrastructure` layer:
+**Nguyên tắc:**
+- Inject dependency qua constructor
+- Log ít nhất một `LogInformation` khi nhận event (để trace khi debug)
+- Chỉ gọi `SaveChangesAsync` một lần sau khi xong tất cả DB operations
+- Không bắt exception ở đây — MassTransit retry policy tự xử lý
+
+### Bước 3 — Đăng ký Handler vào Application DI
+
+```csharp
+// PaymentService.Application/DependencyInjection.cs
+public static IServiceCollection AddPaymentApplication(this IServiceCollection services)
+{
+    var assembly = Assembly.GetExecutingAssembly();
+    services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(assembly));
+    services.AddCommonMediatRBehaviors();
+
+    services.AddScoped<PaymentRequestedEventHandler>();  // ← thêm dòng này
+
+    return services;
+}
+```
+
+Phải dùng `AddScoped` vì handler thường inject repository và DbContext — tất cả đều scoped.
+
+### Bước 4 — Viết Consumer (Infrastructure)
+
+Consumer là adapter mỏng, nằm trong `{Service}.Infrastructure/Consumers/`:
 
 ```
 src/Services/PaymentService/PaymentService.Infrastructure/Consumers/PaymentRequestedConsumer.cs
@@ -212,30 +281,78 @@ public sealed class PaymentRequestedConsumer(PaymentRequestedEventHandler handle
 }
 ```
 
-> **Quy tắc đặt tên:** Consumer class phải kết thúc bằng `Consumer`. Tên queue = kebab-case của phần trước `Consumer`.  
-> `PaymentRequestedConsumer` → queue `payment-requested`.
+Consumer không chứa bất kỳ logic nào — chỉ nhận message và delegate sang handler.
 
-### Bước 3 — Đăng ký DI
+**Quy tắc đặt tên:** Consumer class kết thúc bằng `Consumer`. Tên queue = kebab-case của phần trước `Consumer`:
+
+| Class | Queue |
+|---|---|
+| `PaymentRequestedConsumer` | `payment-requested` |
+| `UserLoggedInConsumer` | `user-logged-in` |
+| `OrderCreateRequestedConsumer` | `order-create-requested` |
+
+### Bước 5 — Đăng ký Consumer vào Infrastructure DI
 
 ```csharp
-// PaymentService.Application/DependencyInjection.cs
-services.AddScoped<PaymentRequestedEventHandler>();
-
 // PaymentService.Infrastructure/DependencyInjection.cs
 services.AddMassTransitMessaging(configuration, x =>
 {
-    x.AddConsumer<PaymentRequestedConsumer>();
+    x.AddConsumer<PaymentRequestedConsumer>();  // ← thêm dòng này
     // thêm consumer khác nếu có
 });
 ```
 
-**Thứ tự quan trọng:** phải `AddScoped<Handler>()` trong Application DI trước, vì Infrastructure DI gọi Application DI trước khi gọi `AddMassTransitMessaging`.
+### Bước 6 — Kiểm tra thứ tự DI trong Program.cs
 
-### Bước 4 — Kiểm tra trên RabbitMQ Management
+Application DI phải được gọi trước Infrastructure DI, vì MassTransit resolve handler qua DI khi nhận message:
+
+```csharp
+// Program.cs
+builder.Services.AddPaymentApplication();      // 1. Application DI trước
+builder.Services.AddPaymentInfrastructure();   // 2. Infrastructure DI sau
+```
+
+Nếu thứ tự ngược lại, service sẽ khởi động được nhưng throw `InvalidOperationException` khi consumer nhận message đầu tiên (handler chưa được đăng ký).
+
+### Bước 7 — Kiểm tra trên RabbitMQ Management
 
 Sau khi service khởi động, vào `http://localhost:15672`:
 - **Exchanges** → tìm `Hdos.Contracts.IntegrationEvents:PaymentRequestedIntegrationEvent` → kiểu fanout
 - **Queues** → tìm `payment-requested` → đang bind vào exchange trên
+
+Log của service khi khởi động sẽ có:
+```
+[INF] Receive endpoint configured: payment-requested
+```
+
+---
+
+### Dead-letter & Retry
+
+Hành vi khi handler throw exception:
+
+```
+Handler throw exception
+    └─ MassTransit retry: exponential backoff, tối đa 5 lần (1s → 5s → 10s → 20s → 30s)
+         └─ Vẫn fail sau 5 lần
+              └─ Message chuyển sang queue: payment-requested_error
+```
+
+Xem message lỗi: RabbitMQ Management UI → **Queues** → `payment-requested_error`.
+
+Để xử lý lại: trong UI, vào queue `_error` → **Move messages** → nhập tên queue gốc (`payment-requested`).
+
+---
+
+### Checklist trước khi commit
+
+- [ ] Contract (`IntegrationEvent`) nằm trong `Contracts` project, cả publisher và consumer đều reference
+- [ ] Handler implement `IIntegrationEventHandler<TEvent>`, không import MassTransit
+- [ ] Handler được `AddScoped` trong Application `DependencyInjection.cs`
+- [ ] Consumer implement `IConsumer<TEvent>`, chỉ delegate sang handler, không có logic
+- [ ] Consumer được `AddConsumer<T>()` trong `AddMassTransitMessaging()`
+- [ ] Application DI được gọi trước Infrastructure DI trong `Program.cs`
+- [ ] Cập nhật bảng "Danh sách events hiện tại" ở trên
 
 ---
 
