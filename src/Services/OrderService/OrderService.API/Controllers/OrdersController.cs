@@ -31,7 +31,8 @@ public sealed class OrdersController : ControllerBase
                                ApiResponse<OrderDto>.Ok(result.Value));
     }
 
-    [HttpPost("/confirm-order")]
+    [Authorize(Policy = HdosPermissions.OrdersUpdate)]
+    [HttpPost("confirm")]
     public async Task<IActionResult> ConfirmOrder([FromBody] ConfirmOrderCommand cmd, CancellationToken ct)
     {
         var result = await _sender.Send(cmd, ct);
