@@ -2,6 +2,7 @@ using Hdos.Common.Extensions;
 using Hdos.Common.Persistence;
 using Hdos.Contracts.Grpc.Users;
 using Hdos.OrderService.Application.Abstractions;
+using Hdos.OrderService.Application.EventHandlers;
 using Hdos.OrderService.Domain.Repositories;
 using Hdos.OrderService.Infrastructure.Consumers;
 using Hdos.OrderService.Infrastructure.Grpc;
@@ -29,13 +30,14 @@ public static class DependencyInjection
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
-        services.AddRabbitMq(configuration);
-        services.AddHostedService<OrderCreateRequestedConsumer>();
+        services.AddScoped<OrderCreateRequestedEventHandler>();
 
-        // gRPC client to AuthService — base address is read from config so docker
-        // and local dev both work without code changes.
-        var authGrpcUrl = configuration["Services:Auth:GrpcUrl"]
-                          ?? "http://localhost:5111";
+        services.AddMassTransitMessaging(configuration, x =>
+        {
+            x.AddConsumer<OrderCreateRequestedConsumer>();
+        });
+
+        var authGrpcUrl = configuration["Services:Auth:GrpcUrl"] ?? "http://localhost:5111";
         services.AddGrpcClient<UserService.UserServiceClient>(o =>
         {
             o.Address = new Uri(authGrpcUrl);

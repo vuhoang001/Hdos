@@ -1,21 +1,12 @@
-using Hdos.Common.Messaging;
 using Hdos.Contracts.IntegrationEvents;
 using Hdos.NotificationService.Application.EventHandlers;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
+using MassTransit;
 
 namespace Hdos.NotificationService.Infrastructure.Consumers;
 
-public class TestConsumer : RabbitMqConsumerHostedService<TestIntegrationEvent, TestIntegrationEventHandler>
+public sealed class TestConsumer(TestIntegrationEventHandler handler)
+    : IConsumer<TestIntegrationEvent>
 {
-    public TestConsumer(
-        RabbitMqConnection connection,
-        IOptions<RabbitMqOptions> options,
-        IServiceScopeFactory scopeFactory,
-        ILogger<UserLoggedInConsumer> logger)
-        : base(connection, options, scopeFactory, logger,
-               queueName: "haibigdhoangsmalld")
-    {
-    }
+    public Task Consume(ConsumeContext<TestIntegrationEvent> context)
+        => handler.HandleAsync(context.Message, context.CancellationToken);
 }

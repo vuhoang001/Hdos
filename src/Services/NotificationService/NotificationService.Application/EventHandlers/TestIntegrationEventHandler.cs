@@ -7,7 +7,7 @@ public class TestIntegrationEventHandler : IIntegrationEventHandler<TestIntegrat
 {
     public Task HandleAsync(TestIntegrationEvent @event, CancellationToken ct)
     {
-        Console.WriteLine("Bo hoang vi dai 1102");
+        Console.WriteLine("Test integrations");
         return Task.CompletedTask;
     }
 }

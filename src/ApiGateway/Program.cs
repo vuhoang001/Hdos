@@ -12,7 +12,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddHdosSwagger("AsyncGateway");
 
-builder.Services.AddRabbitMq(builder.Configuration);
+builder.Services.AddMassTransitMessaging(builder.Configuration);
 builder.Services.AddHdosJwtAuth(builder.Configuration);
 builder.Services.AddHdosAuthorization();
 builder.Services.AddHdosCors(builder.Configuration);

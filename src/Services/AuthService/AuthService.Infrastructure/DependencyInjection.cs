@@ -28,7 +28,7 @@ public static class DependencyInjection
         services.AddScoped<IUserRoleRepository, UserRoleRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
-        services.AddRabbitMq(configuration);
+        services.AddMassTransitMessaging(configuration);
         return services;
     }
 }

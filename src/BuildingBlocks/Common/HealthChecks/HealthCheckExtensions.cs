@@ -31,13 +31,8 @@ public static class HealthCheckExtensions
                 tags: ["db"]);
         }
 
-        if (checkRabbitMq)
-        {
-            builder.AddCheck<RabbitMqHealthCheck>(
-                "rabbitmq",
-                failureStatus: HealthStatus.Degraded,
-                tags: ["messaging"]);
-        }
+        // MassTransit tự đăng ký health check cho bus khi gọi AddMassTransit().
+        // Parameter checkRabbitMq được giữ lại để tương thích API nhưng không cần thao tác thêm.
 
         return services;
     }

@@ -119,110 +119,58 @@ AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport
 
 ---
 
-## RabbitMQ (Asynchronous)
+## RabbitMQ / MassTransit (Asynchronous)
+
+Hệ thống dùng **MassTransit 8.2** làm abstraction layer trên RabbitMQ, không dùng RabbitMQ.Client trực tiếp.
 
 ### Topology
 
+MassTransit tạo **một fanout exchange riêng cho mỗi message type** và một queue per consumer:
+
 ```
-Exchange: hdos.events  (type: topic, durable: true)
-     │
-     ├── routing key: UserRegisteredIntegrationEvent
-     │        └── Queue: notification.user-registered  → NotificationService
-     │
-     ├── routing key: UserLoggedInIntegrationEvent
-     │        └── Queue: notification.user-logged-in   → NotificationService
-     │
-     └── routing key: OrderCreatedIntegrationEvent
-              └── Queue: notification.order-created    → NotificationService
+Exchange: Hdos.Contracts.IntegrationEvents:UserRegisteredIntegrationEvent [fanout]
+     └── Queue: user-registered  →  NotificationService.UserRegisteredConsumer
+
+Exchange: Hdos.Contracts.IntegrationEvents:OrderCreatedIntegrationEvent [fanout]
+     └── Queue: order-created    →  NotificationService.OrderCreatedConsumer
+
+Exchange: Hdos.Contracts.IntegrationEvents:OrderCreateRequestedIntegrationEvent [fanout]
+     └── Queue: order-create-requested  →  OrderService.OrderCreateRequestedConsumer
 ```
 
-**Lý do dùng topic exchange thay vì direct/fanout:**
-- Direct: routing key phải khớp chính xác — cứng nhắc
-- Fanout: gửi tới tất cả queue — không control được
-- Topic: routing key là pattern (`*.registered`, `order.*`) — linh hoạt
-
-Hiện tại routing key = tên class event (`UserRegisteredIntegrationEvent`). Topic cho phép subscribe theo pattern sau này.
+Queue name = tên consumer class theo kebab-case, tự động đặt bởi `KebabCaseEndpointNameFormatter`.
 
 ### Publisher
+
+Tất cả services dùng `IEventBus` để publish — interface nằm trong `Common`, không phụ thuộc MassTransit:
+
 ```csharp
-// Sử dụng trong handler:
-await _eventBus.PublishAsync(new UserRegisteredIntegrationEvent(
+await eventBus.PublishAsync(new UserRegisteredIntegrationEvent(
     UserId: user.Id,
     Email: user.Email.Value,
-    OccurredOn: DateTime.UtcNow));
-
-// IEventBus interface (Application layer):
-public interface IEventBus
-{
-    Task PublishAsync<TEvent>(TEvent @event, CancellationToken ct = default)
-        where TEvent : IntegrationEvent;
-}
+    FullName: user.FullName), ct);
 ```
-
-Phía dưới `RabbitMqEventBus`:
-1. Mở channel (reuse connection)
-2. Declare exchange (idempotent — không fail nếu đã tồn tại)
-3. Serialize event → JSON
-4. Set AMQP properties: `Persistent=true` (survive broker restart), `MessageId`, `Type`, `ContentType`
-5. Inject W3C trace context vào headers (xem [09 — W3C Trace Context](./09-w3c-trace-context.md))
-6. `BasicPublish(exchange, routingKey, body)`
 
 ### Consumer
+
+Mỗi consumer là `IConsumer<T>` (MassTransit), delegate xuống Application handler chứa business logic:
+
 ```csharp
-// NotificationService.Infrastructure/Consumers/UserRegisteredConsumer.cs
-public class UserRegisteredConsumer : IIntegrationEventHandler<UserRegisteredIntegrationEvent>
+// Infrastructure layer
+public sealed class UserRegisteredConsumer(UserRegisteredEventHandler handler)
+    : IConsumer<UserRegisteredIntegrationEvent>
 {
-    public async Task HandleAsync(UserRegisteredIntegrationEvent @event, CancellationToken ct)
-    {
-        var notification = Notification.Create(
-            userId: @event.UserId,
-            message: $"Chào mừng {@@event.Email} đến Hdos!");
-
-        await _repo.AddAsync(notification, ct);
-        await _unitOfWork.SaveChangesAsync(ct);
-
-        await _pusher.PushAsync(@event.UserId.ToString(), notification, ct); // SignalR
-    }
-}
-
-// Hosted service để đăng ký consumer:
-public class UserRegisteredConsumerService
-    : RabbitMqConsumerHostedService<UserRegisteredIntegrationEvent, UserRegisteredConsumer>
-{
-    // Constructor inject connection, queue name, etc.
-    // Base class xử lý toàn bộ plumbing
+    public Task Consume(ConsumeContext<UserRegisteredIntegrationEvent> context)
+        => handler.HandleAsync(context.Message, context.CancellationToken);
 }
 ```
 
-### Retry strategy
+### Retry & Dead-letter
 
-```
-Message arrive
-     │
-     ▼
-HandleAsync()
-  ┌──────────────────────┐
-  │ Success              │ → BasicAck (xóa khỏi queue)
-  └──────────────────────┘
-  ┌──────────────────────┐
-  │ Exception (lần 1)   │ → BasicNack(requeue: true) → RabbitMQ requeue
-  └──────────────────────┘
-  ┌──────────────────────┐
-  │ Exception (lần 2)   │ → BasicNack(requeue: false) → message bị drop
-  └──────────────────────┘
-  (ea.Redelivered = true nếu đã requeue 1 lần)
-```
+- Retry exponential backoff: tối đa **5 lần**, từ 1s đến 30s
+- Sau 5 lần thất bại → message chuyển sang queue `{name}_error` (dead-letter tự động)
 
-**Lưu ý production:** Nên thêm Dead Letter Exchange để không mất message lần 2.
-
-### IntegrationEvent base class
-```csharp
-public abstract record IntegrationEvent
-{
-    public Guid EventId { get; init; } = Guid.NewGuid();
-    public DateTime OccurredOn { get; init; } = DateTime.UtcNow;
-}
-```
+**Chi tiết đầy đủ, hướng dẫn thêm publisher/consumer mới:** xem [17 — MassTransit Messaging](./17-masstransit-messaging.md).
 
 ---
 
@@ -236,22 +184,24 @@ public abstract record IntegrationEvent
           │                │                │
           ▼                ▼                ▼
    ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
-   │ AuthService │  │OrderService │  │  M01Service  │
+   │ AuthService │  │OrderService │  │ AsyncGateway │
    │  :8080      │  │  :8080      │  │  :8080       │
    │  :8081(gRPC)│  │             │  │              │
-   └──────┬──────┘  └──────┬──────┘  └─────────────┘
-          │                │ gRPC:8081
-          │          ┌─────┘ (UserExists?)
-          │          │
-          │    ┌─────────────┐
-          │    │  RabbitMQ   │
-          │    │  hdos.events│
-          │    └──────┬──────┘
+   └──────┬──────┘  └──┬──────┬───┘  └──────┬───────┘
+          │             │ gRPC │             │
+          │         ┌───┘      │             │
+          │         ▼          │             │
+          │   AuthService      │             │
+          │   (UserExists?)    │             │
+          │                    │             │
+          │    ┌───────────────────────────┐ │
+          │    │   RabbitMQ (MassTransit)  │ │
+          │    │  Exchange per message type│◄┘
+          │    └──────┬────────────────────┘
           │           │
-          │    ┌──────▼──────┐
-          │    │Notification │
-          │    │  Service    │
-          └────┤  :8080      │
-(UserRegistered │             │
- UserLoggedIn)  └─────────────┘
+          │    ┌──────▼──────────┐
+          └───►│ NotificationSvc │
+(UserRegistered│ user-registered │
+ UserLoggedIn) │ order-created   │
+               └─────────────────┘
 ```

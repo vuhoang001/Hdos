@@ -26,14 +26,15 @@ public static class DependencyInjection
         services.AddScoped<INotificationRepository, NotificationRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
-        services.AddRabbitMq(configuration);
+        services.AddMassTransitMessaging(configuration, x =>
+        {
+            x.AddConsumer<UserLoggedInConsumer>();
+            x.AddConsumer<UserRegisteredConsumer>();
+            x.AddConsumer<OrderCreatedConsumer>();
+            x.AddConsumer<NotificationSendRequestedConsumer>();
+            x.AddConsumer<TestConsumer>();
+        });
 
-        services.AddHostedService<UserLoggedInConsumer>();
-        
-        services.AddHostedService<UserRegisteredConsumer>();
-        services.AddHostedService<OrderCreatedConsumer>();
-        services.AddHostedService<NotificationSendRequestedConsumer>();
-        services.AddHostedService<TestConsumer>();
         return services;
     }
 }
