@@ -25,6 +25,7 @@ Bộ tài liệu này mô tả toàn bộ hệ thống **Hdos** — một nền 
 | [16 — HTTPS, Keycloak Proxy & Issuer](./16-https-ssl.md) | Self-signed cert, proxy Keycloak qua nginx, MetadataAddress pattern, fix Mixed Content & JWT 401, điểm mạnh/yếu, hướng dẫn production |
 | [17 — MassTransit Messaging](./17-masstransit-messaging.md) | MassTransit + RabbitMQ: publish/consume pattern, queue naming, retry, dead-letter, test endpoint |
 | [19 — Test End-to-End Publish→Consumer](./19-test-masstransit-e2e.md) | Demo chạy thực tế: lấy token, publish event, verify consumer log & RabbitMQ UI, troubleshooting |
+| [20 — Swagger OAuth2 + PKCE](./20-swagger-oauth2-pkce.md) | Auth Code + PKCE qua Swagger UI: cấu hình SwaggerExtensions, Keycloak client, flow chi tiết, troubleshooting |
 
 ---
 

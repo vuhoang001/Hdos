@@ -28,7 +28,7 @@ builder.WebHost.ConfigureKestrel(options =>
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddHttpClient();
-builder.Services.AddHdosSwagger("AuthService");
+builder.Services.AddHdosSwagger("AuthService", builder.Configuration["Keycloak:PublicAuthority"]);
 builder.Services.AddGrpc();
 
 builder.Services.AddAuthApplication();

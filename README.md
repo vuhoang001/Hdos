@@ -74,6 +74,8 @@ Swagger từng service:
 | http://localhost:5000/async/swagger | **AsyncGateway** (Async API) |
 | http://localhost:15672 | RabbitMQ Management (guest/guest) |
 
+> **Test API qua Swagger**: bấm **Authorize** trong Swagger UI → chọn scheme `oauth2` → login Keycloak → token tự điền vào mọi request (Auth Code + PKCE). Chi tiết: [docs/20-swagger-oauth2-pkce.md](./docs/20-swagger-oauth2-pkce.md).
+
 ### Bật monitoring (Prometheus + Loki + Tempo + Grafana)
 
 ```bash

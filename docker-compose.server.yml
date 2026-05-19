@@ -51,6 +51,7 @@ services:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
       Keycloak__Authority: "https://${SERVER_IP}:8443/realms/hdos"
       Keycloak__MetadataAddress: "http://keycloak:8080/realms/hdos/.well-known/openid-configuration"
+      Keycloak__PublicAuthority: "https://${SERVER_IP}:8443/realms/hdos"
 
   orderservice:
     image: ghcr.io/${GHCR_OWNER}/hdos-orderservice:${IMAGE_TAG}
@@ -62,6 +63,7 @@ services:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
       Keycloak__Authority: "https://${SERVER_IP}:8443/realms/hdos"
       Keycloak__MetadataAddress: "http://keycloak:8080/realms/hdos/.well-known/openid-configuration"
+      Keycloak__PublicAuthority: "https://${SERVER_IP}:8443/realms/hdos"
 
   notificationservice:
     image: ghcr.io/${GHCR_OWNER}/hdos-notificationservice:${IMAGE_TAG}
@@ -73,6 +75,7 @@ services:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
       Keycloak__Authority: "https://${SERVER_IP}:8443/realms/hdos"
       Keycloak__MetadataAddress: "http://keycloak:8080/realms/hdos/.well-known/openid-configuration"
+      Keycloak__PublicAuthority: "https://${SERVER_IP}:8443/realms/hdos"
 
   m01service:
     image: ghcr.io/${GHCR_OWNER}/hdos-m01service:${IMAGE_TAG}
@@ -84,6 +87,7 @@ services:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
       Keycloak__Authority: "https://${SERVER_IP}:8443/realms/hdos"
       Keycloak__MetadataAddress: "http://keycloak:8080/realms/hdos/.well-known/openid-configuration"
+      Keycloak__PublicAuthority: "https://${SERVER_IP}:8443/realms/hdos"
 
   asyncgateway:
     image: ghcr.io/${GHCR_OWNER}/hdos-asyncgateway:${IMAGE_TAG}
@@ -95,6 +99,7 @@ services:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
       Keycloak__Authority: "https://${SERVER_IP}:8443/realms/hdos"
       Keycloak__MetadataAddress: "http://keycloak:8080/realms/hdos/.well-known/openid-configuration"
+      Keycloak__PublicAuthority: "https://${SERVER_IP}:8443/realms/hdos"
 
   nginx:
     image: nginx:1.27-alpine
