@@ -17,7 +17,7 @@ builder.UseHdosLogging("NotificationService");
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddHdosSwagger("NotificationService");
+builder.Services.AddHdosSwagger("NotificationService", builder.Configuration["Keycloak:Authority"]);
 
 builder.Services.AddNotificationApplication();
 builder.Services.AddNotificationInfrastructure(builder.Configuration);
@@ -36,12 +36,7 @@ builder.Services.AddHostedService<TestBroadcastService>();
 
 var app = builder.Build();
 
-app.UseSwagger(c => c.RouteTemplate = "notifications/swagger/{documentName}/swagger.json");
-app.UseSwaggerUI(c =>
-{
-    c.SwaggerEndpoint("/notifications/swagger/v1/swagger.json", "NotificationService v1");
-    c.RoutePrefix = "notifications/swagger";
-});
+app.UseHdosSwaggerUI("notifications", "NotificationService v1");
 
 app.UseHdosMiddleware();
 app.UseHdosCors();

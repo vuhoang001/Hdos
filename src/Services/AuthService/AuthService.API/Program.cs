@@ -27,7 +27,7 @@ builder.WebHost.ConfigureKestrel(options =>
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddHdosSwagger("AuthService");
+builder.Services.AddHdosSwagger("AuthService", builder.Configuration["Keycloak:Authority"]);
 builder.Services.AddGrpc();
 
 builder.Services.AddAuthApplication();
@@ -42,12 +42,7 @@ builder.Services.AddHdosHealthChecks(builder.Configuration, sqlConnectionStringK
 var app = builder.Build();
 
 // Path khớp với prefix YARP forward (`/auth/...`) để Gateway có thể tổng hợp.
-app.UseSwagger(c => c.RouteTemplate = "auth/swagger/{documentName}/swagger.json");
-app.UseSwaggerUI(c =>
-{
-    c.SwaggerEndpoint("/auth/swagger/v1/swagger.json", "AuthService v1");
-    c.RoutePrefix = "auth/swagger";
-});
+app.UseHdosSwaggerUI("auth", "AuthService v1");
 
 app.UseHdosMiddleware();
 app.UseHdosCors();

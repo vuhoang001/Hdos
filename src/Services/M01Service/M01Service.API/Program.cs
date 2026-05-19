@@ -14,7 +14,7 @@ builder.UseHdosLogging("M01Service");
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddHdosSwagger("M01Service");
+builder.Services.AddHdosSwagger("M01Service", builder.Configuration["Keycloak:Authority"]);
 
 builder.Services.AddM01Application();
 builder.Services.AddM01Infrastructure(builder.Configuration);
@@ -27,12 +27,7 @@ builder.Services.AddHdosHealthChecks(builder.Configuration, sqlConnectionStringK
 
 var app = builder.Build();
 
-app.UseSwagger(c => c.RouteTemplate = "m01/swagger/{documentName}/swagger.json");
-app.UseSwaggerUI(c =>
-{
-    c.SwaggerEndpoint("/m01/swagger/v1/swagger.json", "M01Service v1");
-    c.RoutePrefix = "m01/swagger";
-});
+app.UseHdosSwaggerUI("m01", "M01Service v1");
 
 app.UseHdosMiddleware();
 app.UseHdosCors();

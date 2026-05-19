@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi.Models;
 
@@ -6,49 +7,91 @@ namespace Hdos.Common.Swagger;
 public static class SwaggerExtensions
 {
     /// <summary>
-    /// Registers Swashbuckle with a JWT Bearer security scheme so the generated
-    /// Swagger UI shows the "Authorize" button. The token is applied as a global
-    /// requirement — endpoints marked <c>[AllowAnonymous]</c> still work without
-    /// it, but every other endpoint shows the padlock icon and reuses the token
-    /// pasted into the dialog.
+    /// Đăng ký Swashbuckle với:
+    /// - OAuth2 Authorization Code + PKCE (Keycloak) khi truyền keycloakAuthority — click Authorize, login Keycloak, token tự điền.
+    /// - JWT Bearer paste thủ công làm fallback.
     /// </summary>
     public static IServiceCollection AddHdosSwagger(
         this IServiceCollection services,
         string serviceName,
+        string? keycloakAuthority = null,
         string version = "v1")
     {
         services.AddSwaggerGen(c =>
         {
-            c.SwaggerDoc(version, new OpenApiInfo
-            {
-                Title = $"Hdos {serviceName}",
-                Version = version
-            });
+            c.SwaggerDoc(version, new OpenApiInfo { Title = $"Hdos {serviceName}", Version = version });
 
-            const string scheme = "Bearer";
-            c.AddSecurityDefinition(scheme, new OpenApiSecurityScheme
+            if (keycloakAuthority is not null)
             {
-                Name = "Authorization",
-                Type = SecuritySchemeType.Http,
-                Scheme = "bearer",
+                c.AddSecurityDefinition("oauth2", new OpenApiSecurityScheme
+                {
+                    Type = SecuritySchemeType.OAuth2,
+                    Flows = new OpenApiOAuthFlows
+                    {
+                        AuthorizationCode = new OpenApiOAuthFlow
+                        {
+                            AuthorizationUrl = new Uri($"{keycloakAuthority}/protocol/openid-connect/auth"),
+                            TokenUrl         = new Uri($"{keycloakAuthority}/protocol/openid-connect/token"),
+                            Scopes = new Dictionary<string, string>
+                            {
+                                ["openid"]  = "OpenID Connect",
+                                ["profile"] = "Profile",
+                                ["email"]   = "Email"
+                            }
+                        }
+                    }
+                });
+
+                c.AddSecurityRequirement(new OpenApiSecurityRequirement
+                {
+                    [new OpenApiSecurityScheme
+                    {
+                        Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "oauth2" }
+                    }] = new[] { "openid", "profile", "email" }
+                });
+            }
+
+            // Bearer paste thủ công — luôn có để fallback hoặc dùng khi không có Keycloak
+            c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+            {
+                Name         = "Authorization",
+                Type         = SecuritySchemeType.Http,
+                Scheme       = "bearer",
                 BearerFormat = "JWT",
-                In = ParameterLocation.Header,
-                Description = "Paste only the JWT token here — Swagger will prepend \"Bearer \" automatically."
+                In           = ParameterLocation.Header,
+                Description  = "Paste JWT token (không cần prefix 'Bearer ')."
             });
 
             c.AddSecurityRequirement(new OpenApiSecurityRequirement
             {
                 [new OpenApiSecurityScheme
                 {
-                    Reference = new OpenApiReference
-                    {
-                        Type = ReferenceType.SecurityScheme,
-                        Id = scheme
-                    }
+                    Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
                 }] = Array.Empty<string>()
             });
         });
 
         return services;
+    }
+
+    /// <summary>
+    /// Cấu hình Swagger UI với route prefix chuẩn và OAuth2 PKCE client.
+    /// Gọi thay cho UseSwagger() + UseSwaggerUI() thủ công.
+    /// </summary>
+    public static void UseHdosSwaggerUI(
+        this WebApplication app,
+        string servicePrefix,
+        string serviceTitle,
+        string oauthClientId = "hdos-frontend")
+    {
+        app.UseSwagger(c => c.RouteTemplate = $"{servicePrefix}/swagger/{{documentName}}/swagger.json");
+        app.UseSwaggerUI(c =>
+        {
+            c.SwaggerEndpoint($"/{servicePrefix}/swagger/v1/swagger.json", serviceTitle);
+            c.RoutePrefix = $"{servicePrefix}/swagger";
+            c.OAuthClientId(oauthClientId);
+            c.OAuthUsePkce();
+            c.OAuthScopes("openid", "profile", "email");
+        });
     }
 }

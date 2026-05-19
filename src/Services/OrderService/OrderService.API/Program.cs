@@ -16,7 +16,7 @@ builder.UseHdosLogging("OrderService");
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddHdosSwagger("OrderService");
+builder.Services.AddHdosSwagger("OrderService", builder.Configuration["Keycloak:Authority"]);
 
 builder.Services.AddOrderApplication();
 builder.Services.AddOrderInfrastructure(builder.Configuration);
@@ -29,12 +29,7 @@ builder.Services.AddHdosHealthChecks(builder.Configuration, sqlConnectionStringK
 
 var app = builder.Build();
 
-app.UseSwagger(c => c.RouteTemplate = "orders/swagger/{documentName}/swagger.json");
-app.UseSwaggerUI(c =>
-{
-    c.SwaggerEndpoint("/orders/swagger/v1/swagger.json", "OrderService v1");
-    c.RoutePrefix = "orders/swagger";
-});
+app.UseHdosSwaggerUI("orders", "OrderService v1");
 
 app.UseHdosMiddleware();
 app.UseHdosCors();

@@ -10,7 +10,7 @@ builder.UseHdosLogging("AsyncGateway");
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddHdosSwagger("AsyncGateway");
+builder.Services.AddHdosSwagger("AsyncGateway", builder.Configuration["Keycloak:Authority"]);
 
 builder.Services.AddMassTransitMessaging(builder.Configuration);
 builder.Services.AddHdosJwtAuth(builder.Configuration);
@@ -22,12 +22,7 @@ builder.Services.AddHdosHealthChecks(builder.Configuration, checkRabbitMq: true)
 
 var app = builder.Build();
 
-app.UseSwagger(c => c.RouteTemplate = "async/swagger/{documentName}/swagger.json");
-app.UseSwaggerUI(c =>
-{
-    c.SwaggerEndpoint("/async/swagger/v1/swagger.json", "AsyncGateway v1");
-    c.RoutePrefix = "async/swagger";
-});
+app.UseHdosSwaggerUI("async", "AsyncGateway v1");
 
 app.UseHdosMiddleware();
 app.UseHdosCors();
