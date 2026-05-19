@@ -9,14 +9,18 @@
   "editUsernameAllowed": false,
   "accessTokenLifespan": 300,
   "ssoSessionMaxLifespan": 36000,
-
   "roles": {
     "realm": [
-      { "name": "admin", "description": "Administrator — full access" },
-      { "name": "user",  "description": "Regular user" }
+      {
+        "name": "admin",
+        "description": "Administrator — full access"
+      },
+      {
+        "name": "user",
+        "description": "Regular user"
+      }
     ]
   },
-
   "clients": [
     {
       "clientId": "hdos-frontend",
@@ -24,9 +28,13 @@
       "enabled": true,
       "publicClient": true,
       "standardFlowEnabled": true,
-      "directAccessGrantsEnabled": false,
-      "redirectUris": ["*"],
-      "webOrigins": ["*"],
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "*"
+      ],
+      "webOrigins": [
+        "*"
+      ],
       "attributes": {
         "pkce.code.challenge.method": "S256"
       },
@@ -69,8 +77,12 @@
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": true,
       "serviceAccountsEnabled": false,
-      "redirectUris": ["*"],
-      "webOrigins": ["*"],
+      "redirectUris": [
+        "*"
+      ],
+      "webOrigins": [
+        "*"
+      ],
       "protocolMappers": [
         {
           "name": "audience-hdos-backend",
@@ -101,7 +113,6 @@
       ]
     }
   ],
-
   "users": [
     {
       "username": "admin",
@@ -111,9 +122,16 @@
       "enabled": true,
       "emailVerified": true,
       "credentials": [
-        { "type": "password", "value": "Admin1234!", "temporary": false }
+        {
+          "type": "password",
+          "value": "Admin1234!",
+          "temporary": false
+        }
       ],
-      "realmRoles": ["admin", "user"]
+      "realmRoles": [
+        "admin",
+        "user"
+      ]
     },
     {
       "username": "testuser",
@@ -123,9 +141,15 @@
       "enabled": true,
       "emailVerified": true,
       "credentials": [
-        { "type": "password", "value": "Test1234!", "temporary": false }
+        {
+          "type": "password",
+          "value": "Test1234!",
+          "temporary": false
+        }
       ],
-      "realmRoles": ["user"]
+      "realmRoles": [
+        "user"
+      ]
     }
   ]
 }
