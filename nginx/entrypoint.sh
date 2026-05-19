@@ -17,7 +17,7 @@ if [ ! -f "$KEY" ] || [ ! -f "$CERT" ]; then
         -keyout "$KEY" \
         -out    "$CERT" \
         -subj   "/CN=hdos-dev/O=Hdos Dev/C=VN" \
-        -addext "subjectAltName=DNS:localhost,DNS:hdos-nginx,IP:127.0.0.1" \
+        -addext "subjectAltName=DNS:localhost,DNS:hdos-nginx,IP:127.0.0.1,IP:192.168.100.60" \
         2>/dev/null
     echo "[nginx] Certificate ready."
 else
