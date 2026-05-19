@@ -28,7 +28,7 @@ builder.WebHost.ConfigureKestrel(options =>
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddHttpClient();
-builder.Services.AddHdosSwagger("AuthService", builder.Configuration["Keycloak:PublicAuthority"]);
+builder.Services.AddHdosSwagger("AuthService");
 builder.Services.AddGrpc();
 
 builder.Services.AddAuthApplication();
@@ -54,6 +54,7 @@ app.MapGrpcService<UserGrpcService>();
 app.UseHdosMonitoring();
 
 await EnsureDatabaseAsync(app);
+await SeedAsync(app);
 
 app.Run();
 
@@ -73,4 +74,11 @@ static async Task EnsureDatabaseAsync(WebApplication app)
             await Task.Delay(TimeSpan.FromSeconds(3));
         }
     }
+}
+
+static async Task SeedAsync(WebApplication app)
+{
+    var logger = app.Services.GetRequiredService<ILogger<Program>>();
+    try { await AuthDataSeeder.SeedAsync(app.Services, logger); }
+    catch (Exception ex) { logger.LogError(ex, "AuthDataSeeder failed"); }
 }

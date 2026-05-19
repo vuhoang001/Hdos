@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,44 +9,46 @@ namespace Hdos.Common.Auth;
 public static class JwtAuthExtensions
 {
     /// <summary>
-    /// Validates Keycloak-issued JWTs using JWKS discovery (asymmetric keys).
-    /// Authority is read from Keycloak:Authority in configuration.
-    /// Call this from every service that needs to authenticate requests.
+    /// Validate JWT do AuthService phát hành (HS256 với shared secret).
+    /// Mọi service đều dùng — cùng Issuer/Audience/Secret từ section "Jwt".
     /// </summary>
     public static IServiceCollection AddHdosJwtAuth(
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var opts = configuration.GetSection(KeycloakOptions.SectionName).Get<KeycloakOptions>()
-                   ?? new KeycloakOptions();
+        var opts = configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
+                   ?? new JwtOptions();
 
-        services.Configure<KeycloakOptions>(configuration.GetSection(KeycloakOptions.SectionName));
+        if (string.IsNullOrWhiteSpace(opts.Secret) || opts.Secret.Length < 32)
+            throw new InvalidOperationException(
+                "Jwt:Secret phải >= 32 ký tự. Set qua env Jwt__Secret.");
+
+        services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
+        services.AddSingleton<IJwtTokenIssuer, JwtTokenIssuer>();
+
+        var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(opts.Secret));
 
         services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(o =>
             {
-                o.Authority = opts.Authority;
-                o.Audience = opts.Audience;
-                // Allow HTTP in dev/Docker environments (no TLS internally)
                 o.RequireHttpsMetadata = false;
-                // When Authority is a public HTTPS URL but services run inside Docker,
-                // use the internal Keycloak URL for JWKS discovery to avoid cert issues.
-                if (!string.IsNullOrWhiteSpace(opts.MetadataAddress))
-                    o.MetadataAddress = opts.MetadataAddress;
-                o.SaveToken = true;
+                o.SaveToken            = true;
                 o.TokenValidationParameters = new TokenValidationParameters
                 {
-                    ValidateIssuer           = !string.IsNullOrWhiteSpace(opts.Authority),
-                    ValidateAudience         = !string.IsNullOrWhiteSpace(opts.Audience),
+                    ValidateIssuer           = true,
+                    ValidIssuer              = opts.Issuer,
+                    ValidateAudience         = true,
+                    ValidAudience            = opts.Audience,
                     ValidateLifetime         = true,
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey         = signingKey,
                     ClockSkew                = TimeSpan.FromSeconds(30),
-                    // Keycloak puts roles in "roles" claim (after realm-roles mapper is configured)
                     RoleClaimType            = "roles",
                     NameClaimType            = "preferred_username",
                 };
 
-                // SignalR WebSocket: token arrives via ?access_token= query string
+                // SSE / SignalR: token có thể đến qua ?access_token=
                 o.Events = new JwtBearerEvents
                 {
                     OnMessageReceived = ctx =>
@@ -66,10 +69,9 @@ public static class JwtAuthExtensions
     }
 
     /// <summary>
-    /// Registers fine-grained permission policies keyed by HdosPermissions constants.
-    /// Policies resolve permission claims injected by PermissionsMiddleware from the
-    /// X-User-Permissions header that nginx forwards from AuthService /auth/validate.
-    /// Call this from every service that uses [Authorize(Policy = HdosPermissions.Xxx)].
+    /// Đăng ký policies fine-grained theo HdosPermissions constants.
+    /// Permission claim được PermissionsMiddleware bơm vào từ X-User-Permissions header
+    /// (do nginx auth_request truyền từ AuthService /auth/validate).
     /// </summary>
     public static IServiceCollection AddHdosAuthorization(this IServiceCollection services)
     {

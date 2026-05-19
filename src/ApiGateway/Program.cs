@@ -10,7 +10,7 @@ builder.UseHdosLogging("AsyncGateway");
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddHdosSwagger("AsyncGateway", builder.Configuration["Keycloak:PublicAuthority"]);
+builder.Services.AddHdosSwagger("AsyncGateway");
 
 builder.Services.AddMassTransitMessaging(builder.Configuration);
 builder.Services.AddHdosJwtAuth(builder.Configuration);

@@ -8,25 +8,26 @@ namespace Hdos.AuthService.Tests.Domain;
 
 public sealed class UserTests
 {
+    private const string Hash = "PBKDF2-FAKE-HASH";
     private static Email AnEmail(string s = "alice@hdos.io") => Email.Create(s).Value!;
 
     [Fact]
-    public void Provision_TrimsName_AndAssignsValues()
+    public void Create_TrimsName_AndAssignsValues()
     {
-        var id = Guid.NewGuid();
-        var user = User.Provision(id, AnEmail(), "  Alice  ");
+        var user = User.Create(AnEmail(), "  Alice  ", Hash);
 
-        user.Id.Should().Be(id);
+        user.Id.Should().NotBeEmpty();
         user.Email.Value.Should().Be("alice@hdos.io");
         user.FullName.Should().Be("Alice");
+        user.PasswordHash.Should().Be(Hash);
         user.LastSeenUtc.Should().BeNull();
         user.CreatedAtUtc.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(2));
     }
 
     [Fact]
-    public void Provision_RaisesUserRegisteredDomainEvent()
+    public void Create_RaisesUserRegisteredDomainEvent()
     {
-        var user = User.Provision(Guid.NewGuid(), AnEmail(), "Alice");
+        var user = User.Create(AnEmail(), "Alice", Hash);
 
         user.DomainEvents.Should().ContainSingle()
             .Which.Should().BeOfType<UserRegisteredDomainEvent>()
@@ -34,9 +35,9 @@ public sealed class UserTests
     }
 
     [Fact]
-    public void Provision_BlankName_FallsBackToEmail()
+    public void Create_BlankName_FallsBackToEmail()
     {
-        var user = User.Provision(Guid.NewGuid(), AnEmail("bob@hdos.io"), "   ");
+        var user = User.Create(AnEmail("bob@hdos.io"), "   ", Hash);
 
         user.FullName.Should().Be("bob@hdos.io");
     }
@@ -44,12 +45,23 @@ public sealed class UserTests
     [Fact]
     public void UpdateLastSeen_SetsTimestamp()
     {
-        var user = User.Provision(Guid.NewGuid(), AnEmail(), "Alice");
+        var user = User.Create(AnEmail(), "Alice", Hash);
 
         user.UpdateLastSeen();
 
         user.LastSeenUtc.Should().NotBeNull();
         user.LastSeenUtc!.Value.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(2));
+        user.UpdatedAtUtc.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void SetPasswordHash_UpdatesHashAndTimestamp()
+    {
+        var user = User.Create(AnEmail(), "Alice", Hash);
+
+        user.SetPasswordHash("NEW-HASH");
+
+        user.PasswordHash.Should().Be("NEW-HASH");
         user.UpdatedAtUtc.Should().NotBeNull();
     }
 }

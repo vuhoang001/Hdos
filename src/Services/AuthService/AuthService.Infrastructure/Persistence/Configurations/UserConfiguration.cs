@@ -15,6 +15,7 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         b.Property(u => u.Id).ValueGeneratedNever();
 
         b.Property(u => u.FullName).HasMaxLength(120).IsRequired();
+        b.Property(u => u.PasswordHash).HasMaxLength(500).IsRequired();
         b.Property(u => u.CreatedAtUtc).IsRequired();
         b.Property(u => u.UpdatedAtUtc);
         b.Property(u => u.LastSeenUtc);

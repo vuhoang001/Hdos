@@ -13,7 +13,7 @@ Bộ tài liệu này mô tả toàn bộ hệ thống **Hdos** — một nền 
 | [03 — Building Blocks](./03-building-blocks.md) | Thư viện dùng chung: SharedKernel, Common, Contracts |
 | [04 — Các Services](./04-cac-services.md) | AuthService, OrderService, NotificationService, M01Service |
 | [05 — Nginx Gateway](./05-nginx-gateway.md) | Config chi tiết, CORS, JWT validation, routing |
-| [06 — Xác thực & Keycloak](./06-xac-thuc-va-keycloak.md) | Defense in depth, Keycloak setup, RBAC, Admin API, frontend OIDC |
+| [06 — Xác thực & Phân quyền](./06-xac-thuc.md) | Custom JWT (HS256), Register/Login, /auth/validate, RBAC, seed admin/testuser |
 | [07 — Giao tiếp nội bộ](./07-giao-tiep-noi-bo.md) | gRPC (sync) + RabbitMQ (async) |
 | [08 — Quan sát hệ thống](./08-quan-sat-he-thong.md) | Prometheus, Loki, Tempo, Grafana, W3C distributed tracing |
 | [10 — CI/CD Pipeline](./10-cicd-pipeline.md) | GitHub Actions build → test → push → deploy |
@@ -22,10 +22,9 @@ Bộ tài liệu này mô tả toàn bộ hệ thống **Hdos** — một nền 
 | [13 — Thêm tính năng](./13-them-tinh-nang.md) | Checklist thêm endpoint, event, service mới |
 | [14 — SignalR Realtime](./14-signalr-realtime.md) | Hub, envelope chuẩn, cách test từ frontend |
 | [15 — Async Gateway](./15-async-gateway.md) | HTTP→Queue→Service, endpoints, test guide, Grafana observability |
-| [16 — HTTPS, Keycloak Proxy & Issuer](./16-https-ssl.md) | Self-signed cert, proxy Keycloak qua nginx, MetadataAddress pattern, fix Mixed Content & JWT 401, điểm mạnh/yếu, hướng dẫn production |
+| [16 — HTTPS & TLS](./16-https-ssl.md) | Self-signed cert cho nginx, HTTPS termination tại 8443, hướng dẫn production thay cert thật |
 | [17 — MassTransit Messaging](./17-masstransit-messaging.md) | MassTransit + RabbitMQ: publish/consume pattern, queue naming, retry, dead-letter, test endpoint |
 | [19 — Test End-to-End Publish→Consumer](./19-test-masstransit-e2e.md) | Demo chạy thực tế: lấy token, publish event, verify consumer log & RabbitMQ UI, troubleshooting |
-| [20 — Swagger OAuth2 + PKCE](./20-swagger-oauth2-pkce.md) | Auth Code + PKCE qua Swagger UI: cấu hình SwaggerExtensions, Keycloak client, flow chi tiết, troubleshooting |
 
 ---
 
@@ -36,8 +35,7 @@ Browser / Mobile
        │  HTTPS
        ▼
   nginx :8443 (SSL)          ← API Gateway duy nhất ra ngoài
-  ├── /realms/*  → Keycloak  (proxy — tránh Mixed Content)
-  ├── /auth/*    → AuthService
+  ├── /auth/*    → AuthService (login, register, validate)
   ├── /orders/*  → OrderService
   ├── /notifications/* → NotificationService
   ├── /m01/*     → M01Service
@@ -77,8 +75,6 @@ Sau khi chạy:
 | `https://localhost:8443/orders/swagger` | Swagger OrderService |
 | `https://localhost:8443/notifications/swagger` | Swagger NotificationService |
 | `https://localhost:8443/m01/swagger` | Swagger M01Service |
-| `https://localhost:8443/realms/hdos` | Keycloak realm (qua nginx proxy) |
-| `http://localhost:8080` | Keycloak Admin UI trực tiếp (admin / Admin1234!) |
 | `http://localhost:15672` | RabbitMQ Management (guest/guest) |
 | `http://localhost:3030` | Grafana (admin/admin) |
 | `http://localhost:9090` | Prometheus |

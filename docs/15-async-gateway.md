@@ -227,12 +227,11 @@ docker compose ps  # tất cả phải "running" hoặc "healthy"
 
 ### Bước 1 — Lấy JWT token
 
-Với Keycloak (hiện tại):
 ```bash
-TOKEN=$(curl -s -X POST http://localhost:8080/realms/hdos/protocol/openid-connect/token \
-  -d grant_type=password -d client_id=hdos-backend \
-  -d client_secret=hdos-backend-dev-secret \
-  -d username=admin -d password=Admin1234! | jq -r .access_token)
+TOKEN=$(curl -sk https://localhost:8443/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@hdos.dev","password":"Admin1234!"}' \
+  | jq -r '.data.token')
 ```
 
 ### Bước 2 — Mở RabbitMQ Management UI

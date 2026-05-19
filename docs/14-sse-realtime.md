@@ -82,7 +82,7 @@ Mỗi event kết thúc bằng **2 dòng trống** (`\n\n`) — đây là spec c
 
 ```typescript
 // Kết nối SSE
-const token = getAccessToken(); // lấy từ Keycloak
+const token = getAccessToken(); // lấy từ POST /auth/login
 const es = new EventSource(
   `https://<host>/notifications/sse?access_token=${token}`
 );

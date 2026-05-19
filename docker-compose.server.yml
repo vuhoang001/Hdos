@@ -2,11 +2,7 @@
 #
 # Biến cần có trong --env-file (compose substitution):
 #   IMAGE_TAG, GHCR_OWNER, ASPNETCORE_ENVIRONMENT, ENV_DIR,
-#   MSSQL_SA_PASSWORD, JWT_SECRET, SERVER_IP
-#
-# SERVER_IP: IP public/LAN của server (ví dụ: 192.168.100.60).
-#   Dùng để Keycloak ghi đúng issuer vào token và các service
-#   validate đúng issuer đó. Thiếu biến này → JWT bị reject 401.
+#   MSSQL_SA_PASSWORD, JWT_SECRET
 #
 # ENV_DIR trỏ tới thư mục chứa các file .env của từng service trên server:
 #   Staging : ENV_DIR=/opt/hdos-staging
@@ -14,7 +10,7 @@
 #
 # Cấu trúc thư mục trên mỗi server:
 #   ${ENV_DIR}/
-#   ├── .env                  ← compose vars (IMAGE_TAG, MSSQL_SA_PASSWORD, SERVER_IP, ...)
+#   ├── .env                  ← compose vars (IMAGE_TAG, MSSQL_SA_PASSWORD, JWT_SECRET, ...)
 #   ├── common.env            ← biến dùng chung inject vào container
 #   ├── authservice.env       ← biến riêng AuthService
 #   ├── orderservice.env      ← biến riêng OrderService
@@ -25,21 +21,9 @@
 services:
 
   # sqlserver phải được override ở đây để nhận MSSQL_SA_PASSWORD từ common.env.
-  # Nếu thiếu block này, sqlserver chỉ dùng giá trị default hardcode trong
-  # docker-compose.yml → password không khớp với ConnectionStrings của services.
   sqlserver:
     environment:
       MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
-
-  # Keycloak phải biết IP thật của server để ghi đúng issuer vào token.
-  # Không set KC_HOSTNAME → issuer trong token = URL request đến Keycloak
-  # → mỗi client dùng URL khác nhau → issuer loạn → 401 ở mọi service.
-  keycloak:
-    environment:
-      KC_HOSTNAME_URL: "https://${SERVER_IP}:8443"
-      KC_HTTP_PORT: "8080"
-      KC_PROXY: "edge"
-      KC_HOSTNAME_STRICT: "false"
 
   authservice:
     image: ghcr.io/${GHCR_OWNER}/hdos-authservice:${IMAGE_TAG}
@@ -49,9 +33,7 @@ services:
       - ${ENV_DIR}/authservice.env
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
-      Keycloak__Authority: "https://${SERVER_IP}:8443/realms/hdos"
-      Keycloak__MetadataAddress: "http://keycloak:8080/realms/hdos/.well-known/openid-configuration"
-      Keycloak__PublicAuthority: "https://${SERVER_IP}:8443/realms/hdos"
+      Jwt__Secret: "${JWT_SECRET}"
 
   orderservice:
     image: ghcr.io/${GHCR_OWNER}/hdos-orderservice:${IMAGE_TAG}
@@ -61,9 +43,7 @@ services:
       - ${ENV_DIR}/orderservice.env
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
-      Keycloak__Authority: "https://${SERVER_IP}:8443/realms/hdos"
-      Keycloak__MetadataAddress: "http://keycloak:8080/realms/hdos/.well-known/openid-configuration"
-      Keycloak__PublicAuthority: "https://${SERVER_IP}:8443/realms/hdos"
+      Jwt__Secret: "${JWT_SECRET}"
 
   notificationservice:
     image: ghcr.io/${GHCR_OWNER}/hdos-notificationservice:${IMAGE_TAG}
@@ -73,9 +53,7 @@ services:
       - ${ENV_DIR}/notificationservice.env
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
-      Keycloak__Authority: "https://${SERVER_IP}:8443/realms/hdos"
-      Keycloak__MetadataAddress: "http://keycloak:8080/realms/hdos/.well-known/openid-configuration"
-      Keycloak__PublicAuthority: "https://${SERVER_IP}:8443/realms/hdos"
+      Jwt__Secret: "${JWT_SECRET}"
 
   m01service:
     image: ghcr.io/${GHCR_OWNER}/hdos-m01service:${IMAGE_TAG}
@@ -85,9 +63,7 @@ services:
       - ${ENV_DIR}/m01service.env
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
-      Keycloak__Authority: "https://${SERVER_IP}:8443/realms/hdos"
-      Keycloak__MetadataAddress: "http://keycloak:8080/realms/hdos/.well-known/openid-configuration"
-      Keycloak__PublicAuthority: "https://${SERVER_IP}:8443/realms/hdos"
+      Jwt__Secret: "${JWT_SECRET}"
 
   asyncgateway:
     image: ghcr.io/${GHCR_OWNER}/hdos-asyncgateway:${IMAGE_TAG}
@@ -97,9 +73,7 @@ services:
       - ${ENV_DIR}/asyncgateway.env
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
-      Keycloak__Authority: "https://${SERVER_IP}:8443/realms/hdos"
-      Keycloak__MetadataAddress: "http://keycloak:8080/realms/hdos/.well-known/openid-configuration"
-      Keycloak__PublicAuthority: "https://${SERVER_IP}:8443/realms/hdos"
+      Jwt__Secret: "${JWT_SECRET}"
 
   nginx:
     image: nginx:1.27-alpine

@@ -45,7 +45,6 @@ Output mong đợi:
 NAME                         STATUS
 hdos-asyncgateway-1          Up X seconds
 hdos-authservice-1           Up X seconds
-hdos-keycloak                Up X seconds
 hdos-notificationservice-1   Up X seconds
 hdos-orderservice-1          Up X seconds
 hdos-nginx                   Up X seconds
@@ -66,39 +65,30 @@ docker compose logs notificationservice --tail=30 | grep -i "rabbit\|error\|fail
 
 ## Bước 1 — Lấy JWT Token
 
-Keycloak có sẵn test account `testuser@hdos.dev / Test1234!`. Lấy token qua **Keycloak port 8080** (không qua nginx):
+Seed có sẵn `testuser@hdos.dev / Test1234!`. Lấy token qua `/auth/login`:
 
 ```bash
-TOKEN=$(curl -s -X POST http://localhost:8080/realms/hdos/protocol/openid-connect/token \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=password\
-&client_id=hdos-backend\
-&client_secret=hdos-backend-dev-secret\
-&username=testuser@hdos.dev\
-&password=Test1234!" \
-  | jq -r '.access_token')
+TOKEN=$(curl -sk https://localhost:8443/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"testuser@hdos.dev","password":"Test1234!"}' \
+  | jq -r '.data.token')
 
 echo "Token length: ${#TOKEN}"
 ```
 
-Output mong đợi:
-```
-Token length: 973   (hoặc tương tự, > 100)
-```
+Verify issuer/audience trong token (phải khớp `Jwt__Issuer`/`Jwt__Audience`):
 
-Verify issuer trong token (phải là `http://keycloak:8080/realms/hdos`):
 ```bash
-echo $TOKEN | cut -d. -f2 | base64 -d 2>/dev/null | jq '{iss, email}'
+echo $TOKEN | cut -d. -f2 | base64 -d 2>/dev/null | jq '{iss, aud, email}'
 ```
 
 ```json
 {
-  "iss": "http://keycloak:8080/realms/hdos",
+  "iss": "hdos-auth",
+  "aud": "hdos-api",
   "email": "testuser@hdos.dev"
 }
 ```
-
-> **Lưu ý:** Lấy token qua `http://localhost:8080` (direct) thay vì qua nginx `https://localhost:8443`. Issuer trong token phải khớp với `Keycloak__Authority=http://keycloak:8080/realms/hdos` mà services đang dùng. Xem [doc 16](./16-https-ssl.md) để hiểu tại sao.
 
 ---
 
@@ -232,8 +222,8 @@ fi
 
 | Triệu chứng | Nguyên nhân | Fix |
 |---|---|---|
-| `error="invalid_token"` + `issuer ... is invalid` | Issuer trong token ≠ `Keycloak__Authority` | Lấy token qua `http://localhost:8080`, không qua nginx |
-| Token length = 4 | Keycloak chưa sẵn sàng | Đợi thêm 15–30s, kiểm tra `docker compose logs keycloak` |
+| `error="invalid_token"` + `issuer ... is invalid` | `Jwt__Issuer` lệch giữa AuthService và service nhận | Kiểm tra cả 5 services dùng cùng giá trị từ env |
+| Token length = 4 | AuthService chưa migrate/seed xong | Đợi thêm 15–30s, kiểm tra `docker compose logs authservice` |
 | `unauthorized_client` | Sai `client_secret` hoặc `client_id` | Dùng đúng `hdos-backend` / `hdos-backend-dev-secret` |
 
 ### Consumer không nhận message

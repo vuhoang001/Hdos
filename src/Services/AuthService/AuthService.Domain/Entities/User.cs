@@ -5,33 +5,44 @@ using Hdos.SharedKernel;
 namespace Hdos.AuthService.Domain.Entities;
 
 /// <summary>
-/// Profile store keyed by Keycloak subject (sub claim).
-/// Created lazily (JIT) the first time a Keycloak token is validated via /auth/validate.
-/// Authentication is fully delegated to Keycloak — no password stored here.
+/// User của hệ thống (custom auth, HS256 JWT do AuthService phát).
+/// PasswordHash do PasswordHasher<User> sinh (PBKDF2 built-in của ASP.NET Core).
 /// </summary>
 public sealed class User : AggregateRoot<Guid>
 {
     public Email Email { get; private set; } = default!;
     public string FullName { get; private set; } = default!;
+    public string PasswordHash { get; private set; } = default!;
     public DateTime? LastSeenUtc { get; private set; }
 
     private User() { }
 
-    /// <summary>Creates a local profile for a Keycloak user on first token validation.</summary>
-    public static User Provision(Guid keycloakId, Email email, string fullName)
+    /// <summary>Tạo user mới qua /auth/register.</summary>
+    public static User Create(Email email, string fullName, string passwordHash)
     {
+        if (string.IsNullOrWhiteSpace(passwordHash))
+            throw new ArgumentException("PasswordHash là bắt buộc.", nameof(passwordHash));
         if (string.IsNullOrWhiteSpace(fullName))
             fullName = email.Value;
 
         var user = new User
         {
-            Id       = keycloakId,
-            Email    = email,
-            FullName = fullName.Trim(),
+            Id           = Guid.NewGuid(),
+            Email        = email,
+            FullName     = fullName.Trim(),
+            PasswordHash = passwordHash,
         };
 
         user.RaiseDomainEvent(new UserRegisteredDomainEvent(user.Id, user.Email.Value, user.FullName));
         return user;
+    }
+
+    public void SetPasswordHash(string newHash)
+    {
+        if (string.IsNullOrWhiteSpace(newHash))
+            throw new ArgumentException("PasswordHash là bắt buộc.", nameof(newHash));
+        PasswordHash = newHash;
+        UpdatedAtUtc = DateTime.UtcNow;
     }
 
     public void UpdateLastSeen()

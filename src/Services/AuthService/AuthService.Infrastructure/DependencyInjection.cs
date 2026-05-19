@@ -1,7 +1,9 @@
+using Hdos.AuthService.Domain.Entities;
 using Hdos.AuthService.Domain.Repositories;
 using Hdos.AuthService.Infrastructure.Persistence;
 using Hdos.Common.Extensions;
 using Hdos.Common.Persistence;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,6 +29,7 @@ public static class DependencyInjection
         services.AddScoped<IPermissionRepository, PermissionRepository>();
         services.AddScoped<IUserRoleRepository, UserRoleRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+        services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
 
         services.AddMassTransitMessaging(configuration);
         return services;

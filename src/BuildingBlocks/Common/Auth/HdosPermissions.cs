@@ -1,10 +1,10 @@
 namespace Hdos.Common.Auth;
 
 /// <summary>
-/// Canonical permission strings used as both policy names and X-User-Permissions values.
-/// Format: "{service}:{action}"
-/// AuthService admin endpoints use [Authorize(Roles="admin")] directly from Keycloak JWT.
-/// All other service endpoints use [Authorize(Policy = HdosPermissions.Xxx)].
+/// Permission strings dùng cho cả policy name lẫn X-User-Permissions value.
+/// Format: "{service}:{action}".
+/// AuthService admin endpoints dùng [Authorize(Roles="admin")] đọc từ JWT "roles" claim.
+/// Service khác dùng [Authorize(Policy = HdosPermissions.Xxx)] đọc từ permission claim (PermissionsMiddleware).
 /// </summary>
 public static class HdosPermissions
 {
@@ -23,4 +23,13 @@ public static class HdosPermissions
 
     public const string UsersManage = "users:manage";
     public const string RolesManage = "roles:manage";
+
+    public static readonly IReadOnlyList<string> All =
+    [
+        OrdersCreate, OrdersRead, OrdersUpdate, OrdersDelete,
+        NotificationsRead, NotificationsSend,
+        M01Read, M01Write,
+        AsyncSubmit,
+        UsersManage, RolesManage,
+    ];
 }

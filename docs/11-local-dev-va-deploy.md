@@ -20,13 +20,13 @@
 git clone https://github.com/<owner>/Hdos.git
 cd Hdos
 
-# Khởi động toàn bộ infrastructure (SQL Server, RabbitMQ, Keycloak, nginx)
-docker compose up -d sqlserver rabbitmq postgres-keycloak keycloak nginx
+# Khởi động toàn bộ infrastructure (SQL Server, RabbitMQ, nginx)
+docker compose up -d sqlserver rabbitmq nginx
 ```
 
 SQL Server cần ~30 giây để start. Kiểm tra: `docker compose ps` — sqlserver phải `healthy`.
 
-Keycloak tự import realm `hdos` khi khởi động lần đầu (xem [18 — Keycloak & RBAC](./18-keycloak-rbac.md)).
+Khi `authservice` chạy lần đầu, nó tự migrate `AuthDb` + seed user `admin@hdos.dev / Admin1234!` + `testuser@hdos.dev / Test1234!` (xem [06 — Xác thực](./06-xac-thuc.md)).
 
 ### 2. Chạy services
 

@@ -2,10 +2,9 @@ using Hdos.SharedKernel;
 
 namespace Hdos.AuthService.Domain.Entities;
 
-/// <summary>Assigns a Keycloak user (by sub/Guid) to an RBAC role.</summary>
+/// <summary>Gán user vào một role (many-to-many).</summary>
 public sealed class UserRole : BaseEntity<Guid>
 {
-    /// <summary>Keycloak sub claim (matches User.Id in profile store).</summary>
     public Guid UserId { get; private set; }
     public Guid RoleId { get; private set; }
 

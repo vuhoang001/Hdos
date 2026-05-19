@@ -14,7 +14,7 @@ public sealed class GetUserByIdQueryHandlerTests
     private GetUserByIdQueryHandler NewHandler() => new(_users);
 
     private static User AUser(string email = "alice@hdos.io", string name = "Alice")
-        => User.Provision(Guid.NewGuid(), Email.Create(email).Value!, name);
+        => User.Create(Email.Create(email).Value!, name, passwordHash: "HASH");
 
     [Fact]
     public async Task Handle_Found_ReturnsDto()
