@@ -228,9 +228,10 @@ traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
 TraceId: AAAA (bất biến suốt hành trình)
 │
 ├── GET /m01/dashboard [M01Service] 45ms
-│   ├── GET /auth/validate [AuthService] 3ms   ← auto via HttpClient
 │   └── DB query [M01Service] 38ms
 ```
+
+> Trước refactor 2026-05-20, mỗi request bị "đệm" thêm 1 span `GET /auth/validate` (nginx auth_request gọi AuthService). Sau refactor, service tự verify JWT in-process → bớt 1 hop, span trace gọn hơn.
 
 ### Trace qua RabbitMQ (Manual)
 
@@ -317,12 +318,12 @@ private async Task OnMessageAsync(object sender, BasicDeliverEventArgs ea)
 
 ### Kết quả trong Tempo
 
-Trace đầy đủ khi user đăng nhập lần đầu (JIT provision → publish event):
+Trace đầy đủ khi user đăng ký lần đầu (`POST /auth/register` → publish event):
 
 ```
 TraceId: 4bf92f3577b34da6a3ce929d0e0e4736
 │
-├── GET /auth/validate [AuthService] 120ms
+├── POST /auth/register [AuthService] 120ms
 │   ├── INSERT User [SQL Server] 8ms
 │   └── rabbitmq publish UserRegisteredIntegrationEvent [AuthService] 2ms
 │         ── AMQP header traceparent injected ──►

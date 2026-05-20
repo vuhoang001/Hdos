@@ -17,20 +17,20 @@ Hdos là nền tảng quản lý bệnh viện gồm các nghiệp vụ:
 │                        Client Layer                              │
 │           Browser / Mobile App / Postman / curl                 │
 └───────────────────────────┬─────────────────────────────────────┘
-                            │ HTTP/HTTPS (port 5000)
+                            │ HTTPS (port 8443) / HTTP (8080 → redirect)
                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    nginx (API Gateway)                           │
-│  • Reverse proxy duy nhất tiếp xúc internet                    │
-│  • CORS handling                                                 │
-│  • JWT validation (auth_request → AuthService)                  │
-│  • Route: /auth/* /orders/* /notifications/* /m01/*             │
+│                    nginx (Reverse Proxy)                         │
+│  • TLS termination + redirect HTTP→HTTPS                         │
+│  • CORS authority (whitelist origin, strip upstream CORS)        │
+│  • Route theo prefix: /auth /orders /notifications /m01 /async   │
+│  • KHÔNG verify JWT — services tự lo                             │
 └──────┬──────────┬──────────────┬──────────────┬─────────────────┘
        │          │              │              │
        ▼          ▼              ▼              ▼
-  AuthService  OrderService  Notification   M01Service
-  :8080/:8081   :8080          Service        :8080
-                               :8080
+  AuthService  OrderService  Notification   M01Service / AsyncGW
+       │  Mỗi service: JwtBearer verify JWT + đọc claim "permission"
+       │              → [Authorize(Policy = HdosPermissions.X)]
        │          │              │              │
        └──────────┴──────────────┴──────────────┘
                             │

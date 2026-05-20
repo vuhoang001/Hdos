@@ -12,8 +12,8 @@ Bộ tài liệu này mô tả toàn bộ hệ thống **Hdos** — một nền 
 | [02 — Cấu trúc dự án](./02-cau-truc-du-an.md) | Folder layout, conventions đặt tên |
 | [03 — Building Blocks](./03-building-blocks.md) | Thư viện dùng chung: SharedKernel, Common, Contracts |
 | [04 — Các Services](./04-cac-services.md) | AuthService, OrderService, NotificationService, M01Service |
-| [05 — Nginx Gateway](./05-nginx-gateway.md) | Config chi tiết, CORS, JWT validation, routing |
-| [06 — Xác thực & Phân quyền](./06-xac-thuc.md) | Custom JWT (HS256), Register/Login, /auth/validate, RBAC, seed admin/testuser |
+| [05 — Nginx Gateway](./05-nginx-gateway.md) | Reverse proxy: TLS, CORS, routing theo prefix (nginx không verify JWT) |
+| [06 — Xác thực & Phân quyền](./06-xac-thuc.md) | Custom JWT HS256 với permission claims, Register/Login, RBAC, seed admin/testuser |
 | [07 — Giao tiếp nội bộ](./07-giao-tiep-noi-bo.md) | gRPC (sync) + RabbitMQ (async) |
 | [08 — Quan sát hệ thống](./08-quan-sat-he-thong.md) | Prometheus, Loki, Tempo, Grafana, W3C distributed tracing |
 | [10 — CI/CD Pipeline](./10-cicd-pipeline.md) | GitHub Actions build → test → push → deploy |

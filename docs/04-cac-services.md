@@ -16,10 +16,11 @@
 | Method | Path | Auth | Mô tả |
 |--------|------|------|-------|
 | POST | `/auth/register` | Anonymous | Đăng ký user mới |
-| POST | `/auth/login` | Anonymous | Đăng nhập, trả JWT |
-| GET | `/auth/users/{id}` | JWT | Lấy thông tin user |
-| GET | `/auth/validate` | JWT | Validate token (dùng bởi nginx auth_request) |
+| POST | `/auth/login` | Anonymous | Đăng nhập, trả JWT (chứa cả `roles` + `permission` claims) |
+| GET | `/auth/users/{id}` | JWT + role `admin` | Lấy thông tin user |
 | GET | `/auth/health` | Anonymous | Health check |
+
+> Endpoint `/auth/validate` đã bỏ ở refactor 2026-05-20 — services tự verify JWT, không cần round-trip về AuthService.
 
 ### Kestrel hai port
 ```csharp

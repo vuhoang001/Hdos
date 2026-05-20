@@ -2,6 +2,8 @@
 
 Hệ thống Hdos dùng **custom JWT auth** do `AuthService` tự phát hành (HS256 với shared secret). Trước đây dùng Keycloak — đã bỏ vì over-engineered cho nhu cầu hiện tại.
 
+**Mô hình hiện tại (kể từ refactor 2026-05-20):** mọi việc check JWT + permission đều ở **services**, nginx chỉ làm reverse proxy + TLS + CORS. Permissions nằm thẳng trong JWT claims — không còn `auth_request` ở nginx, không còn `X-User-*` headers, không còn `/auth/validate`.
+
 ---
 
 ## 1. Tổng quan luồng
@@ -9,36 +11,40 @@ Hệ thống Hdos dùng **custom JWT auth** do `AuthService` tự phát hành (H
 ```
 ┌─ Frontend / Swagger ──────────────────────────────────────┐
 │ POST /auth/login { email, password }                       │
-│   → nginx → authservice                                    │
-│   ← 200 OK { accessToken: "eyJhbGc..." }                   │
+│   → nginx (dumb proxy) → authservice                       │
+│   ← 200 OK { token: "eyJhbGc..." }                         │
+│     JWT chứa: sub, email, roles, permission[]              │
 └────────────────────────────────────────────────────────────┘
                             │
                             ▼  (mọi request sau)
 ┌─ Browser ────────────────────────────────────────────────┐
 │ POST /orders                                              │
-│ Authorization: Bearer <accessToken>                       │
+│ Authorization: Bearer <token>                             │
 └────────────────────────────────────────────────────────────┘
                             │
                             ▼
 ┌─ nginx ──────────────────────────────────────────────────┐
-│ 1. auth_request /_auth_validate (internal)                │
-│    → GET authservice /auth/validate                       │
-│      • JwtBearer middleware verify HS256 + iss/aud/exp    │
-│      • Lookup user.roles + RolePermissions → headers      │
-│      • 200 OK + X-User-Id, X-User-Roles, X-User-Permissions│
-│ 2. Forward original POST /orders kèm các X-User-* headers │
+│ Proxy theo prefix (/orders, /m01, /notifications, /async) │
+│ TLS termination + CORS authority — KHÔNG verify JWT       │
 └────────────────────────────────────────────────────────────┘
                             │
                             ▼
 ┌─ orderservice ───────────────────────────────────────────┐
-│ JwtBearer middleware verify lần 2 (defense in depth)      │
-│ PermissionsMiddleware: đọc X-User-Permissions → bơm vào   │
-│   ClaimsIdentity thành permission claim                   │
+│ JwtBearer middleware verify HS256 + iss/aud/exp           │
+│ ClaimsIdentity tự có claim "permission" từ JWT            │
 │ [Authorize(Policy = "orders:create")] enforce             │
+│   • Thiếu token   → 401 Unauthorized                      │
+│   • Sai permission → 403 Forbidden                        │
 └────────────────────────────────────────────────────────────┘
 ```
 
-**Defense in depth**: cả nginx (auth_request) và service đều verify JWT. Nếu bypass nginx và gọi service trực tiếp, vẫn cần valid Bearer token — chỉ thiếu permission claims (vì middleware chỉ điền khi có header từ nginx).
+**Vì sao bỏ nginx auth_request?**
+
+- Mỗi service đã verify JWT bằng cùng `JWT_SECRET` → nginx check thêm chỉ là duplicate.
+- `auth_request` thêm 1 round-trip về AuthService cho mỗi request → AuthService thành SPOF.
+- Permission đặt trong JWT giúp services stateless, không cần network call mỗi request.
+
+**Trade-off:** permission thay đổi (admin gán/bỏ role) chỉ có hiệu lực sau khi user **login lại** hoặc token hết hạn (`ExpiresMinutes`, mặc định 8h). Cần realtime → giảm TTL hoặc implement refresh token + revocation list.
 
 ---
 
@@ -85,12 +91,15 @@ authservice:
 
 ### 2.4 Phát token (`AuthService`)
 
-`IJwtTokenIssuer.Issue(userId, email, fullName, roles)` (file `src/BuildingBlocks/Common/Auth/JwtTokenIssuer.cs`) sinh JWT chứa:
+`IJwtTokenIssuer.Issue(userId, email, fullName, roles, permissions)` (file `src/BuildingBlocks/Common/Auth/JwtTokenIssuer.cs`) sinh JWT chứa:
 
 - `sub` = user.Id
 - `email`, `name`, `preferred_username`
-- `roles` (multi-value claim — mọi role của user)
+- `roles` — multi-value claim, mọi role của user (vd `admin`, `user`)
+- `permission` — multi-value claim, flatten từ `RolePermissions → Permission.Key` (vd `orders:create`, `m01:read`)
 - `jti`, `iss`, `aud`, `nbf`, `exp`
+
+`LoginUserCommandHandler` load roles + permissions từ DB, truyền vào `Issue(...)`. Một token là snapshot quyền tại thời điểm login.
 
 ### 2.5 Verify token (`JwtAuthExtensions`)
 
@@ -109,7 +118,7 @@ o.TokenValidationParameters = new TokenValidationParameters
 };
 ```
 
-Special: SSE/SignalR token có thể đến qua `?access_token=<jwt>` (vì WebSocket không gửi Authorization header) — `OnMessageReceived` event xử lý.
+Special: SSE/SignalR token có thể đến qua `?access_token=<jwt>` (vì EventSource/WebSocket không gửi Authorization header) — `OnMessageReceived` event xử lý.
 
 ---
 
@@ -119,11 +128,12 @@ Special: SSE/SignalR token có thể đến qua `?access_token=<jwt>` (vì WebSo
 |--------|------|-------|
 | `POST` | `/auth/register` | `{ email, password, fullName }` → tạo user mới. Idempotent: trả 400 nếu email đã có. |
 | `POST` | `/auth/login` | `{ email, password }` → `{ userId, email, token }`. 401 nếu sai credential. |
-| `GET`  | `/auth/validate` | (nội bộ) Gọi bởi nginx auth_request, verify JWT + ghi headers `X-User-*`. |
 | `GET`  | `/auth/users/{id}` | (admin) Lấy profile user. |
 | `GET`  | `/auth/health` | Health check, không cần auth. |
 
 Admin endpoints (`/auth/roles/...`, `/auth/permissions/...`, `/auth/user-roles/...`) yêu cầu role `admin`.
+
+> Endpoint `/auth/validate` đã bị xoá ở refactor 2026-05-20 (nó chỉ tồn tại để phục vụ nginx auth_request).
 
 ---
 
@@ -192,7 +202,7 @@ Mỗi endpoint protected:
 public IActionResult Create(...) { ... }
 ```
 
-Policies được đăng ký trong `AddHdosAuthorization()` — đọc `permission` claim từ ClaimsIdentity (do `PermissionsMiddleware` bơm vào từ `X-User-Permissions` header).
+Policies đăng ký trong `AddHdosAuthorization()` đọc thẳng `permission` claim trong JWT — **không cần middleware** trung gian. Trước đây có `PermissionsMiddleware` đọc header `X-User-Permissions` từ nginx; đã bị xoá ở refactor 2026-05-20.
 
 ---
 
@@ -200,6 +210,7 @@ Policies được đăng ký trong `AddHdosAuthorization()` — đọc `permissi
 
 - **Secret rotation**: đổi `JWT_SECRET` → tất cả token đang dùng vô hiệu. Restart cả 5 services đồng thời, tránh trạng thái mixed.
 - **TTL ngắn vs UX**: hiện tại `ExpiresMinutes=480` (8h) cho dev tiện. Production nên 30–60 phút + refresh token (chưa implement).
+- **Permission revocation**: vì permission nằm trong JWT, gỡ role không có hiệu lực ngay. Chấp nhận TTL hoặc thêm revocation list (Redis).
 - **Password policy**: tối thiểu 8 ký tự (validator FluentValidation). Cần phức tạp hơn → sửa `RegisterUserCommandValidator`.
 - **HTTPS**: trong prod browser luôn nói chuyện qua nginx HTTPS (`8443`). Internal Docker network HTTP plain.
 
@@ -221,7 +232,10 @@ Policies được đăng ký trong `AddHdosAuthorization()` — đọc `permissi
 TOKEN=$(curl -sk https://localhost:8443/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"email":"admin@hdos.dev","password":"Admin1234!"}' \
-  | python3 -c 'import sys,json; print(json.load(sys.stdin)["data"]["token"])')
+  | jq -r '.data.token')
+
+# Decode JWT để xem permission claims (debug):
+echo "$TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null | jq
 
 curl -sk https://localhost:8443/orders \
   -H "Authorization: Bearer $TOKEN" \
@@ -240,12 +254,12 @@ Trước đây hệ thống dùng Keycloak: container riêng + Postgres + realm.
 - Nginx phải proxy `/realms/*` để tránh Mixed Content.
 - Browser cert handshake với Keycloak qua HTTPS gây Mixed Content khi FE chưa HTTPS.
 
-Custom JWT đơn giản hơn nhiều: 1 secret shared, 1 endpoint login, 1 endpoint validate. Cần SSO/social login → quay lại Keycloak hoặc Auth0 khi đó.
+Custom JWT đơn giản hơn nhiều: 1 secret shared, 1 endpoint login. Cần SSO/social login → quay lại Keycloak hoặc Auth0 khi đó.
 
 ---
 
 ## 10. Cross-reference
 
-- [05 — Nginx Gateway](./05-nginx-gateway.md) — `auth_request` flow, headers forwarding.
+- [05 — Nginx Gateway](./05-nginx-gateway.md) — nginx giờ chỉ là reverse proxy.
 - [13 — Thêm tính năng](./13-them-tinh-nang.md) — checklist khi thêm endpoint protected.
 - [16 — HTTPS, SSL](./16-https-ssl.md) — self-signed cert, không còn proxy Keycloak.

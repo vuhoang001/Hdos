@@ -33,14 +33,14 @@ Giao tiếp nội bộ (sync):
 
 | Layer | Công nghệ |
 |-------|-----------|
-| API Gateway | nginx (auth_request, CORS, reverse proxy) |
+| API Gateway | nginx (TLS, CORS, reverse proxy — không verify JWT) |
 | Services | .NET 8 / ASP.NET Core — Clean Architecture + DDD |
 | CQRS | MediatR + FluentValidation |
 | Database | SQL Server — EF Core Code First (1 DB / service) |
 | Sync comm | gRPC (Protobuf, HTTP/2) |
 | Async comm | RabbitMQ — topic exchange |
 | Real-time | Server-Sent Events (SSE) |
-| Auth | JWT HS256 (issued by AuthService, validated tại nginx + mỗi service) |
+| Auth | JWT HS256 (AuthService issue token chứa `roles` + `permission` claims; mỗi service tự verify + enforce policy) |
 | Metrics | Prometheus + prometheus-net |
 | Logs | Serilog → Grafana Loki |
 | Tracing | OpenTelemetry → Grafana Tempo (W3C Trace Context) |

@@ -117,6 +117,6 @@ Self-signed cert sẽ làm Chrome/Firefox báo `NET::ERR_CERT_AUTHORITY_INVALID`
 
 ## 8. Cross-reference
 
-- [05 — Nginx Gateway](./05-nginx-gateway.md) — chi tiết location blocks + auth_request.
-- [06 — Xác thực & Phân quyền](./06-xac-thuc.md) — JWT verify chain.
+- [05 — Nginx Gateway](./05-nginx-gateway.md) — chi tiết location blocks (nginx giờ chỉ reverse proxy).
+- [06 — Xác thực & Phân quyền](./06-xac-thuc.md) — JWT verify ở services.
 - [11 — Local Dev & Deploy](./11-local-dev-va-deploy.md) — chạy stack lên local.

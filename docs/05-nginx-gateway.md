@@ -2,6 +2,21 @@
 
 nginx là điểm vào duy nhất của hệ thống. Tất cả request từ client đều đi qua đây trước khi đến microservice.
 
+**Vai trò hiện tại (kể từ refactor 2026-05-20):**
+
+- TLS termination (`8443`) + redirect `8080 → 8443`
+- Reverse proxy theo prefix path (`/auth`, `/orders`, `/notifications`, `/m01`, `/async`)
+- CORS authority (whitelist origin, strip CORS từ upstream, xử lý preflight)
+- WebSocket / SSE upgrade
+
+**Không còn làm:**
+
+- ~~Verify JWT (`auth_request`)~~ — services tự verify
+- ~~Bơm headers `X-User-Id/Email/Roles/Permissions`~~ — permissions đã nằm trong JWT
+- ~~Trả error JSON `@unauthorized` / `@forbidden`~~ — services trả 401/403 chuẩn ASP.NET
+
+Lý do bỏ: xem [06 — Xác thực](./06-xac-thuc.md#1-tổng-quan-luồng).
+
 ---
 
 ## Tại sao nginx thay vì C# YARP?
@@ -11,270 +26,102 @@ nginx là điểm vào duy nhất của hệ thống. Tất cả request từ cl
 | Cấu hình | File text, không build | Code C#, cần build + deploy |
 | Reload | `nginx -s reload` (không downtime) | Phải restart service |
 | Memory | ~5MB | ~50-100MB |
-| CORS | 5 dòng config | Viết middleware |
+| CORS | Vài dòng config | Viết middleware |
 | Battle-tested | 20+ năm production | Microsoft, còn mới |
 | Custom logic | Giới hạn (Lua) | C# thoải mái |
 
-**Kết luận:** Với use case hiện tại (routing, CORS, JWT validation), nginx đủ dùng và đơn giản hơn nhiều.
+**Kết luận:** với use case hiện tại (routing + CORS + TLS), nginx đủ dùng và đơn giản hơn nhiều. Auth giờ là việc của services, nginx không phải lo.
 
 ---
 
-## Config đầy đủ annotated
+## Cấu trúc config
+
+File `nginx/nginx.conf` chia 4 block chính:
+
+1. **Maps**: `$connection_upgrade` (WebSocket), `$cors_origin` (CORS whitelist)
+2. **Upstreams**: 5 services + frontend host
+3. **HTTP → HTTPS server (8080)**: redirect 301 sang HTTPS
+4. **HTTPS server (8443)**: routing thật, TLS, CORS, proxy
+
+### Routing pattern (cho mỗi service)
 
 ```nginx
-events {
-    worker_connections 1024;    # Tối đa 1024 concurrent connections
+# Swagger UI — anonymous, prefix-match thắng regex bên dưới
+location ^~ /orders/swagger {
+    proxy_pass http://orderservice;
 }
 
-http {
-    # ── WebSocket upgrade mapping ─────────────────────────────────────────
-    # SignalR dùng WebSocket. Khi client gửi "Upgrade: websocket",
-    # nginx cần biết forward Connection header là gì.
-    map $http_upgrade $connection_upgrade {
-        default upgrade;    # Có Upgrade header → forward "upgrade"
-        ''      close;      # Không có → forward "close" (HTTP thường)
-    }
-
-    # ── Upstream definitions ──────────────────────────────────────────────
-    # Tên DNS resolve trong Docker network hdos-net
-    upstream authservice         { server authservice:8080; }
-    upstream orderservice        { server orderservice:8080; }
-    upstream notificationservice { server notificationservice:8080; }
-    upstream m01service          { server m01service:8080; }
-
-    server {
-        listen 8080;    # Container port (host map 5000→8080)
-
-        # ── Strip upstream CORS headers ───────────────────────────────────
-        # Các service bên trong cũng có CORS middleware (UseHdosCors).
-        # Nếu không strip, browser nhận 2 "Access-Control-Allow-Origin" → lỗi CORS.
-        proxy_hide_header Access-Control-Allow-Origin;
-        proxy_hide_header Access-Control-Allow-Methods;
-        proxy_hide_header Access-Control-Allow-Headers;
-        proxy_hide_header Access-Control-Allow-Credentials;
-        proxy_hide_header Access-Control-Max-Age;
-
-        # ── nginx thêm CORS headers của mình ─────────────────────────────
-        # always = thêm vào cả 4xx/5xx response (quan trọng cho 401/403)
-        add_header Access-Control-Allow-Origin  * always;
-        add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, PATCH, OPTIONS" always;
-        add_header Access-Control-Allow-Headers "*" always;   # * = cho phép mọi header
-        add_header Access-Control-Max-Age       3600 always;
-
-        # ── Preflight OPTIONS ─────────────────────────────────────────────
-        # Browser gửi OPTIONS trước mỗi cross-origin request (CORS preflight).
-        # Xử lý ngay tại đây, không cần forward xuống service.
-        if ($request_method = OPTIONS) {
-            return 204;    # No Content
-        }
-
-        # ── Gateway info endpoints ────────────────────────────────────────
-        location = / {
-            default_type application/json;
-            return 200 '{"name":"Hdos API Gateway (nginx)","routes":["/auth/*","/orders/*","/notifications/*","/m01/*"]}';
-        }
-
-        location = /health {
-            default_type application/json;
-            return 200 '{"status":"OK","service":"nginx-gateway"}';
-        }
-
-        # ── Internal JWT validation endpoint ─────────────────────────────
-        # Dùng bởi auth_request directive. Không thể gọi từ ngoài (internal).
-        # nginx gọi endpoint này khi có request vào protected route.
-        # AuthService.ValidateToken() kiểm tra JWT và trả 200/401.
-        location = /_auth_validate {
-            internal;                           # Chỉ nginx gọi được, không phải client
-            proxy_pass              http://authservice/auth/validate;
-            proxy_pass_request_body off;        # Không forward body (GET request)
-            proxy_set_header        Content-Length   "";
-            proxy_set_header        X-Original-URI   $request_uri;  # Cho service biết URI gốc
-        }
-
-        # ── Auth Service ──────────────────────────────────────────────────
-        # Tất cả anonymous (login, register, validate đều cần không hoặc có token)
-        location /auth/ {
-            proxy_pass         http://authservice;
-            proxy_set_header   Host              $host;
-            proxy_set_header   X-Real-IP         $remote_addr;
-            proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-            proxy_set_header   X-Forwarded-Proto $scheme;
-            proxy_http_version 1.1;
-            proxy_set_header   Upgrade    $http_upgrade;    # WebSocket support
-            proxy_set_header   Connection $connection_upgrade;
-        }
-
-        # ── Orders ───────────────────────────────────────────────────────
-        # Health check: strip prefix /orders → orderservice nhận /health/live
-        # Ví dụ: GET /orders/health/live → orderservice GET /health/live
-        location ~ ^/orders(/health.*) {
-            proxy_pass         http://orderservice$1;   # $1 = capture group = /health.*
-            proxy_set_header   Host            $host;
-            proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_http_version 1.1;
-        }
-
-        # Swagger: anonymous, giữ nguyên path
-        # /orders/swagger → orderservice GET /orders/swagger (RoutePrefix đã config)
-        location /orders/swagger {
-            proxy_pass         http://orderservice;
-            proxy_set_header   Host            $host;
-            proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_http_version 1.1;
-        }
-
-        # Business routes: yêu cầu JWT hợp lệ
-        location /orders/ {
-            auth_request /_auth_validate;   # Gọi AuthService trước
-            error_page 401 = @unauthorized;
-            error_page 403 = @forbidden;
-
-            proxy_pass         http://orderservice;
-            proxy_set_header   Host              $host;
-            proxy_set_header   X-Real-IP         $remote_addr;
-            proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-            proxy_set_header   X-Forwarded-Proto $scheme;
-            proxy_http_version 1.1;
-            proxy_set_header   Upgrade    $http_upgrade;
-            proxy_set_header   Connection $connection_upgrade;
-        }
-
-        # ── Notifications ────────────────────────────────────────────────
-        # Cùng pattern với orders: health, swagger (anonymous), business (JWT)
-        location ~ ^/notifications(/health.*) {
-            proxy_pass         http://notificationservice$1;
-            proxy_set_header   Host            $host;
-            proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_http_version 1.1;
-        }
-
-        location /notifications/swagger {
-            proxy_pass         http://notificationservice;
-            proxy_set_header   Host            $host;
-            proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_http_version 1.1;
-        }
-
-        location /notifications/ {
-            auth_request /_auth_validate;
-            error_page 401 = @unauthorized;
-            error_page 403 = @forbidden;
-
-            proxy_pass         http://notificationservice;
-            proxy_set_header   Host              $host;
-            proxy_set_header   X-Real-IP         $remote_addr;
-            proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-            proxy_set_header   X-Forwarded-Proto $scheme;
-            proxy_http_version 1.1;
-            proxy_set_header   Upgrade    $http_upgrade;
-            proxy_set_header   Connection $connection_upgrade;
-        }
-
-        # ── M01 Service ──────────────────────────────────────────────────
-        location ~ ^/m01(/health.*) {
-            proxy_pass         http://m01service$1;
-            proxy_set_header   Host            $host;
-            proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_http_version 1.1;
-        }
-
-        location /m01/swagger {
-            proxy_pass         http://m01service;
-            proxy_set_header   Host            $host;
-            proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_http_version 1.1;
-        }
-
-        location /m01/ {
-            auth_request /_auth_validate;
-            error_page 401 = @unauthorized;
-            error_page 403 = @forbidden;
-
-            proxy_pass         http://m01service;
-            proxy_set_header   Host              $host;
-            proxy_set_header   X-Real-IP         $remote_addr;
-            proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-            proxy_set_header   X-Forwarded-Proto $scheme;
-            proxy_http_version 1.1;
-            proxy_set_header   Upgrade    $http_upgrade;
-            proxy_set_header   Connection $connection_upgrade;
-        }
-
-        # ── Error JSON responses ──────────────────────────────────────────
-        # Trả JSON thay vì HTML của nginx mặc định
-        location @unauthorized {
-            default_type application/json;
-            return 401 '{"error":"Unauthorized","message":"Valid JWT token required"}';
-        }
-
-        location @forbidden {
-            default_type application/json;
-            return 403 '{"error":"Forbidden","message":"Insufficient permissions"}';
-        }
-    }
+# Business routes — service tự enforce auth/permission
+location ~ ^/orders($|/) {
+    if ($request_method = OPTIONS) { return 418; }   # → @cors_preflight
+    proxy_pass http://orderservice;
 }
 ```
 
+Mọi `proxy_set_header` chung (Host, X-Real-IP, X-Forwarded-*, Upgrade) được khai báo 1 lần ở server level — kế thừa xuống mọi `location` không override.
+
+### CORS
+
+`$cors_origin` map cho phép `localhost`, `192.168.x.x` (LAN). Production thêm domain thật. Preflight `OPTIONS` được "redirect" sang `@cors_preflight` qua `error_page 418` để tránh duplicate config.
+
+```nginx
+map $http_origin $cors_origin {
+    "~^https?://localhost(:\d+)?$"           $http_origin;
+    "~^https?://192\.168\.\d+\.\d+(:\d+)?$" $http_origin;
+    default                                  "";
+}
+```
+
+`proxy_hide_header` strip mọi `Access-Control-*` từ upstream để nginx là CORS authority duy nhất.
+
 ---
 
-## Cách auth_request hoạt động
+## Auth flow đã đơn giản hoá
 
 ```
 Client: GET /m01/dashboard/summary
         Authorization: Bearer eyJhbGci...
          │
          ▼
-      nginx (location /m01/)
-         │
-         ├── 1. auth_request /_auth_validate
-         │         │
-         │         └── nginx gửi subrequest:
-         │             GET http://authservice/auth/validate
-         │             (kèm Authorization header từ request gốc)
-         │                  │
-         │                  ▼
-         │             AuthService.ValidateToken()
-         │             [Authorize] → JWT validation
-         │                  │
-         │             ┌────┴─────┐
-         │             200        401
-         │             OK         Unauthorized
-         │             │          │
-         ├─────────────┘          └── nginx trả 401 @unauthorized
-         │
-         └── 2. Nếu 200: proxy request đến m01service
-                   GET http://m01service/m01/dashboard/summary
-                   (kèm tất cả headers gốc)
+      nginx (location ~ ^/m01($|/))
+         │  • Strip upstream CORS, set X-Forwarded-*
+         │  • KHÔNG call AuthService
+         ▼
+      m01service:8080/m01/dashboard/summary
+         │  • JwtBearer verify HS256 + iss/aud/exp
+         │  • Đọc claim "permission" từ JWT
+         │  • [Authorize(Policy = HdosPermissions.M01Read)] enforce
+         ▼
+      200 / 401 / 403  → nginx → Client
 ```
 
-**Lưu ý quan trọng:** `auth_request` nhận response code:
-- `2xx` → cho đi tiếp
-- `401` → trả 401 về client (qua `@unauthorized` named location)
-- `403` → trả 403 về client
-- Bất kỳ code nào khác (404, 500...) → nginx trả **500** về client
+> Permission nằm thẳng trong JWT, không cần header `X-User-Permissions`. Chi tiết: [06 — Xác thực](./06-xac-thuc.md).
 
-Đây là lý do tại sao endpoint `/auth/validate` phải tồn tại và trả 200 (JWT hợp lệ) hoặc 401 (JWT không hợp lệ) — không được trả 404.
+---
+
+## Endpoint đặc biệt
+
+| Path | Xử lý |
+|------|-------|
+| `/health` | nginx trả 200 JSON `{"status":"OK","service":"nginx-gateway"}` |
+| `/notifications/sse` | Bypass `proxy_buffering`, `proxy_read_timeout 24h` cho EventSource. Token qua `?access_token=` query param. |
+| `/auth/*` | Forward tới authservice (login/register là anonymous, các endpoint admin được service tự gác bằng `[Authorize(Roles="admin")]`). |
+| `/` (catch-all) | Forward tới `host.docker.internal:4000` (Next.js frontend). |
 
 ---
 
 ## Swagger với prefix routing
 
-Mỗi service cấu hình Swagger `RoutePrefix` khớp với nginx prefix:
+Mỗi service cấu hình Swagger `RoutePrefix` khớp nginx prefix qua helper chung `UseHdosSwaggerUi(servicePrefix, title)`:
 
 ```csharp
-// Trong Program.cs của mỗi service:
-app.UseSwagger(c => c.RouteTemplate = "orders/swagger/{documentName}/swagger.json");
-app.UseSwaggerUI(c =>
-{
-    c.SwaggerEndpoint("/orders/swagger/v1/swagger.json", "OrderService v1");
-    c.RoutePrefix = "orders/swagger";   // Swagger UI serve tại /orders/swagger
-});
+// Program.cs của mỗi service
+app.UseHdosSwaggerUi("orders", "OrderService v1");
+// → JSON tại /orders/swagger/v1/swagger.json
+// → UI   tại /orders/swagger/index.html
 ```
 
-Vì vậy khi truy cập `http://server:5000/orders/swagger`:
-1. nginx nhận → match `location /orders/swagger` → forward tới orderservice
-2. orderservice nhận `/orders/swagger` → Swashbuckle phục vụ Swagger UI (vì RoutePrefix = "orders/swagger")
-3. HTML tải → fetch assets và JSON spec tại `/orders/swagger/...` → nginx forward tiếp
+Nginx có rule `location ^~ /orders/swagger { proxy_pass http://orderservice; }` — `^~` đảm bảo prefix match thắng các regex `^/orders(...)` (anonymous, không cần token).
 
 ---
 
@@ -287,20 +134,21 @@ nginx dùng volume mount — không cần rebuild image:
 nginx:
   image: nginx:1.27-alpine
   volumes:
-    - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro   # Mount từ host
+    - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
 ```
 
 Quy trình update:
+
 ```bash
 # 1. Sửa nginx/nginx.conf
-# 2. Kiểm tra syntax (optional)
-docker exec hdos-nginx-1 nginx -t
+# 2. Kiểm tra syntax
+docker exec hdos-nginx nginx -t
 
 # 3. Reload không downtime
-docker exec hdos-nginx-1 nginx -s reload
+docker exec hdos-nginx nginx -s reload
 
-# Hoặc nếu cần đổi config lớn (thêm upstream...):
-docker restart hdos-nginx-1
+# Hoặc nếu cần đổi config lớn (thêm upstream mới...):
+docker restart hdos-nginx
 ```
 
 **Lưu ý:** `nginx -s reload` reload config mà không đóng existing connections. `docker restart` có brief downtime (~1 giây).
@@ -309,26 +157,45 @@ docker restart hdos-nginx-1
 
 ## Thêm service mới
 
-1. Thêm upstream:
+1. Thêm upstream trong `nginx.conf`:
+
 ```nginx
 upstream newservice { server newservice:8080; }
 ```
 
-2. Thêm routes (copy pattern của service hiện có):
+2. Thêm routes (copy pattern hiện có):
+
 ```nginx
-location ~ ^/new(/health.*) {
-    proxy_pass http://newservice$1;
-    ...
+location ^~ /new/swagger {
+    proxy_pass http://newservice;
 }
 
-location /new/swagger { proxy_pass http://newservice; ... }
-
-location /new/ {
-    auth_request /_auth_validate;
-    error_page 401 = @unauthorized;
+location ~ ^/new($|/) {
+    if ($request_method = OPTIONS) { return 418; }
     proxy_pass http://newservice;
-    ...
 }
 ```
 
-3. Reload: `docker exec hdos-nginx-1 nginx -s reload`
+3. Reload: `docker exec hdos-nginx nginx -s reload`.
+4. Service tự enforce auth bằng `[Authorize(Policy = HdosPermissions.X)]` trên controller.
+
+---
+
+## Internal monitoring server
+
+Server riêng listen `8081` chỉ trong Docker network (không expose ra host) phục vụ Prometheus scrape:
+
+```nginx
+server {
+    listen 8081;
+    location /nginx_status {
+        stub_status;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        allow 10.0.0.0/8;
+        deny all;
+    }
+}
+```
+
+Prometheus exporter (`nginx-prometheus-exporter`) gọi vào endpoint này — chi tiết: [08 — Quan sát hệ thống](./08-quan-sat-he-thong.md).

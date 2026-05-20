@@ -298,37 +298,19 @@ paymentservice:
 
 upstream paymentservice { server paymentservice:8080; }
 
-# Health (anonymous)
-location ~ ^/payments(/health.*) {
-    proxy_pass         http://paymentservice$1;
-    proxy_set_header   Host            $host;
-    proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_http_version 1.1;
+# Swagger (anonymous, prefix-match thắng regex bên dưới)
+location ^~ /payments/swagger {
+    proxy_pass http://paymentservice;
 }
 
-# Swagger (anonymous)
-location /payments/swagger {
-    proxy_pass         http://paymentservice;
-    proxy_set_header   Host            $host;
-    proxy_http_version 1.1;
-}
-
-# Business routes (JWT required)
-location /payments/ {
-    auth_request /_auth_validate;
-    error_page 401 = @unauthorized;
-    error_page 403 = @forbidden;
-
-    proxy_pass         http://paymentservice;
-    proxy_set_header   Host              $host;
-    proxy_set_header   X-Real-IP         $remote_addr;
-    proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-    proxy_set_header   X-Forwarded-Proto $scheme;
-    proxy_http_version 1.1;
-    proxy_set_header   Upgrade    $http_upgrade;
-    proxy_set_header   Connection $connection_upgrade;
+# Business routes — service tự verify JWT + enforce policy
+location ~ ^/payments($|/) {
+    if ($request_method = OPTIONS) { return 418; }
+    proxy_pass http://paymentservice;
 }
 ```
+
+> Headers chung (`Host`, `X-Forwarded-*`, `Upgrade`, `Connection`) đã set ở server level — kế thừa xuống mọi location, không cần khai báo lại.
 
 ### 7. Monitoring — thêm Prometheus scrape
 

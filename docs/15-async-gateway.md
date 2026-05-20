@@ -62,7 +62,7 @@ Nginx (port 5000)
 
 Đây là một **thin service** — không có database, không có domain logic. Nhiệm vụ duy nhất:
 
-1. Nhận HTTP request (yêu cầu JWT hợp lệ qua nginx `auth_request`)
+1. Nhận HTTP request (JWT verify ngay tại service bằng `JwtBearer` middleware)
 2. Chuyển payload thành `IntegrationEvent`
 3. Publish lên RabbitMQ exchange `hdos.events`
 4. Trả về `202 Accepted` kèm `CorrelationId`
@@ -158,12 +158,11 @@ CLIENT
        │
        ▼
 NGINX
-  auth_request /_auth_validate → AuthService validate JWT
-  proxy_pass http://asyncgateway
+  proxy_pass http://asyncgateway   (dumb reverse proxy)
        │
        ▼
 ASYNCGATEWAY (AsyncNotificationsController.Send)
-  1. [Authorize] validate JWT (defense in depth)
+  1. [Authorize(Policy = "notifications:send")] verify JWT + check permission claim
   2. CorrelationId = Guid.NewGuid()
   3. Tạo NotificationSendRequestedIntegrationEvent { CorrelationId, ... }
   4. RabbitMqEventBus.PublishAsync():
