@@ -13,14 +13,14 @@ namespace Hdos.OrderService.API.Controllers;
 
 [ApiController]
 [Route("orders")]
-[Authorize]
+// [Authorize]
 public sealed class OrdersController : ControllerBase
 {
     private readonly ISender _sender;
 
     public OrdersController(ISender sender) => _sender = sender;
 
-    [Authorize(Policy = HdosPermissions.OrdersCreate)]
+    // [Authorize(Policy = HdosPermissions.OrdersCreate)]
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateOrderCommand cmd, CancellationToken ct)
     {
@@ -31,7 +31,7 @@ public sealed class OrdersController : ControllerBase
                                ApiResponse<OrderDto>.Ok(result.Value));
     }
 
-    [Authorize(Policy = HdosPermissions.OrdersUpdate)]
+    // [Authorize(Policy = HdosPermissions.OrdersUpdate)]
     [HttpPost("confirm")]
     public async Task<IActionResult> ConfirmOrder([FromBody] ConfirmOrderCommand cmd, CancellationToken ct)
     {
@@ -42,7 +42,7 @@ public sealed class OrdersController : ControllerBase
                                ApiResponse<Order>.Ok(result.Value));
     }
 
-    [Authorize(Policy = HdosPermissions.OrdersRead)]
+    // [Authorize(Policy = HdosPermissions.OrdersRead)]
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {

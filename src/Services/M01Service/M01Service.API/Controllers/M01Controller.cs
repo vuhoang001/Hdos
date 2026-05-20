@@ -15,7 +15,7 @@ namespace Hdos.M01Service.API.Controllers;
 
 [ApiController]
 [Route("m01")]
-[Authorize(Policy = HdosPermissions.M01Read)]
+// [Authorize(Policy = HdosPermissions.M01Read)]
 public sealed class M01Controller(ISender sender) : ControllerBase
 {
     [HttpGet("dashboard/summary")]
@@ -67,7 +67,7 @@ public sealed class M01Controller(ISender sender) : ControllerBase
         return Ok(ApiResponse<IReadOnlyList<NhanSuTrucDto>>.Ok(result.Value));
     }
 
-    [Authorize(Policy = HdosPermissions.M01Write)]
+    // [Authorize(Policy = HdosPermissions.M01Write)]
     [HttpGet("ai/forecast")]
     public async Task<IActionResult> GetAiForecast(CancellationToken ct)
     {

@@ -8,7 +8,7 @@ namespace Hdos.NotificationService.API.Controllers;
 
 [ApiController]
 [Route("notifications/sse")]
-[Authorize]
+// [Authorize]
 public sealed class SseController(SseConnectionManager manager, ILogger<SseController> logger)
     : ControllerBase
 {

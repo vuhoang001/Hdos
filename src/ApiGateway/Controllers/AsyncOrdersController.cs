@@ -15,13 +15,9 @@ public sealed record CreateOrderAsyncRequest(
 
 [ApiController]
 [Route("async/orders")]
-[Authorize(Policy = HdosPermissions.AsyncSubmit)]
-public sealed class AsyncOrdersController : ControllerBase
+// [Authorize(Policy = HdosPermissions.AsyncSubmit)]
+public sealed class AsyncOrdersController(IEventBus eventBus) : ControllerBase
 {
-    private readonly IEventBus _eventBus;
-
-    public AsyncOrdersController(IEventBus eventBus) => _eventBus = eventBus;
-
     /// <summary>
     /// Enqueues an order creation. Returns 202 immediately;
     /// OrderService processes the message asynchronously.
@@ -41,7 +37,7 @@ public sealed class AsyncOrdersController : ControllerBase
             return Unauthorized(ApiResponse<AsyncResponse>.Fail("Auth.InvalidToken", "Cannot resolve customer from token."));
 
         var correlationId = Guid.NewGuid();
-        await _eventBus.PublishAsync(
+        await eventBus.PublishAsync(
             new OrderCreateRequestedIntegrationEvent(
                 CorrelationId: correlationId,
                 CustomerId: customerId,

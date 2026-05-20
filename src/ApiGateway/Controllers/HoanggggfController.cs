@@ -9,7 +9,7 @@ namespace Hdos.AsyncGateway.API.Controllers;
 
 [ApiController]
 [Route("async/hoanggggf")]
-[Authorize]
+// [Authorize]
 public class HoanggggfController(IEventBus eventBus) : ControllerBase
 {
     [HttpPost("hoanggggf")]

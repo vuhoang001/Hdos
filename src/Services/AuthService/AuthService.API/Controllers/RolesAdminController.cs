@@ -9,7 +9,7 @@ namespace Hdos.AuthService.API.Controllers;
 
 [ApiController]
 [Route("auth/admin/roles")]
-[Authorize(Roles = "admin")]
+// [Authorize(Roles = "admin")]
 public sealed class RolesAdminController(ISender sender) : ControllerBase
 {
     [HttpGet]

@@ -36,7 +36,7 @@ public sealed class AuthController(ISender sender) : ControllerBase
     }
 
     /// <summary>Lấy thông tin user theo ID (chỉ admin).</summary>
-    [Authorize(Roles = "admin")]
+    // [Authorize(Roles = "admin")]
     [HttpGet("users/{id:guid}")]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {

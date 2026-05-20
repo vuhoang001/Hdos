@@ -15,7 +15,7 @@ public sealed record SendNotificationAsyncRequest(
 
 [ApiController]
 [Route("async/notifications")]
-[Authorize(Policy = HdosPermissions.NotificationsSend)]
+// [Authorize(Policy = HdosPermissions.NotificationsSend)]
 public sealed class AsyncNotificationsController(IEventBus eventBus) : ControllerBase
 {
     /// <summary>

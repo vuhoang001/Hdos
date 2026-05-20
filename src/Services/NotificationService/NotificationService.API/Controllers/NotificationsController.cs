@@ -10,17 +10,14 @@ namespace Hdos.NotificationService.API.Controllers;
 
 [ApiController]
 [Route("notifications")]
-[Authorize]
-public sealed class NotificationsController : ControllerBase
+// [Authorize]
+public sealed class NotificationsController(ISender sender) : ControllerBase
 {
-    private readonly ISender _sender;
-    public NotificationsController(ISender sender) => _sender = sender;
-
-    [Authorize(Policy = HdosPermissions.NotificationsRead)]
+    // [Authorize(Policy = HdosPermissions.NotificationsRead)]
     [HttpGet]
     public async Task<IActionResult> ListRecent([FromQuery] int take = 50, CancellationToken ct = default)
     {
-        var result = await _sender.Send(new ListRecentNotificationsQuery(take), ct);
+        var result = await sender.Send(new ListRecentNotificationsQuery(take), ct);
         return Ok(ApiResponse<IReadOnlyList<NotificationDto>>.Ok(result.Value));
     }
 
