@@ -38,6 +38,7 @@ public static class DependencyInjection
             x.AddConsumer<OrderConfirmedConsumer>();
             x.AddConsumer<NotificationSendRequestedConsumer>();
             x.AddConsumer<HoanggggfConsumer>();
+            x.AddConsumer<HoanggggfErrorConsumer>();
             x.AddConsumer<TestConsumer>();
         });
 
