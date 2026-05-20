@@ -1,5 +1,6 @@
 using Hdos.Common.Extensions;
 using Hdos.Common.Persistence;
+using Hdos.NotificationService.Application.EventHandlers;
 using Hdos.NotificationService.Domain.Repositories;
 using Hdos.NotificationService.Infrastructure.Consumers;
 using Hdos.NotificationService.Infrastructure.Persistence;
@@ -18,10 +19,13 @@ public static class DependencyInjection
         services.AddDomainEventDispatching();
 
         services.AddDbContext<NotificationDbContext>((sp, opts) =>
-            opts.UseSqlServer(
-                    configuration.GetConnectionString("NotificationDb"),
-                    sql => sql.MigrationsAssembly(typeof(NotificationDbContext).Assembly.FullName))
-                .AddInterceptors(sp.GetRequiredService<PublishDomainEventsInterceptor>()));
+                                                         opts.UseSqlServer(
+                                                                 configuration.GetConnectionString("NotificationDb"),
+                                                                 sql => sql.MigrationsAssembly(
+                                                                     typeof(NotificationDbContext).Assembly.FullName))
+                                                             .AddInterceptors(
+                                                                 sp.GetRequiredService<
+                                                                     PublishDomainEventsInterceptor>()));
 
         services.AddScoped<INotificationRepository, NotificationRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -33,6 +37,7 @@ public static class DependencyInjection
             x.AddConsumer<OrderCreatedConsumer>();
             x.AddConsumer<OrderConfirmedConsumer>();
             x.AddConsumer<NotificationSendRequestedConsumer>();
+            x.AddConsumer<HoanggggfConsumer>();
             x.AddConsumer<TestConsumer>();
         });
 
