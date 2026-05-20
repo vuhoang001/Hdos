@@ -12,6 +12,7 @@ namespace Hdos.AsyncGateway.API.Controllers;
 [Authorize]
 public class HoanggggfController(IEventBus eventBus) : ControllerBase
 {
+    [HttpPost("hoanggggf")]
     public async Task<IActionResult> Send([FromBody] HoanggggfIntegrationEvent @event)
     {
         var correlationId = Guid.NewGuid();
