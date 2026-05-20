@@ -36,12 +36,11 @@ builder.Services.AddHostedService<TestBroadcastService>();
 
 var app = builder.Build();
 
-app.UseHdosSwaggerUI("notifications", "NotificationService v1");
+app.UseHdosSwaggerUi("notifications", "NotificationService v1");
 
 app.UseHdosMiddleware();
 app.UseHdosCors();
 app.UseAuthentication();
-app.UseHdosPermissions();
 app.UseAuthorization();
 app.MapControllers();
 app.UseHdosMonitoring();

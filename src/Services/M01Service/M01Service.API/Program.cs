@@ -27,12 +27,11 @@ builder.Services.AddHdosHealthChecks(builder.Configuration, sqlConnectionStringK
 
 var app = builder.Build();
 
-app.UseHdosSwaggerUI("m01", "M01Service v1");
+app.UseHdosSwaggerUi("m01", "M01Service v1");
 
 app.UseHdosMiddleware();
 app.UseHdosCors();
 app.UseAuthentication();
-app.UseHdosPermissions();
 app.UseAuthorization();
 app.MapControllers();
 app.UseHdosMonitoring();

@@ -42,7 +42,7 @@ public static class SwaggerExtensions
     }
 
     /// <summary>Cấu hình Swagger UI với route prefix chuẩn.</summary>
-    public static void UseHdosSwaggerUI(
+    public static void UseHdosSwaggerUi(
         this WebApplication app,
         string servicePrefix,
         string serviceTitle)

@@ -22,12 +22,11 @@ builder.Services.AddHdosHealthChecks(builder.Configuration, checkRabbitMq: true)
 
 var app = builder.Build();
 
-app.UseHdosSwaggerUI("async", "AsyncGateway v1");
+app.UseHdosSwaggerUi("async", "AsyncGateway v1");
 
 app.UseHdosMiddleware();
 app.UseHdosCors();
 app.UseAuthentication();
-app.UseHdosPermissions();
 app.UseAuthorization();
 app.MapControllers();
 app.UseHdosMonitoring();

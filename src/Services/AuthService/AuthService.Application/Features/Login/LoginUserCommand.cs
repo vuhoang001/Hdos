@@ -53,10 +53,16 @@ public sealed class LoginUserCommandHandler(
         user.UpdateLastSeen();
         users.Update(user);
 
-        var roles = await userRoles.GetRolesWithPermissionsAsync(user.Id, ct);
-        var roleNames = roles.Select(r => r.Name).ToList();
+        var roles       = await userRoles.GetRolesWithPermissionsAsync(user.Id, ct);
+        var roleNames   = roles.Select(r => r.Name).ToList();
+        var permissions = roles
+            .SelectMany(r => r.RolePermissions)
+            .Where(rp => rp.Permission is not null)
+            .Select(rp => rp.Permission!.Key)
+            .Distinct()
+            .ToList();
 
-        var token = jwt.Issue(user.Id, user.Email.Value, user.FullName, roleNames);
+        var token = jwt.Issue(user.Id, user.Email.Value, user.FullName, roleNames, permissions);
         await uow.SaveChangesAsync(ct);
 
         return new LoginResultDto(user.Id, user.Email.Value, token.Token);

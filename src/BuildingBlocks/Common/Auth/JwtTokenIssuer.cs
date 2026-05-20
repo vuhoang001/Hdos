@@ -18,7 +18,12 @@ public sealed class JwtTokenIssuer : IJwtTokenIssuer
                 "Jwt:Secret phải >= 32 ký tự. Set qua env Jwt__Secret.");
     }
 
-    public JwtTokenResult Issue(Guid userId, string email, string fullName, IEnumerable<string> roles)
+    public JwtTokenResult Issue(
+        Guid userId,
+        string email,
+        string fullName,
+        IEnumerable<string> roles,
+        IEnumerable<string> permissions)
     {
         var expires = DateTime.UtcNow.AddMinutes(_options.ExpiresMinutes);
         var creds = new SigningCredentials(
@@ -35,6 +40,8 @@ public sealed class JwtTokenIssuer : IJwtTokenIssuer
         };
         foreach (var r in roles.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct())
             claims.Add(new Claim("roles", r));
+        foreach (var p in permissions.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct())
+            claims.Add(new Claim("permission", p));
 
         var token = new JwtSecurityToken(
             issuer: _options.Issuer,

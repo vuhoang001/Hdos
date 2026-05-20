@@ -43,7 +43,7 @@ builder.Services.AddHdosHealthChecks(builder.Configuration, sqlConnectionStringK
 var app = builder.Build();
 
 // Path khớp với prefix YARP forward (`/auth/...`) để Gateway có thể tổng hợp.
-app.UseHdosSwaggerUI("auth", "AuthService v1");
+app.UseHdosSwaggerUi("auth", "AuthService v1");
 
 app.UseHdosMiddleware();
 app.UseHdosCors();

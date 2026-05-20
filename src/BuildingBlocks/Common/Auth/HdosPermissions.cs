@@ -1,10 +1,11 @@
 namespace Hdos.Common.Auth;
 
 /// <summary>
-/// Permission strings dùng cho cả policy name lẫn X-User-Permissions value.
+/// Permission strings dùng cho cả policy name lẫn "permission" claim trong JWT.
 /// Format: "{service}:{action}".
 /// AuthService admin endpoints dùng [Authorize(Roles="admin")] đọc từ JWT "roles" claim.
-/// Service khác dùng [Authorize(Policy = HdosPermissions.Xxx)] đọc từ permission claim (PermissionsMiddleware).
+/// Service khác dùng [Authorize(Policy = HdosPermissions.Xxx)] đọc từ "permission" claim
+/// (do JwtTokenIssuer nhồi trực tiếp khi login — không qua middleware).
 /// </summary>
 public static class HdosPermissions
 {

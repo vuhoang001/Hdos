@@ -70,8 +70,7 @@ public static class JwtAuthExtensions
 
     /// <summary>
     /// Đăng ký policies fine-grained theo HdosPermissions constants.
-    /// Permission claim được PermissionsMiddleware bơm vào từ X-User-Permissions header
-    /// (do nginx auth_request truyền từ AuthService /auth/validate).
+    /// Permission claim được JwtTokenIssuer nhồi trực tiếp vào JWT khi login.
     /// </summary>
     public static IServiceCollection AddHdosAuthorization(this IServiceCollection services)
     {
