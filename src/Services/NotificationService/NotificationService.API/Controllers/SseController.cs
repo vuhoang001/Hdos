@@ -9,17 +9,9 @@ namespace Hdos.NotificationService.API.Controllers;
 [ApiController]
 [Route("notifications/sse")]
 [Authorize]
-public sealed class SseController : ControllerBase
+public sealed class SseController(SseConnectionManager manager, ILogger<SseController> logger)
+    : ControllerBase
 {
-    private readonly SseConnectionManager _manager;
-    private readonly ILogger<SseController> _logger;
-
-    public SseController(SseConnectionManager manager, ILogger<SseController> logger)
-    {
-        _manager = manager;
-        _logger  = logger;
-    }
-
     /// <summary>
     /// SSE stream — giữ connection mở, server push event xuống khi có notification.
     /// Token truyền qua ?access_token= vì EventSource không support Authorization header.
@@ -28,7 +20,7 @@ public sealed class SseController : ControllerBase
     public async Task Stream(CancellationToken ct)
     {
         var userId = User.FindFirst(JwtRegisteredClaimNames.Email)?.Value
-                  ?? User.FindFirst(ClaimTypes.Email)?.Value;
+            ?? User.FindFirst(ClaimTypes.Email)?.Value;
 
         if (string.IsNullOrWhiteSpace(userId))
         {
@@ -44,9 +36,9 @@ public sealed class SseController : ControllerBase
         await Response.WriteAsync(": connected\n\n", ct);
         await Response.Body.FlushAsync(ct);
 
-        var (connectionId, channel) = _manager.Add(userId);
-        _logger.LogInformation("SSE connected: {User} ({ConnectionId}), total={Total}",
-            userId, connectionId, _manager.ConnectionCount);
+        var (connectionId, channel) = manager.Add(userId);
+        logger.LogInformation("SSE connected: {User} ({ConnectionId}), total={Total}",
+                              userId, connectionId, manager.ConnectionCount);
 
         try
         {
@@ -56,12 +48,15 @@ public sealed class SseController : ControllerBase
                 await Response.Body.FlushAsync(ct);
             }
         }
-        catch (OperationCanceledException) { /* client đóng tab — bình thường */ }
+        catch (OperationCanceledException)
+        {
+            /* client đóng tab — bình thường */
+        }
         finally
         {
-            _manager.Remove(userId, connectionId);
-            _logger.LogInformation("SSE disconnected: {User} ({ConnectionId}), total={Total}",
-                userId, connectionId, _manager.ConnectionCount);
+            manager.Remove(userId, connectionId);
+            logger.LogInformation("SSE disconnected: {User} ({ConnectionId}), total={Total}",
+                                  userId, connectionId, manager.ConnectionCount);
         }
     }
 }

@@ -211,7 +211,27 @@
       "Bash(openssl s_client -connect 192.168.100.60:8443 -sess_out /tmp/sess.pem -no_ssl2 -no_ssl3)",
       "Bash(timeout 3 bash -c \"openssl s_client -connect 192.168.100.60:8443 2>/dev/null\")",
       "Bash(sudo ss -tlnp)",
-      "Bash(openssl s_client -connect 192.168.100.60:8443 -no_ticket)"
+      "Bash(openssl s_client -connect 192.168.100.60:8443 -no_ticket)",
+      "Bash(npm list *)",
+      "Bash(xdg-open /home/hoanggggf/Documents/Code/work/Hdos/tests/sse-test.html)",
+      "Bash(bash /home/hoanggggf/Documents/Code/work/Hdos/scripts/apply-keycloak-patches.sh)",
+      "Bash(snap list *)",
+      "Bash(find / -name \"dotnet\" -type f)",
+      "Bash(~/.dotnet/dotnet --version)",
+      "Bash(dpkg -l)",
+      "Bash(~/.dotnet/dotnet ef *)",
+      "Bash(~/.dotnet/dotnet tool *)",
+      "Bash(export PATH=\"$PATH:$HOME/.dotnet/tools\")",
+      "Bash(export PATH=\"$HOME/.dotnet:$HOME/.dotnet/tools:$PATH\" DOTNET_ROOT=\"$HOME/.dotnet\")",
+      "Bash(~/.dotnet/dotnet test *)",
+      "Bash(/usr/bin/curl -sk -X POST --max-time 10 https://192.168.100.60:8443/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"admin@hdos.dev\",\"password\":\"Admin1234!\"}' -o /tmp/login.json -w 'HTTP %{http_code}\\\\n')",
+      "Bash(/usr/bin/curl -sk -X POST --max-time 10 https://192.168.100.60:8443/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"testuser@hdos.dev\",\"password\":\"Test1234!\"}')",
+      "Bash(/usr/bin/curl -sk -X POST --max-time 10 https://192.168.100.60:8443/auth/register -H 'Content-Type: application/json' -d '{\"email\":\"smoke@hdos.dev\",\"password\":\"SmokeTest1234!\",\"fullName\":\"Smoke Test\"}')",
+      "Bash(/usr/bin/curl -sk --max-time 6 https://192.168.100.60:8443/auth/health)",
+      "Bash(/usr/bin/curl -sk -X POST --max-time 10 https://192.168.100.60:8443/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"admin@hdos.dev\",\"password\":\"Admin1234!\"}')",
+      "Bash(/usr/bin/curl -sk -o /dev/null --max-time 6 -w '__TRACKED_VAR__ swagger: %{http_code}\\\\n' https://192.168.100.60:8443/__TRACKED_VAR__/swagger/index.html)",
+      "Bash(/usr/bin/curl -sk -o /dev/null --max-time 6 -w '__TRACKED_VAR__ health: %{http_code}\\\\n' https://192.168.100.60:8443/__TRACKED_VAR__/health)",
+      "Bash(tee /tmp/login.json)"
     ]
   }
 }

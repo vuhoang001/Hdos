@@ -8,15 +8,12 @@ namespace Hdos.OrderService.Application.Features.GetOrder;
 
 public sealed record GetOrderByIdQuery(Guid OrderId) : IRequest<Result<OrderDto>>;
 
-public sealed class GetOrderByIdQueryHandler : IRequestHandler<GetOrderByIdQuery, Result<OrderDto>>
+public sealed class GetOrderByIdQueryHandler(IOrderRepository orders)
+    : IRequestHandler<GetOrderByIdQuery, Result<OrderDto>>
 {
-    private readonly IOrderRepository _orders;
-
-    public GetOrderByIdQueryHandler(IOrderRepository orders) => _orders = orders;
-
     public async Task<Result<OrderDto>> Handle(GetOrderByIdQuery request, CancellationToken ct)
     {
-        var order = await _orders.GetByIdAsync(request.OrderId, ct);
+        var order = await orders.GetByIdAsync(request.OrderId, ct);
         if (order is null) return Result.Failure<OrderDto>(Error.NotFound("Order"));
         return Map(order);
     }
