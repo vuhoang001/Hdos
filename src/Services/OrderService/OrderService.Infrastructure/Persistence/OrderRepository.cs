@@ -40,6 +40,9 @@ public sealed class ProductRepository : IProductRepository
     public Task<decimal> GetTotalPriceAsync(CancellationToken ct) =>
         _db.Products.SumAsync(p => p.ProductPrice, ct);
 
+    public Task<int> GetTotalCountAsync(CancellationToken ct) =>
+        _db.Products.CountAsync(ct);
+
     public async Task AddAsync(Product product, CancellationToken ct) =>
         await _db.Products.AddAsync(product, ct);
 

@@ -35,14 +35,18 @@ public sealed class CreateProductCommandHandler(
         await products.AddAsync(product, ct);
         await uow.SaveChangesAsync(ct);
 
-        var totalPrice = await products.GetTotalPriceAsync(ct);
+        var totalPrice   = await products.GetTotalPriceAsync(ct);
+        var totalCount   = await products.GetTotalCountAsync(ct);
+        var averagePrice = totalCount > 0 ? Math.Round(totalPrice / totalCount, 2) : 0;
 
         await eventBus.PublishAsync(
             new Integration.ProductCreatedIntegrationEvent(
                 product.ProductId,
                 product.ProductName!,
                 product.ProductPrice,
-                totalPrice),
+                totalCount,
+                totalPrice,
+                averagePrice),
             ct);
 
         return Map(product);

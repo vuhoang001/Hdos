@@ -12,12 +12,17 @@ public sealed class ProductTotalUpdatedHandler(
 {
     public async Task HandleAsync(ProductCreatedIntegrationEvent @event, CancellationToken ct)
     {
-        logger.LogInformation("Broadcasting product total updated: {Total}", @event.TotalProductsPrice);
+        logger.LogInformation("Broadcasting product stats: count={Count}, total={Total}",
+            @event.TotalProductCount, @event.TotalProductsPrice);
 
         await pusher.BroadcastEventAsync(
             "product_total_updated",
-            new { totalProductsPrice = @event.TotalProductsPrice },
+            new
+            {
+                totalProductCount  = @event.TotalProductCount,
+                totalProductsPrice = @event.TotalProductsPrice,
+                averageProductPrice = @event.AverageProductPrice
+            },
             ct);
     }
 }
-
