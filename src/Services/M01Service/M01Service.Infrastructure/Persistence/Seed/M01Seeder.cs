@@ -82,6 +82,40 @@ public static class M01Seeder
                 nhanKq: 4, keDonNv: 3, hoanThanh: 50, tatTbPhut: 22));
         }
 
+        // Ensure KhoaDoanhThus table exists for databases previously created via EnsureCreated
+        await db.Database.ExecuteSqlRawAsync(@"
+            IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[KhoaDoanhThus]') AND type = N'U')
+            BEGIN
+                CREATE TABLE [dbo].[KhoaDoanhThus] (
+                    [MaKhoa]      nvarchar(32)    NOT NULL,
+                    [TenKhoa]     nvarchar(120)   NOT NULL,
+                    [SoBenhNhan]  int             NOT NULL,
+                    [TongThu]     decimal(18,2)   NOT NULL,
+                    [BhytTra]     decimal(18,2)   NOT NULL,
+                    [BnTra]       decimal(18,2)   NOT NULL,
+                    [HaoPhiKhac]  decimal(18,2)   NOT NULL,
+                    [NgayBaoCao]  datetime2       NOT NULL,
+                    [CreatedAtUtc] datetime2      NOT NULL,
+                    [UpdatedAtUtc] datetime2      NULL,
+                    CONSTRAINT [PK_KhoaDoanhThus] PRIMARY KEY ([MaKhoa])
+                );
+                CREATE INDEX [IX_KhoaDoanhThus_NgayBaoCao] ON [dbo].[KhoaDoanhThus] ([NgayBaoCao]);
+            END", ct);
+
+        if (!await db.KhoaDoanhThus.AnyAsync(ct))
+        {
+            var ngay = new DateTime(2026, 5, 8, 0, 0, 0, DateTimeKind.Utc);
+            db.KhoaDoanhThus.AddRange(
+                new KhoaDoanhThu("KH0001", "Khoa Nội - Hồi Sức Cấp Cứu", 1,  1_110_710m,  787_111m,    306_966m,  16_633m, ngay),
+                new KhoaDoanhThu("PH0000", "Phòng khám Nội 1",           12, 10_330_308m, 1_109_857m, 9_196_538m,  23_913m, ngay),
+                new KhoaDoanhThu("PH0001", "Phòng khám Ngoại",            1,    293_461m,   291_844m,     1_617m,       0m, ngay),
+                new KhoaDoanhThu("PH0002", "Phòng khám Nhi",              1,     36_189m,    36_189m,         0m,       0m, ngay),
+                new KhoaDoanhThu("PH0004", "Phòng khám Huyết áp Tiểu đường", 13, 5_095_476m, 4_790_725m, 304_751m,  0m, ngay),
+                new KhoaDoanhThu("PH0005", "Phòng khám Sản",              4,  1_890_000m, 1_500_000m,   390_000m,       0m, ngay),
+                new KhoaDoanhThu("PH0006", "Phòng khám Da liễu",          4,  1_173_835m,   812_328m,   361_507m,       0m, ngay),
+                new KhoaDoanhThu("PH0007", "Phòng khám Nội 2",           20,  2_300_000m, 1_200_000m, 1_039_484m,  60_516m, ngay));
+        }
+
         await db.SaveChangesAsync(ct);
     }
 }

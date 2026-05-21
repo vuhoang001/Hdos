@@ -119,3 +119,24 @@ public sealed class DashboardSnapshotConfiguration : IEntityTypeConfiguration<Da
         b.Property(x => x.UpdatedAtUtc);
     }
 }
+
+public sealed class KhoaDoanhThuConfiguration : IEntityTypeConfiguration<KhoaDoanhThu>
+{
+    public void Configure(EntityTypeBuilder<KhoaDoanhThu> b)
+    {
+        b.ToTable("KhoaDoanhThus");
+        b.HasKey(x => x.Id);
+        b.Property(x => x.Id).HasColumnName("MaKhoa").HasMaxLength(32).ValueGeneratedNever();
+        b.Property(x => x.TenKhoa).HasMaxLength(120).IsRequired();
+        b.Property(x => x.SoBenhNhan).IsRequired();
+        b.Property(x => x.TongThu).HasColumnType("decimal(18,2)").IsRequired();
+        b.Property(x => x.BhytTra).HasColumnType("decimal(18,2)").IsRequired();
+        b.Property(x => x.BnTra).HasColumnType("decimal(18,2)").IsRequired();
+        b.Property(x => x.HaoPhiKhac).HasColumnType("decimal(18,2)").IsRequired();
+        b.Property(x => x.NgayBaoCao).IsRequired();
+        b.Property(x => x.CreatedAtUtc).IsRequired();
+        b.Property(x => x.UpdatedAtUtc);
+
+        b.HasIndex(x => x.NgayBaoCao);
+    }
+}

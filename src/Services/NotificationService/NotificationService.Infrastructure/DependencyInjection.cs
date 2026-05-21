@@ -39,6 +39,7 @@ public static class DependencyInjection
             x.AddConsumer<NotificationSendRequestedConsumer>();
             x.AddConsumer<ProductCreatedConsumer>();
             x.AddConsumer<ProductTotalUpdatedConsumer>();
+            x.AddConsumer<BaoCaoKhoaCreatedConsumer>();
             x.AddConsumer<HoanggggfConsumer>();
             x.AddConsumer<HoanggggfErrorConsumer>();
             x.AddConsumer<TestConsumer>();

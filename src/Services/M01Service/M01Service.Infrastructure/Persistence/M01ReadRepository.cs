@@ -52,4 +52,16 @@ public sealed class M01ReadRepository : IM01ReadRepository
             .ToListAsync(ct);
         return (meta, entries);
     }
+
+    public async Task<IReadOnlyList<KhoaDoanhThu>> ListKhoaDoanhThuAsync(
+        DateTime? ngayBaoCao, CancellationToken ct)
+    {
+        var q = _db.KhoaDoanhThus.AsNoTracking();
+        if (ngayBaoCao.HasValue)
+            q = q.Where(x => x.NgayBaoCao.Date == ngayBaoCao.Value.Date);
+        return await q.OrderBy(x => x.Id).ToListAsync(ct);
+    }
+
+    public Task<KhoaDoanhThu?> GetKhoaDoanhThuAsync(string maKhoa, CancellationToken ct) =>
+        _db.KhoaDoanhThus.AsNoTracking().FirstOrDefaultAsync(x => x.Id == maKhoa, ct);
 }

@@ -1,3 +1,4 @@
+using Hdos.Common.Extensions;
 using Hdos.M01Service.Domain.Repositories;
 using Hdos.M01Service.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -18,6 +19,8 @@ public static class DependencyInjection
                 sql => sql.MigrationsAssembly(typeof(M01DbContext).Assembly.FullName)));
 
         services.AddScoped<IM01ReadRepository, M01ReadRepository>();
+
+        services.AddMassTransitMessaging(configuration, _ => { });
 
         return services;
     }

@@ -14,6 +14,7 @@ public sealed class M01DbContext : DbContext
     public DbSet<ForecastEntry> ForecastEntries => Set<ForecastEntry>();
     public DbSet<ForecastMeta> ForecastMetas => Set<ForecastMeta>();
     public DbSet<DashboardSnapshot> DashboardSnapshots => Set<DashboardSnapshot>();
+    public DbSet<KhoaDoanhThu> KhoaDoanhThus => Set<KhoaDoanhThu>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

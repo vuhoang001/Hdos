@@ -65,3 +65,31 @@ public sealed record AiForecastDto(
     string CaoDiemDuKien,
     double DoChinhXacMae,
     IReadOnlyList<ForecastPointDto> DuBao);
+
+// ── Báo cáo doanh thu theo khoa ──────────────────────────────────────────────
+
+public sealed record KhoaDoanhThuDto(
+    string   MaKhoa,
+    string   TenKhoa,
+    int      SoBenhNhan,
+    decimal  TongThu,
+    decimal  BhytTra,
+    decimal  BnTra,
+    decimal  HaoPhiKhac,
+    DateTime NgayBaoCao);
+
+public sealed record KhoaCaoNhatDto(string TenKhoa, int SoBenhNhan);
+
+public sealed record BaoCaoSummaryDto(
+    int     TongLuotKham,
+    decimal TongDoanhThu,
+    decimal TongBhyt,
+    decimal TongBnTra,
+    decimal DoanhThuTrungBinhTheoBenhNhan,
+    decimal DoanhThuTrungBinhTheoTuan,
+    double  TiLeBhytPct,
+    KhoaCaoNhatDto? KhoaCaoNhat);
+
+public sealed record BaoCaoKhoaDto(
+    BaoCaoSummaryDto           Summary,
+    IReadOnlyList<KhoaDoanhThuDto> ChiTiet);

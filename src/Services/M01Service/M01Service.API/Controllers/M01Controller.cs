@@ -1,6 +1,7 @@
 using Hdos.Common.Auth;
 using Hdos.Common.Responses;
 using Hdos.M01Service.Application.DTOs;
+using Hdos.M01Service.Application.Features.BaoCao;
 using Hdos.M01Service.Application.Features.BenhNhan;
 using Hdos.M01Service.Application.Features.CapCuu;
 using Hdos.M01Service.Application.Features.Dashboard;
@@ -75,6 +76,30 @@ public sealed class M01Controller(ISender sender) : ControllerBase
         return result.IsSuccess
             ? Ok(ApiResponse<AiForecastDto>.Ok(result.Value))
             : NotFound(ApiResponse<AiForecastDto>.Fail(result.Error.Code, result.Error.Message));
+    }
+
+    // [Authorize(Policy = HdosPermissions.M01Read)]
+    [HttpGet("bao-cao/khoa")]
+    public async Task<IActionResult> GetBaoCaoKhoa(
+        [FromQuery(Name = "ngay")] DateTime? ngayBaoCao,
+        CancellationToken ct)
+    {
+        var result = await sender.Send(new GetBaoCaoKhoaQuery(ngayBaoCao), ct);
+        return result.IsSuccess
+            ? Ok(ApiResponse<BaoCaoKhoaDto>.Ok(result.Value))
+            : NotFound(ApiResponse<BaoCaoKhoaDto>.Fail(result.Error.Code, result.Error.Message));
+    }
+
+    // [Authorize(Policy = HdosPermissions.M01Write)]
+    [HttpPost("bao-cao/khoa")]
+    public async Task<IActionResult> CreateBaoCaoKhoa(
+        [FromBody] CreateBaoCaoKhoaCommand cmd,
+        CancellationToken ct)
+    {
+        var result = await sender.Send(cmd, ct);
+        return result.IsSuccess
+            ? Ok(ApiResponse<KhoaDoanhThuDto>.Ok(result.Value))
+            : BadRequest(ApiResponse<KhoaDoanhThuDto>.Fail(result.Error.Code, result.Error.Message));
     }
 
     [AllowAnonymous]

@@ -107,11 +107,15 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__M01Db: "Server=sqlserver,1433;Database=M01Db;User Id=sa;Password=${MSSQL_SA_PASSWORD:-Hdos!DevPass123};TrustServerCertificate=True;Encrypt=False"
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: 5672
       Jwt__Issuer: "hdos-auth"
       Jwt__Audience: "hdos-api"
       Jwt__Secret: "${JWT_SECRET:-DEV-INSECURE-SECRET-CHANGE-ME-AT-LEAST-32-CHARS}"
     depends_on:
       sqlserver:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     networks: [hdos-net]
 
