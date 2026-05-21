@@ -1,10 +1,8 @@
 namespace Hdos.Contracts.IntegrationEvents;
 
 public sealed record BaoCaoKhoaCreatedIntegrationEvent(
-    string   MaKhoa,
-    string   TenKhoa,
-    int      SoBenhNhan,
-    decimal  TongThu,
-    DateTime NgayBaoCao,
-    decimal  TongDoanhThuNgay)
+    int     TongLuotKham,
+    decimal TongDoanhThu,
+    decimal DoanhThuTrungBinhTheoTuan,
+    DateTime NgayBaoCao)
     : IntegrationEvent;

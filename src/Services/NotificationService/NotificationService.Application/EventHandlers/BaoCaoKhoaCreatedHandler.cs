@@ -12,18 +12,16 @@ public sealed class BaoCaoKhoaCreatedHandler(
 {
     public async Task HandleAsync(BaoCaoKhoaCreatedIntegrationEvent @event, CancellationToken ct)
     {
-        logger.LogInformation("Broadcasting bao cao khoa created: {MaKhoa}", @event.MaKhoa);
+        logger.LogInformation("Broadcasting bao cao khoa summary for {NgayBaoCao}", @event.NgayBaoCao);
 
         await pusher.BroadcastEventAsync(
-            "bao_cao_khoa_created",
+            "bao_cao_khoa_summary",
             new
             {
-                maKhoa          = @event.MaKhoa,
-                tenKhoa         = @event.TenKhoa,
-                soBenhNhan      = @event.SoBenhNhan,
-                tongThu         = @event.TongThu,
-                ngayBaoCao      = @event.NgayBaoCao,
-                tongDoanhThuNgay = @event.TongDoanhThuNgay
+                tongLuotKham              = @event.TongLuotKham,
+                tongDoanhThu              = @event.TongDoanhThu,
+                doanhThuTrungBinhTheoTuan = @event.DoanhThuTrungBinhTheoTuan,
+                ngayBaoCao                = @event.NgayBaoCao
             },
             ct);
     }

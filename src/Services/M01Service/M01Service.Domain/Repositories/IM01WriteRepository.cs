@@ -7,5 +7,6 @@ public interface IM01WriteRepository
     Task<KhoaDoanhThu?> FindKhoaDoanhThuAsync(string maKhoa, CancellationToken ct);
     Task UpsertKhoaDoanhThuAsync(KhoaDoanhThu entity, CancellationToken ct);
     Task<decimal> GetTongDoanhThuNgayAsync(DateTime ngayBaoCao, CancellationToken ct);
+    Task<int> GetTongLuotKhamNgayAsync(DateTime ngayBaoCao, CancellationToken ct);
     Task SaveChangesAsync(CancellationToken ct);
 }

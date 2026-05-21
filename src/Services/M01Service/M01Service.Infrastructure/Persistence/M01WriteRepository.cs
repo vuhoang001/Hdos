@@ -21,6 +21,11 @@ public sealed class M01WriteRepository(M01DbContext db) : IM01WriteRepository
             .Where(x => x.NgayBaoCao.Date == ngayBaoCao.Date)
             .SumAsync(x => x.TongThu, ct);
 
+    public Task<int> GetTongLuotKhamNgayAsync(DateTime ngayBaoCao, CancellationToken ct) =>
+        db.KhoaDoanhThus
+            .Where(x => x.NgayBaoCao.Date == ngayBaoCao.Date)
+            .SumAsync(x => x.SoBenhNhan, ct);
+
     public Task SaveChangesAsync(CancellationToken ct) =>
         db.SaveChangesAsync(ct);
 }

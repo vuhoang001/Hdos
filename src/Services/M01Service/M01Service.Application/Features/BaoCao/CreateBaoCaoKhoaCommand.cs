@@ -59,13 +59,13 @@ public sealed class CreateBaoCaoKhoaHandler(
 
         await repo.SaveChangesAsync(ct);
 
-        var tongDoanhThu = await repo.GetTongDoanhThuNgayAsync(request.NgayBaoCao, ct);
+        var tongDoanhThu  = await repo.GetTongDoanhThuNgayAsync(request.NgayBaoCao, ct);
+        var tongLuotKham  = await repo.GetTongLuotKhamNgayAsync(request.NgayBaoCao, ct);
+        var tbTuan        = Math.Round(tongDoanhThu * 7, 0);
 
         await eventBus.PublishAsync(
             new Integration.BaoCaoKhoaCreatedIntegrationEvent(
-                request.MaKhoa, request.TenKhoa,
-                request.SoBenhNhan, request.TongThu,
-                request.NgayBaoCao, tongDoanhThu),
+                tongLuotKham, tongDoanhThu, tbTuan, request.NgayBaoCao),
             ct);
 
         return new KhoaDoanhThuDto(
