@@ -7,6 +7,7 @@ using Hdos.OrderService.Domain.Repositories;
 using Hdos.OrderService.Infrastructure.Consumers;
 using Hdos.OrderService.Infrastructure.Grpc;
 using Hdos.OrderService.Infrastructure.Persistence;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,6 +29,7 @@ public static class DependencyInjection
                 .AddInterceptors(sp.GetRequiredService<PublishDomainEventsInterceptor>()));
 
         services.AddScoped<IOrderRepository, OrderRepository>();
+        services.AddScoped<IProductRepository, ProductRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         services.AddScoped<OrderCreateRequestedEventHandler>();

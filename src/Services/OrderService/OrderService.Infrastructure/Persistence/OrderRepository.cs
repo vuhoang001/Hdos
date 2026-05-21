@@ -2,6 +2,7 @@ using Hdos.OrderService.Domain.Entities;
 using Hdos.OrderService.Domain.Repositories;
 using Microsoft.EntityFrameworkCore;
 
+
 namespace Hdos.OrderService.Infrastructure.Persistence;
 
 public sealed class OrderRepository : IOrderRepository
@@ -22,6 +23,24 @@ public sealed class OrderRepository : IOrderRepository
     public async Task AddAsync(Order order, CancellationToken ct) => await _db.Orders.AddAsync(order, ct);
 
     public void Update(Order order) => _db.Orders.Update(order);
+}
+
+public sealed class ProductRepository : IProductRepository
+{
+    private readonly OrderDbContext _db;
+
+    public ProductRepository(OrderDbContext db) => _db = db;
+
+    public Task<Product?> GetByIdAsync(Guid id, CancellationToken ct) =>
+        _db.Products.FirstOrDefaultAsync(p => p.Id == id, ct);
+
+    public async Task<IReadOnlyList<Product>> ListAllAsync(CancellationToken ct) =>
+        await _db.Products.OrderBy(p => p.ProductName).ToListAsync(ct);
+
+    public async Task AddAsync(Product product, CancellationToken ct) =>
+        await _db.Products.AddAsync(product, ct);
+
+    public void Update(Product product) => _db.Products.Update(product);
 }
 
 public sealed class UnitOfWork : IUnitOfWork
