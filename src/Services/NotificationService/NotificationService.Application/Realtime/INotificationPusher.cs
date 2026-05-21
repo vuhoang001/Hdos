@@ -29,4 +29,7 @@ public interface INotificationPusher
 
     /// <summary>1 → all: Broadcast tới tất cả user đang kết nối.</summary>
     Task BroadcastAsync(NotificationDto notification, CancellationToken ct = default);
+
+    /// <summary>1 → all: Broadcast event tuỳ ý với type và payload riêng (không phải notification).</summary>
+    Task BroadcastEventAsync<T>(string eventType, T payload, CancellationToken ct = default);
 }

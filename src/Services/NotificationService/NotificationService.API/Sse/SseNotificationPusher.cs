@@ -86,6 +86,26 @@ public sealed class SseNotificationPusher(SseConnectionManager manager, ILogger<
             notification.Id, manager.ConnectionCount);
     }
 
+    // ── 1 → all (generic event) ───────────────────────────────────────────
+
+    /// <summary>
+    /// Broadcast event với type và payload tuỳ ý xuống tất cả SSE connections.
+    /// Frontend dùng <c>eventType</c> để route handler phù hợp.
+    /// </summary>
+    public async Task BroadcastEventAsync<T>(string eventType, T payload, CancellationToken ct = default)
+    {
+        var envelope = new NotificationEnvelope<T>(
+            Type:          eventType,
+            Payload:       payload,
+            OccurredAtUtc: DateTime.UtcNow);
+
+        var data = JsonSerializer.Serialize(envelope, JsonOpts);
+        await manager.BroadcastAsync(data, ct);
+
+        logger.LogInformation("SSE broadcast event | type={EventType} → {Total} connections",
+            eventType, manager.ConnectionCount);
+    }
+
     // ── Helper ────────────────────────────────────────────────────────────
 
     private static string Serialize(NotificationDto notification)
