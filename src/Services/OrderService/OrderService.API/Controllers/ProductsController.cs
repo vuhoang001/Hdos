@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Hdos.OrderService.API.Controllers;
 
 [ApiController]
-[Route("products")]
+[Route("orders/products")]
 // [Authorize]
 public sealed class ProductsController(ISender sender) : ControllerBase
 {
