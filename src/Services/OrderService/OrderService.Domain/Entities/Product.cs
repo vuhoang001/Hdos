@@ -24,6 +24,7 @@ public class Product : AggregateRoot<Guid>
 
         var product = new Product
         {
+            Id           = Guid.NewGuid(),
             ProductId    = productId,
             ProductName  = productName,
             ProductPrice = productPrice
