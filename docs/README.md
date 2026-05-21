@@ -25,6 +25,7 @@ Bộ tài liệu này mô tả toàn bộ hệ thống **Hdos** — một nền 
 | [16 — HTTPS & TLS](./16-https-ssl.md) | Self-signed cert cho nginx, HTTPS termination tại 8443, hướng dẫn production thay cert thật |
 | [17 — MassTransit Messaging](./17-masstransit-messaging.md) | MassTransit + RabbitMQ: publish/consume pattern, queue naming, retry, dead-letter, test endpoint |
 | [19 — Test End-to-End Publish→Consumer](./19-test-masstransit-e2e.md) | Demo chạy thực tế: lấy token, publish event, verify consumer log & RabbitMQ UI, troubleshooting |
+| [20 — Adapter Ingest Gateway](./20-adapter-ingest-gateway.md) | External Project bắn data vào → song song ghi Lakehouse + push realtime Frontend |
 
 ---
 

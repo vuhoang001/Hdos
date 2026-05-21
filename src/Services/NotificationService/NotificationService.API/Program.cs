@@ -26,13 +26,14 @@ builder.Services.AddHdosAuthorization();
 builder.Services.AddHdosCors(builder.Configuration);
 
 builder.Services.AddHdosOpenTelemetry(builder.Configuration, "NotificationService");
-builder.Services.AddHdosHealthChecks(builder.Configuration, sqlConnectionStringKey: "NotificationDb", checkRabbitMq: true);
+builder.Services.AddHdosHealthChecks(builder.Configuration, sqlConnectionStringKey: "NotificationDb",
+                                     checkRabbitMq: true);
 
 // SSE
 builder.Services.AddSingleton<SseConnectionManager>();
 builder.Services.AddScoped<INotificationPusher, SseNotificationPusher>();
 
-builder.Services.AddHostedService<TestBroadcastService>();
+// builder.Services.AddHostedService<TestBroadcastService>();
 
 var app = builder.Build();
 
@@ -51,13 +52,17 @@ app.Run();
 
 static async Task EnsureDatabaseAsync(WebApplication app)
 {
-    using var scope = app.Services.CreateScope();
-    var db     = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
-    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-    var attempts = 0;
+    using var scope    = app.Services.CreateScope();
+    var       db       = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+    var       logger   = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    var       attempts = 0;
     while (attempts < 10)
     {
-        try { await db.Database.MigrateAsync(); return; }
+        try
+        {
+            await db.Database.MigrateAsync();
+            return;
+        }
         catch (Exception ex)
         {
             attempts++;
