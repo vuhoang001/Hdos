@@ -19,6 +19,7 @@ public static class DependencyInjection
                 sql => sql.MigrationsAssembly(typeof(M01DbContext).Assembly.FullName)));
 
         services.AddScoped<IM01ReadRepository, M01ReadRepository>();
+        services.AddScoped<IM01WriteRepository, M01WriteRepository>();
 
         services.AddMassTransitMessaging(configuration, _ => { });
 

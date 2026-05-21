@@ -2,7 +2,7 @@ using FluentValidation;
 using Hdos.Common.Messaging;
 using Hdos.M01Service.Application.DTOs;
 using Hdos.M01Service.Domain.Entities;
-using Hdos.M01Service.Infrastructure.Persistence;
+using Hdos.M01Service.Domain.Repositories;
 using Hdos.SharedKernel;
 using MediatR;
 using Integration = Hdos.Contracts.IntegrationEvents;
@@ -34,14 +34,14 @@ public sealed class CreateBaoCaoKhoaValidator : AbstractValidator<CreateBaoCaoKh
 }
 
 public sealed class CreateBaoCaoKhoaHandler(
-    M01DbContext db,
-    IEventBus    eventBus)
+    IM01WriteRepository repo,
+    IEventBus           eventBus)
     : IRequestHandler<CreateBaoCaoKhoaCommand, Result<KhoaDoanhThuDto>>
 {
     public async Task<Result<KhoaDoanhThuDto>> Handle(
         CreateBaoCaoKhoaCommand request, CancellationToken ct)
     {
-        var existing = await db.KhoaDoanhThus.FindAsync([request.MaKhoa], ct);
+        var existing = await repo.FindKhoaDoanhThuAsync(request.MaKhoa, ct);
         if (existing is not null)
         {
             existing.Update(request.TenKhoa, request.SoBenhNhan,
@@ -54,14 +54,12 @@ public sealed class CreateBaoCaoKhoaHandler(
                 request.MaKhoa, request.TenKhoa, request.SoBenhNhan,
                 request.TongThu, request.BhytTra, request.BnTra,
                 request.HaoPhiKhac, request.NgayBaoCao);
-            db.KhoaDoanhThus.Add(entity);
+            await repo.UpsertKhoaDoanhThuAsync(entity, ct);
         }
 
-        await db.SaveChangesAsync(ct);
+        await repo.SaveChangesAsync(ct);
 
-        var tongDoanhThu = await db.KhoaDoanhThus
-            .Where(x => x.NgayBaoCao.Date == request.NgayBaoCao.Date)
-            .SumAsync(x => x.TongThu, ct);
+        var tongDoanhThu = await repo.GetTongDoanhThuNgayAsync(request.NgayBaoCao, ct);
 
         await eventBus.PublishAsync(
             new Integration.BaoCaoKhoaCreatedIntegrationEvent(
