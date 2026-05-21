@@ -59,9 +59,7 @@ public sealed class CreateBaoCaoKhoaHandler(
 
         await repo.SaveChangesAsync(ct);
 
-        var tongDoanhThu  = await repo.GetTongDoanhThuNgayAsync(request.NgayBaoCao, ct);
-        var tongLuotKham  = await repo.GetTongLuotKhamNgayAsync(request.NgayBaoCao, ct);
-        var tbTuan        = Math.Round(tongDoanhThu * 7, 0);
+        var (tongLuotKham, tongDoanhThu, tbTuan) = await repo.GetAllTimeTotalsAsync(ct);
 
         await eventBus.PublishAsync(
             new Integration.BaoCaoKhoaCreatedIntegrationEvent(
