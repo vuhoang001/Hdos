@@ -1,4 +1,3 @@
-using Hdos.Common.Auth;
 using Hdos.Common.Responses;
 using Hdos.NotificationService.Application.DTOs;
 using Hdos.NotificationService.Application.Features.ListNotifications;
