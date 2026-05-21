@@ -8,15 +8,12 @@ namespace Hdos.M01Service.Application.Features.Forecast;
 
 public sealed record GetAiForecastQuery() : IRequest<Result<AiForecastDto>>;
 
-public sealed class GetAiForecastHandler : IRequestHandler<GetAiForecastQuery, Result<AiForecastDto>>
+public sealed class GetAiForecastHandler(IM01ReadRepository repo)
+    : IRequestHandler<GetAiForecastQuery, Result<AiForecastDto>>
 {
-    private readonly IM01ReadRepository _repo;
-
-    public GetAiForecastHandler(IM01ReadRepository repo) => _repo = repo;
-
     public async Task<Result<AiForecastDto>> Handle(GetAiForecastQuery request, CancellationToken ct)
     {
-        var (meta, entries) = await _repo.GetForecastAsync(ct);
+        var (meta, entries) = await repo.GetForecastAsync(ct);
         if (meta is null)
             return Result.Failure<AiForecastDto>(Error.NotFound("ForecastMeta"));
 

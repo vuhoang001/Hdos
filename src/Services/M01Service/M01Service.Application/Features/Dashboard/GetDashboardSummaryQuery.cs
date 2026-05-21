@@ -7,17 +7,13 @@ namespace Hdos.M01Service.Application.Features.Dashboard;
 
 public sealed record GetDashboardSummaryQuery() : IRequest<Result<DashboardSummaryDto>>;
 
-public sealed class GetDashboardSummaryHandler
+public sealed class GetDashboardSummaryHandler(IM01ReadRepository repo)
     : IRequestHandler<GetDashboardSummaryQuery, Result<DashboardSummaryDto>>
 {
-    private readonly IM01ReadRepository _repo;
-
-    public GetDashboardSummaryHandler(IM01ReadRepository repo) => _repo = repo;
-
     public async Task<Result<DashboardSummaryDto>> Handle(
         GetDashboardSummaryQuery request, CancellationToken ct)
     {
-        var snap = await _repo.GetDashboardSnapshotAsync(ct);
+        var snap = await repo.GetDashboardSnapshotAsync(ct);
         if (snap is null) return Result.Failure<DashboardSummaryDto>(Error.NotFound("DashboardSnapshot"));
 
         var dto = new DashboardSummaryDto(
