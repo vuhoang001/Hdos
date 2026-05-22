@@ -125,20 +125,20 @@ Hệ thống dùng **MassTransit 8.2** làm abstraction layer trên RabbitMQ, kh
 
 ### Topology
 
-MassTransit tạo **một fanout exchange riêng cho mỗi message type** và một queue per consumer:
+MassTransit tạo **một fanout exchange per message type**. Khi consumer được đặt tên theo quy ước, exchange và queue có **cùng tên** và merge thành một entity trong RabbitMQ:
 
 ```
-Exchange: Hdos.Contracts.IntegrationEvents:UserRegisteredIntegrationEvent [fanout]
+Exchange: user-registered [fanout]
      └── Queue: user-registered  →  NotificationService.UserRegisteredConsumer
 
-Exchange: Hdos.Contracts.IntegrationEvents:OrderCreatedIntegrationEvent [fanout]
+Exchange: order-created [fanout]
      └── Queue: order-created    →  NotificationService.OrderCreatedConsumer
 
-Exchange: Hdos.Contracts.IntegrationEvents:OrderCreateRequestedIntegrationEvent [fanout]
+Exchange: order-create-requested [fanout]
      └── Queue: order-create-requested  →  OrderService.OrderCreateRequestedConsumer
 ```
 
-Queue name = tên consumer class theo kebab-case, tự động đặt bởi `KebabCaseEndpointNameFormatter`.
+Exchange name = tên event bỏ suffix `IntegrationEvent`, kebab-case. Queue name = tên consumer bỏ suffix `Consumer`, kebab-case. Khi đặt tên đúng quy ước, hai tên trùng nhau → RabbitMQ chỉ tạo 1 exchange.
 
 ### Publisher
 
@@ -170,7 +170,7 @@ public sealed class UserRegisteredConsumer(UserRegisteredEventHandler handler)
 - Retry exponential backoff: tối đa **5 lần**, từ 1s đến 30s
 - Sau 5 lần thất bại → message chuyển sang queue `{name}_error` (dead-letter tự động)
 
-**Chi tiết đầy đủ, hướng dẫn thêm publisher/consumer mới:** xem [17 — MassTransit Messaging](./17-masstransit-messaging.md).
+**Chi tiết đầy đủ, quy tắc đặt tên, hướng dẫn thêm publisher/consumer mới:** xem [17 — MassTransit Messaging](./17-masstransit-messaging.md).
 
 ---
 

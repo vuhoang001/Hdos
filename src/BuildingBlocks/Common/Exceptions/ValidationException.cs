@@ -15,12 +15,6 @@ public sealed class ValidationException : Exception
     public IReadOnlyDictionary<string, string[]> Errors { get; }
 }
 
-public sealed class NotFoundException : Exception
-{
-    public NotFoundException(string what) : base($"{what} was not found.") { }
-}
+public sealed class NotFoundException(string what) : Exception($"{what} was not found.");
 
-public sealed class ConflictException : Exception
-{
-    public ConflictException(string message) : base(message) { }
-}
+public sealed class ConflictException(string message) : Exception(message);

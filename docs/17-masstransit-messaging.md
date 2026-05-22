@@ -1,12 +1,12 @@
 # 17 — MassTransit Messaging
 
-Hệ thống dùng **MassTransit 8.2** làm lớp abstraction trên **RabbitMQ** để truyền integration events giữa các microservices. MassTransit quản lý toàn bộ vòng đời của consumer, retry, dead-letter và health check — không cần viết `BackgroundService` hay xử lý AMQP thủ công.
+Hệ thống dùng **MassTransit 8.2** làm lớp abstraction trên **RabbitMQ** để truyền integration events giữa các microservices. MassTransit quản lý toàn bộ vòng đời của consumer, retry, dead-letter và health check.
 
 ---
 
 ## Cấu hình
 
-### 1. appsettings.json
+### appsettings.json
 
 Tất cả services dùng chung section `RabbitMq`:
 
@@ -24,27 +24,87 @@ Tất cả services dùng chung section `RabbitMq`:
 
 Trong môi trường local (`appsettings.Development.json`), `Host` đổi thành `localhost`.
 
-### 2. Extension method
+### Extension method
 
-`AddMassTransitMessaging` nằm trong `Common/Extensions/ServiceCollectionExtensions.cs`. Tuỳ service gọi theo một trong hai dạng:
+`AddMassTransitMessaging` nằm trong `Common/Extensions/ServiceCollectionExtensions.cs`:
 
 ```csharp
-// Service chỉ publish, không consume (ApiGateway, AuthService)
+// Service chỉ publish, không consume (AuthService, M01Service, ApiGateway)
 services.AddMassTransitMessaging(configuration);
 
 // Service vừa publish vừa consume (NotificationService, OrderService)
 services.AddMassTransitMessaging(configuration, x =>
 {
-    x.AddConsumer<MyConsumer>();
+    x.AddConsumer<UserLoggedInConsumer>();
+    x.AddConsumer<OrderCreatedConsumer>();
+    // thêm consumer khác...
 });
 ```
 
-**Những gì extension này làm:**
-- Kết nối RabbitMQ theo config trên
-- Đặt formatter tên queue theo `KebabCase` (vd. `OrderCreatedConsumer` → queue `order-created`)
-- Cấu hình retry **exponential backoff**: tối đa 5 lần, bắt đầu 1 giây, tăng dần, giới hạn 30 giây
-- Tạo receive endpoint cho tất cả consumer đã đăng ký
-- Đăng ký `IEventBus` (publish) và health check của bus vào DI
+Extension này tự động:
+- Kết nối RabbitMQ theo config
+- Đặt tên queue theo kebab-case (vd. `UserLoggedInConsumer` → queue `user-logged-in`)
+- Đặt tên exchange theo kebab-case, bỏ suffix `IntegrationEvent` (vd. `UserLoggedInIntegrationEvent` → exchange `user-logged-in`)
+- Retry exponential backoff: tối đa 5 lần, từ 1s đến 30s
+- Đăng ký `IEventBus` và health check vào DI
+
+---
+
+## Topology RabbitMQ
+
+### Exchange đơn — quy tắc cốt lõi
+
+MassTransit mặc định tạo **2 exchange** cho mỗi consumer:
+1. **Message-type exchange** — publisher publish vào đây (đặt tên theo `IEntityNameFormatter`)
+2. **Endpoint exchange** — cùng tên queue, queue bind vào đây
+
+Khi đặt tên nhất quán, cả hai exchange có **cùng tên** và RabbitMQ coi chúng là **1 exchange duy nhất**:
+
+```
+Exchange: user-logged-in [fanout]
+     └── Queue: user-logged-in → UserLoggedInConsumer
+```
+
+Để điều này xảy ra, tên consumer phải theo quy ước `{EventNameBỏSuffix}Consumer`:
+
+| Integration Event | Exchange (message-type) | Consumer | Endpoint exchange | Merge? |
+|---|---|---|---|---|
+| `UserLoggedInIntegrationEvent` | `user-logged-in` | `UserLoggedInConsumer` | `user-logged-in` | ✅ 1 exchange |
+| `OrderCreatedIntegrationEvent` | `order-created` | `OrderCreatedConsumer` | `order-created` | ✅ 1 exchange |
+| `ProductCreatedIntegrationEvent` | `product-created` | `ProductTotalUpdatedConsumer` | `product-total-updated` | ❌ 2 exchange |
+
+Khi tên không khớp (dòng cuối), hai exchange vẫn được **bind với nhau** và hoạt động đúng — chỉ là tạo thêm 1 exchange trong RabbitMQ.
+
+### Nhiều consumer cùng subscribe 1 event
+
+Mỗi consumer nhận **bản sao riêng** của message (fanout):
+
+```
+Exchange: order-created [fanout]
+     ├── Exchange: order-created → Queue: order-created → OrderCreatedConsumer (NotificationService)
+     └── Exchange: order-created-audit → Queue: order-created-audit → OrderCreatedAuditConsumer (AuditService)
+```
+
+Hai service khác nhau subscribe cùng event → mỗi service có queue riêng → cả hai đều nhận đủ message.
+
+> **Lưu ý:** Nếu hai service có consumer class **cùng tên** (ví dụ cả hai đều có `OrderCreatedConsumer`), chúng sẽ dùng chung queue `order-created` và **phân chia** message thay vì cả hai cùng nhận. Cần thêm prefix service vào endpoint formatter trong trường hợp đó.
+
+### Danh sách exchanges hiện tại
+
+| Exchange (kebab-case) | Message type | Consumer | Service |
+|---|---|---|---|
+| `user-registered` | `UserRegisteredIntegrationEvent` | `UserRegisteredConsumer` | NotificationService |
+| `user-logged-in` | `UserLoggedInIntegrationEvent` | `UserLoggedInConsumer` | NotificationService |
+| `order-create-requested` | `OrderCreateRequestedIntegrationEvent` | `OrderCreateRequestedConsumer` | OrderService |
+| `order-created` | `OrderCreatedIntegrationEvent` | `OrderCreatedConsumer` | NotificationService |
+| `order-confirmed` | `OrderConfirmedIntegrationEvent` | `OrderConfirmedConsumer` | NotificationService |
+| `notification-send-requested` | `NotificationSendRequestedIntegrationEvent` | `NotificationSendRequestedConsumer` | NotificationService |
+| `product-created` | `ProductCreatedIntegrationEvent` | `ProductCreatedConsumer` | NotificationService |
+| `product-created` → `product-total-updated` | `ProductCreatedIntegrationEvent` | `ProductTotalUpdatedConsumer` | NotificationService |
+| `bao-cao-khoa-created` | `BaoCaoKhoaCreatedIntegrationEvent` | `BaoCaoKhoaCreatedConsumer` | NotificationService |
+| `test` | `TestIntegrationEvent` | `TestConsumer` | NotificationService |
+| `hoanggggf` | `HoanggggfIntegrationEvent` | `HoanggggfConsumer` | NotificationService |
+| `hoanggggf` → `hoanggggf-error` | `HoanggggfIntegrationEvent` | `HoanggggfErrorConsumer` | NotificationService |
 
 ---
 
@@ -54,53 +114,35 @@ services.AddMassTransitMessaging(configuration, x =>
 
 ```
 Service gọi IEventBus.PublishAsync(event)
-    └─ MassTransitEventBus.PublishAsync()
+    └─ MassTransitEventBus
          └─ IPublishEndpoint.Publish(event, runtimeType)
-              └─ RabbitMQ Exchange: Hdos.Contracts.IntegrationEvents:{MessageType} [fanout]
-                   └─ Route tới tất cả queue đang bind vào exchange đó
+              └─ Exchange: user-logged-in [fanout]
+                   └─ Queue: user-logged-in → consumer nhận
 ```
-
-MassTransit tạo **một fanout exchange riêng cho mỗi message type**, không dùng topic exchange chung.  
-Ví dụ: `Hdos.Contracts.IntegrationEvents:OrderCreatedIntegrationEvent`.
 
 ### Consume
 
 ```
-Message vào queue order-created
+Message vào queue user-logged-in
     └─ MassTransit tạo scope DI mới
-         └─ Resolve OrderCreatedConsumer (Infrastructure)
-              └─ Gọi OrderCreatedEventHandler.HandleAsync() (Application)
+         └─ Resolve UserLoggedInConsumer
+              └─ Gọi UserLoggedInEventHandler.HandleAsync()
                    ├─ Thành công → Ack, xóa khỏi queue
-                   └─ Exception  → Retry (tối đa 5 lần)
-                                    └─ Vẫn fail → chuyển sang queue order-created_error
+                   └─ Exception  → Retry (tối đa 5 lần, exponential backoff)
+                                    └─ Vẫn fail → queue user-logged-in_error
 ```
 
-Consumer trong Infrastructure là **adapter mỏng** — chỉ nhận message và gọi handler. Toàn bộ business logic nằm trong Application handler.
+Consumer trong Infrastructure là **adapter mỏng** — chỉ nhận message và delegate xuống Application handler. Mọi business logic nằm trong Application handler.
 
 ---
 
-## Danh sách events hiện tại
+## Hướng dẫn thêm publisher mới
 
-| Integration Event | Publisher | Consumer (Service) | Application Handler |
-|---|---|---|---|
-| `UserRegisteredIntegrationEvent` | AuthService | NotificationService | `UserRegisteredEventHandler` |
-| `UserLoggedInIntegrationEvent` | AuthService | NotificationService | `UserLoggedInEventHandler` |
-| `OrderCreateRequestedIntegrationEvent` | ApiGateway | OrderService | `OrderCreateRequestedEventHandler` |
-| `OrderCreatedIntegrationEvent` | OrderService | NotificationService | `OrderCreatedEventHandler` |
-| `NotificationSendRequestedIntegrationEvent` | ApiGateway | NotificationService | `NotificationSendRequestedEventHandler` |
-| `TestIntegrationEvent` | ApiGateway (`/async/test/publish`) | NotificationService | `TestIntegrationEventHandler` |
-
-Queue name của mỗi consumer = tên class theo kebab-case (vd. `UserLoggedInConsumer` → `user-logged-in`).
-
----
-
-## Hướng dẫn: Thêm publisher mới
-
-Giả sử service **OrderService** muốn bắn sự kiện `PaymentRequestedIntegrationEvent` sau khi tạo đơn hàng.
+Giả sử **OrderService** muốn bắn sự kiện `PaymentRequestedIntegrationEvent`.
 
 ### Bước 1 — Định nghĩa contract
 
-Thêm file trong project `Contracts` (shared, tất cả services đều reference):
+Thêm file trong project `Contracts` (tất cả services đều reference):
 
 ```
 src/BuildingBlocks/Contracts/IntegrationEvents/PaymentRequestedIntegrationEvent.cs
@@ -116,9 +158,9 @@ public sealed record PaymentRequestedIntegrationEvent(
     string Currency) : IntegrationEvent;
 ```
 
-> `IntegrationEvent` là base record, tự sinh `EventId` (Guid) và `OccurredOnUtc` (DateTime).
+`IntegrationEvent` là base record, tự sinh `EventId` (Guid) và `OccurredOnUtc` (DateTime).
 
-### Bước 2 — Inject IEventBus vào nơi cần publish
+### Bước 2 — Inject `IEventBus` và publish
 
 ```csharp
 // OrderService.Application/Features/CreateOrder/CreateOrderCommandHandler.cs
@@ -126,7 +168,7 @@ public sealed record PaymentRequestedIntegrationEvent(
 public sealed class CreateOrderCommandHandler(
     IOrderRepository repo,
     IUnitOfWork uow,
-    IEventBus eventBus,   // ← inject
+    IEventBus eventBus,
     ILogger<CreateOrderCommandHandler> logger) : IRequestHandler<...>
 {
     public async Task<Result<OrderDto>> Handle(CreateOrderCommand command, CancellationToken ct)
@@ -135,73 +177,44 @@ public sealed class CreateOrderCommandHandler(
         await repo.AddAsync(order, ct);
         await uow.SaveChangesAsync(ct);
 
-        // Publish sau khi lưu DB thành công
         await eventBus.PublishAsync(new PaymentRequestedIntegrationEvent(
-            OrderId: order.Id,
+            OrderId:    order.Id,
             CustomerId: order.CustomerId,
-            Amount: order.TotalAmount,
-            Currency: "VND"), ct);
+            Amount:     order.TotalAmount,
+            Currency:   "VND"), ct);
 
-        logger.LogInformation("Published PaymentRequested for Order {OrderId}", order.Id);
         return Result.Success(order.ToDto());
     }
 }
 ```
 
-**Chỉ cần 2 bước này là publish hoạt động.** MassTransit tự tạo exchange trên RabbitMQ khi message đầu tiên được gửi.
+MassTransit tự tạo exchange `payment-requested` trên RabbitMQ khi message đầu tiên được gửi.
 
 ---
 
-## Hướng dẫn: Thêm consumer mới
+## Hướng dẫn thêm consumer mới
 
 ### Kiến trúc 2 tầng
 
-Mỗi consumer trong Hdos được tách thành 2 lớp:
-
 ```
-Infrastructure layer              Application layer
-────────────────────              ─────────────────
-XxxConsumer                       XxxEventHandler
-  IConsumer<TEvent>   ──────────►   IIntegrationEventHandler<TEvent>
-  thin adapter                      business logic
-  import MassTransit                không import MassTransit
+Infrastructure                    Application
+──────────────────────────────    ─────────────────────────────────
+PaymentRequestedConsumer          PaymentRequestedEventHandler
+  IConsumer<TEvent>  ──────────►    IIntegrationEventHandler<TEvent>
+  thin adapter                       business logic, không import MassTransit
 ```
 
-Consumer trong Infrastructure chỉ là dây nối giữa MassTransit và business logic. Tách handler ra Application layer để business logic không phụ thuộc framework và dễ unit test hơn.
-
-Ví dụ từ code thực tế trong project:
-
-| Consumer (Infrastructure) | Handler (Application) | Queue |
-|---|---|---|
-| `UserLoggedInConsumer` | `UserLoggedInEventHandler` | `user-logged-in` |
-| `UserRegisteredConsumer` | `UserRegisteredEventHandler` | `user-registered` |
-| `OrderCreatedConsumer` | `OrderCreatedEventHandler` | `order-created` |
-| `OrderCreateRequestedConsumer` | `OrderCreateRequestedEventHandler` | `order-create-requested` |
+Consumer chỉ là dây nối. Handler chứa logic, không phụ thuộc framework → dễ unit test.
 
 ---
 
-Tiếp tục ví dụ từ phần publisher — giả sử **PaymentService** muốn nhận `PaymentRequestedIntegrationEvent`.
+Ví dụ: **PaymentService** subscribe `PaymentRequestedIntegrationEvent`.
 
-### Bước 1 — Kiểm tra / định nghĩa contract
+### Bước 1 — Kiểm tra contract
 
-Contract phải nằm trong `src/BuildingBlocks/Contracts/IntegrationEvents/`. Nếu event chưa có, tạo mới:
-
-```csharp
-// src/BuildingBlocks/Contracts/IntegrationEvents/PaymentRequestedIntegrationEvent.cs
-namespace Hdos.Contracts.IntegrationEvents;
-
-public sealed record PaymentRequestedIntegrationEvent(
-    Guid OrderId,
-    Guid CustomerId,
-    decimal Amount,
-    string Currency) : IntegrationEvent;
-```
-
-Nếu event đã có (do publisher tạo ở bước trước), bỏ qua bước này.
+Nếu event chưa có trong `Contracts`, tạo mới (xem mục "Thêm publisher"). Nếu đã có, bỏ qua.
 
 ### Bước 2 — Viết Application Handler
-
-Handler nằm trong `{Service}.Application/EventHandlers/`, **không import MassTransit**:
 
 ```
 src/Services/PaymentService/PaymentService.Application/EventHandlers/PaymentRequestedEventHandler.cs
@@ -221,9 +234,7 @@ public sealed class PaymentRequestedEventHandler(
 {
     public async Task HandleAsync(PaymentRequestedIntegrationEvent @event, CancellationToken ct)
     {
-        logger.LogInformation(
-            "Processing payment for Order {OrderId}, Amount {Amount}",
-            @event.OrderId, @event.Amount);
+        logger.LogInformation("Processing payment for Order {OrderId}", @event.OrderId);
 
         var payment = Payment.Create(@event.OrderId, @event.Amount, @event.Currency);
         await repo.AddAsync(payment, ct);
@@ -232,13 +243,11 @@ public sealed class PaymentRequestedEventHandler(
 }
 ```
 
-Tham khảo handler thực tế: `NotificationService.Application/EventHandlers/UserLoggedInEventHandler.cs`.
-
-**Nguyên tắc:**
-- Inject dependency qua constructor
-- Log ít nhất một `LogInformation` khi nhận event (để trace khi debug)
-- Chỉ gọi `SaveChangesAsync` một lần sau khi xong tất cả DB operations
-- Không bắt exception ở đây — MassTransit retry policy tự xử lý
+**Quy tắc:**
+- Inject dependency qua constructor, không qua `IServiceProvider`
+- Log ít nhất một `LogInformation` khi bắt đầu xử lý
+- Gọi `SaveChangesAsync` một lần sau khi xong tất cả DB operations
+- Không bắt exception — MassTransit retry policy tự xử lý
 
 ### Bước 3 — Đăng ký Handler vào Application DI
 
@@ -246,8 +255,7 @@ Tham khảo handler thực tế: `NotificationService.Application/EventHandlers/
 // PaymentService.Application/DependencyInjection.cs
 public static IServiceCollection AddPaymentApplication(this IServiceCollection services)
 {
-    var assembly = Assembly.GetExecutingAssembly();
-    services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(assembly));
+    services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly()));
     services.AddCommonMediatRBehaviors();
 
     services.AddScoped<PaymentRequestedEventHandler>();  // ← thêm dòng này
@@ -256,11 +264,9 @@ public static IServiceCollection AddPaymentApplication(this IServiceCollection s
 }
 ```
 
-Phải dùng `AddScoped` vì handler thường inject repository và DbContext — tất cả đều scoped.
+Dùng `AddScoped` vì handler inject repository (scoped) và DbContext (scoped).
 
 ### Bước 4 — Viết Consumer (Infrastructure)
-
-Consumer là adapter mỏng, nằm trong `{Service}.Infrastructure/Consumers/`:
 
 ```
 src/Services/PaymentService/PaymentService.Infrastructure/Consumers/PaymentRequestedConsumer.cs
@@ -281,15 +287,7 @@ public sealed class PaymentRequestedConsumer(PaymentRequestedEventHandler handle
 }
 ```
 
-Consumer không chứa bất kỳ logic nào — chỉ nhận message và delegate sang handler.
-
-**Quy tắc đặt tên:** Consumer class kết thúc bằng `Consumer`. Tên queue = kebab-case của phần trước `Consumer`:
-
-| Class | Queue |
-|---|---|
-| `PaymentRequestedConsumer` | `payment-requested` |
-| `UserLoggedInConsumer` | `user-logged-in` |
-| `OrderCreateRequestedConsumer` | `order-create-requested` |
+Consumer không chứa bất kỳ logic nào — chỉ nhận và delegate.
 
 ### Bước 5 — Đăng ký Consumer vào Infrastructure DI
 
@@ -298,61 +296,116 @@ Consumer không chứa bất kỳ logic nào — chỉ nhận message và delega
 services.AddMassTransitMessaging(configuration, x =>
 {
     x.AddConsumer<PaymentRequestedConsumer>();  // ← thêm dòng này
-    // thêm consumer khác nếu có
 });
 ```
 
 ### Bước 6 — Kiểm tra thứ tự DI trong Program.cs
 
-Application DI phải được gọi trước Infrastructure DI, vì MassTransit resolve handler qua DI khi nhận message:
-
 ```csharp
-// Program.cs
-builder.Services.AddPaymentApplication();      // 1. Application DI trước
-builder.Services.AddPaymentInfrastructure();   // 2. Infrastructure DI sau
+builder.Services.AddPaymentApplication();      // 1. Application trước
+builder.Services.AddPaymentInfrastructure();   // 2. Infrastructure sau
 ```
 
-Nếu thứ tự ngược lại, service sẽ khởi động được nhưng throw `InvalidOperationException` khi consumer nhận message đầu tiên (handler chưa được đăng ký).
+Nếu ngược lại: service khởi động được nhưng throw `InvalidOperationException` khi nhận message đầu tiên.
 
 ### Bước 7 — Kiểm tra trên RabbitMQ Management
 
 Sau khi service khởi động, vào `http://localhost:15672`:
-- **Exchanges** → tìm `Hdos.Contracts.IntegrationEvents:PaymentRequestedIntegrationEvent` → kiểu fanout
+- **Exchanges** → tìm `payment-requested` (fanout)
 - **Queues** → tìm `payment-requested` → đang bind vào exchange trên
 
-Log của service khi khởi động sẽ có:
+---
+
+## Quy tắc đặt tên
+
+### Exchange và Queue
+
+Exchange được đặt tên từ **tên event, bỏ suffix `IntegrationEvent`**, chuyển sang kebab-case:
+
+| Integration Event | Exchange |
+|---|---|
+| `UserLoggedInIntegrationEvent` | `user-logged-in` |
+| `OrderCreateRequestedIntegrationEvent` | `order-create-requested` |
+| `BaoCaoKhoaCreatedIntegrationEvent` | `bao-cao-khoa-created` |
+| `PaymentRequestedIntegrationEvent` | `payment-requested` |
+
+Queue được đặt tên từ **tên consumer, bỏ suffix `Consumer`**, chuyển sang kebab-case:
+
+| Consumer | Queue |
+|---|---|
+| `UserLoggedInConsumer` | `user-logged-in` |
+| `OrderCreateRequestedConsumer` | `order-create-requested` |
+| `PaymentRequestedConsumer` | `payment-requested` |
+
+### Quy ước đặt tên Consumer để exchange merge về 1
+
+Để exchange và queue có **cùng tên** (merge thành 1 entity trong RabbitMQ):
+
 ```
-[INF] Receive endpoint configured: payment-requested
+Consumer class = {EventName bỏ "IntegrationEvent"}Consumer
+```
+
+Ví dụ:
+```
+UserLoggedInIntegrationEvent  →  UserLoggedInConsumer      ✅ merge
+OrderCreatedIntegrationEvent  →  OrderCreatedConsumer       ✅ merge
+ProductCreatedIntegrationEvent → ProductTotalUpdatedConsumer ❌ không merge (vẫn hoạt động, nhưng tạo 2 exchange)
 ```
 
 ---
 
-### Dead-letter & Retry
+## Dead-letter & Retry
 
-Hành vi khi handler throw exception:
+### Khi handler throw exception
 
 ```
 Handler throw exception
-    └─ MassTransit retry: exponential backoff, tối đa 5 lần (1s → 5s → 10s → 20s → 30s)
-         └─ Vẫn fail sau 5 lần
-              └─ Message chuyển sang queue: payment-requested_error
+    └─ MassTransit retry: exponential backoff
+         Lần 1: chờ ~1s
+         Lần 2: chờ ~6s
+         Lần 3: chờ ~11s
+         Lần 4: chờ ~16s
+         Lần 5: chờ ~21s
+         └─ Vẫn fail sau 5 lần → message chuyển sang queue: payment-requested_error
 ```
 
-Xem message lỗi: RabbitMQ Management UI → **Queues** → `payment-requested_error`.
+### Xem và xử lý message lỗi
 
-Để xử lý lại: trong UI, vào queue `_error` → **Move messages** → nhập tên queue gốc (`payment-requested`).
+1. Vào RabbitMQ Management UI → **Queues** → `payment-requested_error`
+2. Xem nội dung message và exception header
+3. Để retry lại: **Get messages** → xem lỗi → **Move messages** → nhập queue gốc (`payment-requested`)
 
 ---
 
-### Checklist trước khi commit
+## Dọn dẹp exchange cũ sau khi đổi naming convention
 
-- [ ] Contract (`IntegrationEvent`) nằm trong `Contracts` project, cả publisher và consumer đều reference
-- [ ] Handler implement `IIntegrationEventHandler<TEvent>`, không import MassTransit
-- [ ] Handler được `AddScoped` trong Application `DependencyInjection.cs`
-- [ ] Consumer implement `IConsumer<TEvent>`, chỉ delegate sang handler, không có logic
-- [ ] Consumer được `AddConsumer<T>()` trong `AddMassTransitMessaging()`
-- [ ] Application DI được gọi trước Infrastructure DI trong `Program.cs`
-- [ ] Cập nhật bảng "Danh sách events hiện tại" ở trên
+Khi đổi sang naming mới (kebab-case), các exchange cũ dạng `Hdos.Contracts.IntegrationEvents:*` vẫn tồn tại trong RabbitMQ vì chúng là **durable** — không tự xóa khi service restart.
+
+**Cách xóa:**
+1. Vào `http://localhost:15672` → **Exchanges**
+2. Tìm tất cả exchange có prefix `Hdos.Contracts.IntegrationEvents:`
+3. Vào từng exchange → **Delete**
+
+Sau khi xóa, các exchange này sẽ không được tạo lại vì tất cả services đã dùng formatter mới.
+
+> **Lưu ý:** Chỉ xóa khi chắc chắn không còn service nào đang publish/subscribe vào exchange đó.
+
+---
+
+## RabbitMQ Management UI
+
+```
+URL:      http://localhost:15672
+Username: guest
+Password: guest
+```
+
+| Tab | Nơi xem | Ý nghĩa |
+|---|---|---|
+| Exchanges | `user-logged-in`, `order-created`, ... | Một fanout exchange per message type (đã merge với endpoint exchange) |
+| Queues | `user-logged-in`, `order-created`, ... | Một queue per consumer |
+| Queues `*_error` | `user-logged-in_error` | Dead-letter: message fail sau 5 lần retry |
+| Queues `*_skipped` | `user-logged-in_skipped` | Message đến queue nhưng không có handler đọc được |
 
 ---
 
@@ -366,62 +419,31 @@ POST https://localhost:8443/async/test/publish
 
 Không yêu cầu auth. Publish `TestIntegrationEvent` → `TestConsumer` trong NotificationService nhận → log ra console.
 
-Response `202 Accepted`:
-```json
-{
-  "data": {
-    "eventId": "3fa85f64-...",
-    "correlationId": "9b3c1a2e-...",
-    "message": "TestIntegrationEvent published. Check NotificationService logs."
-  }
-}
-```
-
-Kiểm tra log:
 ```bash
 docker compose logs notification --tail=30 --follow
-# Tìm dòng: "Test integrations"
+# Tìm dòng chứa "Test integrations"
 ```
 
-### Test thủ công bằng curl
+### Test thủ công
 
 ```bash
-# 1. Publish event (ví dụ order async)
+# Publish event
 curl -X POST https://localhost:8443/async/orders \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"items":[{"productName":"Sản phẩm A","quantity":2,"unitPrice":50000}]}' \
   -k
 
-# 2. Xem log OrderService (consumer nhận)
+# Xem log OrderService (consumer nhận OrderCreateRequested)
 docker compose logs order --tail=30
 
-# 3. Xem log NotificationService (consumer nhận OrderCreated)
+# Xem log NotificationService (consumer nhận OrderCreated)
 docker compose logs notification --tail=30
 ```
 
 ---
 
-## RabbitMQ Management UI
-
-```
-URL:      http://localhost:15672
-Username: guest
-Password: guest
-```
-
-| Nơi xem | Ý nghĩa |
-|---|---|
-| **Exchanges** | `Hdos.Contracts.IntegrationEvents:*` — một exchange fanout per message type |
-| **Queues** | `user-logged-in`, `order-created`, `test`, v.v. — một queue per consumer |
-| **Queues `*_error`** | Dead-letter: message fail sau 5 lần retry |
-| **Queues `*_skipped`** | Message đến queue nhưng không có handler đọc được |
-
----
-
 ## Health Check
-
-MassTransit tự đăng ký khi gọi `AddMassTransitMessaging()`. Không cần cấu hình thêm.
 
 ```bash
 curl https://localhost:8443/notifications/health/ready -k | jq
@@ -431,8 +453,21 @@ curl https://localhost:8443/notifications/health/ready -k | jq
 {
   "status": "Healthy",
   "checks": [
-    { "name": "sqlserver", "status": "Healthy" },
+    { "name": "sqlserver",       "status": "Healthy" },
     { "name": "masstransit-bus", "status": "Healthy" }
   ]
 }
 ```
+
+---
+
+## Checklist trước khi commit
+
+- [ ] Contract nằm trong `Contracts` project, cả publisher và consumer đều reference
+- [ ] Tên consumer theo quy ước `{EventName bỏ IntegrationEvent}Consumer` để exchange merge về 1
+- [ ] Handler implement `IIntegrationEventHandler<TEvent>`, không import MassTransit
+- [ ] Handler được `AddScoped` trong Application `DependencyInjection.cs`
+- [ ] Consumer implement `IConsumer<TEvent>`, chỉ delegate sang handler, không có logic
+- [ ] Consumer được `AddConsumer<T>()` trong `AddMassTransitMessaging()`
+- [ ] Application DI được gọi trước Infrastructure DI trong `Program.cs`
+- [ ] Cập nhật bảng "Danh sách exchanges hiện tại" ở trên

@@ -17,7 +17,7 @@ public static class JwtAuthExtensions
         IConfiguration configuration)
     {
         var opts = configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
-                   ?? new JwtOptions();
+            ?? new JwtOptions();
 
         if (string.IsNullOrWhiteSpace(opts.Secret) || opts.Secret.Length < 32)
             throw new InvalidOperationException(
@@ -57,7 +57,7 @@ public static class JwtAuthExtensions
                         var path  = ctx.HttpContext.Request.Path;
                         if (!string.IsNullOrEmpty(token) && path.HasValue &&
                             (path.Value!.Contains("/hubs/", StringComparison.OrdinalIgnoreCase) ||
-                             path.Value!.Contains("/sse",   StringComparison.OrdinalIgnoreCase)))
+                                path.Value!.Contains("/sse", StringComparison.OrdinalIgnoreCase)))
                             ctx.Token = token;
                         return Task.CompletedTask;
                     }
@@ -76,21 +76,30 @@ public static class JwtAuthExtensions
     {
         services.AddAuthorization(options =>
         {
-            options.AddPolicy(HdosPermissions.OrdersCreate,      p => p.RequireClaim("permission", HdosPermissions.OrdersCreate));
-            options.AddPolicy(HdosPermissions.OrdersRead,        p => p.RequireClaim("permission", HdosPermissions.OrdersRead));
-            options.AddPolicy(HdosPermissions.OrdersUpdate,      p => p.RequireClaim("permission", HdosPermissions.OrdersUpdate));
-            options.AddPolicy(HdosPermissions.OrdersDelete,      p => p.RequireClaim("permission", HdosPermissions.OrdersDelete));
+            options.AddPolicy(HdosPermissions.OrdersCreate,
+                              p => p.RequireClaim("permission", HdosPermissions.OrdersCreate));
+            options.AddPolicy(HdosPermissions.OrdersRead,
+                              p => p.RequireClaim("permission", HdosPermissions.OrdersRead));
+            options.AddPolicy(HdosPermissions.OrdersUpdate,
+                              p => p.RequireClaim("permission", HdosPermissions.OrdersUpdate));
+            options.AddPolicy(HdosPermissions.OrdersDelete,
+                              p => p.RequireClaim("permission", HdosPermissions.OrdersDelete));
 
-            options.AddPolicy(HdosPermissions.NotificationsRead, p => p.RequireClaim("permission", HdosPermissions.NotificationsRead));
-            options.AddPolicy(HdosPermissions.NotificationsSend, p => p.RequireClaim("permission", HdosPermissions.NotificationsSend));
+            options.AddPolicy(HdosPermissions.NotificationsRead,
+                              p => p.RequireClaim("permission", HdosPermissions.NotificationsRead));
+            options.AddPolicy(HdosPermissions.NotificationsSend,
+                              p => p.RequireClaim("permission", HdosPermissions.NotificationsSend));
 
-            options.AddPolicy(HdosPermissions.M01Read,           p => p.RequireClaim("permission", HdosPermissions.M01Read));
-            options.AddPolicy(HdosPermissions.M01Write,          p => p.RequireClaim("permission", HdosPermissions.M01Write));
+            options.AddPolicy(HdosPermissions.M01Read, p => p.RequireClaim("permission", HdosPermissions.M01Read));
+            options.AddPolicy(HdosPermissions.M01Write, p => p.RequireClaim("permission", HdosPermissions.M01Write));
 
-            options.AddPolicy(HdosPermissions.AsyncSubmit,       p => p.RequireClaim("permission", HdosPermissions.AsyncSubmit));
+            options.AddPolicy(HdosPermissions.AsyncSubmit,
+                              p => p.RequireClaim("permission", HdosPermissions.AsyncSubmit));
 
-            options.AddPolicy(HdosPermissions.UsersManage,       p => p.RequireClaim("permission", HdosPermissions.UsersManage));
-            options.AddPolicy(HdosPermissions.RolesManage,       p => p.RequireClaim("permission", HdosPermissions.RolesManage));
+            options.AddPolicy(HdosPermissions.UsersManage,
+                              p => p.RequireClaim("permission", HdosPermissions.UsersManage));
+            options.AddPolicy(HdosPermissions.RolesManage,
+                              p => p.RequireClaim("permission", HdosPermissions.RolesManage));
         });
         return services;
     }

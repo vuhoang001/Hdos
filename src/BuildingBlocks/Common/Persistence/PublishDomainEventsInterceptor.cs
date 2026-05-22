@@ -16,19 +16,11 @@ namespace Hdos.Common.Persistence;
 /// already happened. If you ever need pre-save (state-mutating) handlers, switch
 /// the override below from <c>SavedChangesAsync</c> to <c>SavingChangesAsync</c>.
 /// </summary>
-public sealed class PublishDomainEventsInterceptor : SaveChangesInterceptor
+public sealed class PublishDomainEventsInterceptor(
+    IPublisher publisher,
+    ILogger<PublishDomainEventsInterceptor> logger)
+    : SaveChangesInterceptor
 {
-    private readonly IPublisher _publisher;
-    private readonly ILogger<PublishDomainEventsInterceptor> _logger;
-
-    public PublishDomainEventsInterceptor(
-        IPublisher publisher,
-        ILogger<PublishDomainEventsInterceptor> logger)
-    {
-        _publisher = publisher;
-        _logger = logger;
-    }
-
     public override async ValueTask<int> SavedChangesAsync(
         SaveChangesCompletedEventData eventData,
         int result,
@@ -50,10 +42,10 @@ public sealed class PublishDomainEventsInterceptor : SaveChangesInterceptor
         var events = aggregates.SelectMany(a => a.DomainEvents).ToList();
         foreach (var a in aggregates) a.ClearDomainEvents();
 
-        _logger.LogDebug("Dispatching {Count} domain event(s) after SaveChanges", events.Count);
+        logger.LogDebug("Dispatching {Count} domain event(s) after SaveChanges", events.Count);
 
         foreach (var @event in events)
-            await _publisher.Publish(@event, cancellationToken);
+            await publisher.Publish(@event, cancellationToken);
 
         return result;
     }

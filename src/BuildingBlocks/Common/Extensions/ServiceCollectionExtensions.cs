@@ -28,9 +28,9 @@ public static class ServiceCollectionExtensions
                 // (trình duyệt chặn khi credentials:include + wildcard origin).
                 // Luôn dùng WithOrigins() cụ thể + AllowCredentials().
                 policy.WithOrigins(origins)
-                      .AllowAnyMethod()
-                      .AllowAnyHeader()
-                      .AllowCredentials();
+                    .AllowAnyMethod()
+                    .AllowAnyHeader()
+                    .AllowCredentials();
             });
         });
         return services;
@@ -53,8 +53,11 @@ public static class ServiceCollectionExtensions
 
             x.UsingRabbitMq((ctx, cfg) =>
             {
+                // Rename Exchange & queue 
+                cfg.MessageTopology.SetEntityNameFormatter(new KebabCaseEntityNameFormatter());
+
                 // Port phải encode vào URI — MassTransit không có overload riêng cho port
-                var vhost = options.VirtualHost.TrimStart('/');
+                var vhost   = options.VirtualHost.TrimStart('/');
                 var hostUri = new Uri($"amqp://{options.Host}:{options.Port}/{vhost}");
                 cfg.Host(hostUri, h =>
                 {
@@ -63,10 +66,10 @@ public static class ServiceCollectionExtensions
                 });
 
                 cfg.UseMessageRetry(r => r.Exponential(
-                    retryLimit: 5,
-                    minInterval: TimeSpan.FromSeconds(1),
-                    maxInterval: TimeSpan.FromSeconds(30),
-                    intervalDelta: TimeSpan.FromSeconds(5)));
+                                        retryLimit: 5,
+                                        minInterval: TimeSpan.FromSeconds(1),
+                                        maxInterval: TimeSpan.FromSeconds(30),
+                                        intervalDelta: TimeSpan.FromSeconds(5)));
 
                 cfg.ConfigureEndpoints(ctx);
             });

@@ -32,3 +32,4 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         b.Ignore(u => u.DomainEvents);
     }
 }
+

@@ -25,7 +25,7 @@ sequenceDiagram
     MQ->>SvcA: Consume DataReceivedIntegrationEvent
     SvcA->>MQ: Publish LakehouseIntegrationEvent
     MQ->>Lake: Consume & lưu data
-Lake->>Lake: Aggregate & map reduce
+    Lake->>Lake: Aggregate & map reduce
 
     Lake->>SvcA: Lakehouse changed event
     SvcA->>FE: SSE push realtime
