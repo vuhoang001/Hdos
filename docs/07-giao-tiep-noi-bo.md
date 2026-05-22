@@ -125,20 +125,20 @@ Hệ thống dùng **MassTransit 8.2** làm abstraction layer trên RabbitMQ, kh
 
 ### Topology
 
-MassTransit tạo **một fanout exchange per message type**. Khi consumer được đặt tên theo quy ước, exchange và queue có **cùng tên** và merge thành một entity trong RabbitMQ:
+MassTransit tạo **2 exchange** cho mỗi consumer — đây là thiết kế chuẩn, không phải lỗi:
 
 ```
-Exchange: user-registered [fanout]
-     └── Queue: user-registered  →  NotificationService.UserRegisteredConsumer
+Exchange: Hdos.Contracts.IntegrationEvents:UserRegisteredIntegrationEvent [fanout]
+     └── Exchange: user-registered [fanout]
+              └── Queue: user-registered  →  NotificationService.UserRegisteredConsumer
 
-Exchange: order-created [fanout]
-     └── Queue: order-created    →  NotificationService.OrderCreatedConsumer
-
-Exchange: order-create-requested [fanout]
-     └── Queue: order-create-requested  →  OrderService.OrderCreateRequestedConsumer
+Exchange: Hdos.Contracts.IntegrationEvents:OrderCreatedIntegrationEvent [fanout]
+     └── Exchange: order-created [fanout]
+              └── Queue: order-created    →  NotificationService.OrderCreatedConsumer
 ```
 
-Exchange name = tên event bỏ suffix `IntegrationEvent`, kebab-case. Queue name = tên consumer bỏ suffix `Consumer`, kebab-case. Khi đặt tên đúng quy ước, hai tên trùng nhau → RabbitMQ chỉ tạo 1 exchange.
+- **Message-type exchange** (full namespace): Publisher gửi vào đây, không cần biết có bao nhiêu consumer.
+- **Endpoint exchange + Queue** (kebab-case): Tên tự động từ tên consumer, bỏ suffix `Consumer`.
 
 ### Publisher
 

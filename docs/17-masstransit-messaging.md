@@ -6,46 +6,47 @@ Hệ thống dùng **MassTransit 8.2** làm lớp abstraction trên **RabbitMQ**
 
 ## Quy tắc đặt tên (đọc trước khi viết)
 
-Đây là quy tắc **bắt buộc** để exchange và queue không bị nhân đôi trong RabbitMQ.
-
 | Thành phần | Quy tắc đặt tên | Ví dụ |
 |---|---|---|
 | **Integration Event** | `{Tên}IntegrationEvent` | `UserLoggedInIntegrationEvent` |
-| **Exchange RabbitMQ** | Tên event, bỏ `IntegrationEvent`, kebab-case | `user-logged-in` |
-| **Consumer** | `{Tên}Consumer` — bỏ `IntegrationEvent` so với event | `UserLoggedInConsumer` |
-| **Queue RabbitMQ** | Tên consumer, bỏ `Consumer`, kebab-case | `user-logged-in` |
+| **Exchange message-type** | Full namespace, tự động bởi MassTransit | `Hdos.Contracts.IntegrationEvents:UserLoggedInIntegrationEvent` |
+| **Consumer** | `{Tên}Consumer` | `UserLoggedInConsumer` |
+| **Exchange endpoint + Queue** | Tên consumer, bỏ `Consumer`, kebab-case | `user-logged-in` |
 | **Application Handler** | `{Tên}EventHandler` hoặc `{Tên}Handler` | `UserLoggedInEventHandler` |
-
-Khi đặt tên đúng quy ước: **exchange = queue = cùng 1 tên** → RabbitMQ chỉ tạo 1 exchange duy nhất.
-
-```
-UserLoggedInIntegrationEvent
-    ↓ bỏ "IntegrationEvent", kebab-case
-user-logged-in  ← tên exchange (message-type)
-
-UserLoggedInConsumer
-    ↓ bỏ "Consumer", kebab-case
-user-logged-in  ← tên queue (endpoint)
-
-→ exchange = queue = "user-logged-in" ✅ merge thành 1
-```
 
 ---
 
-## Topology trong RabbitMQ
+## Topology trong RabbitMQ — tại sao luôn có 2 exchange
+
+MassTransit **luôn tạo 2 exchange** cho mỗi consumer — đây là thiết kế cố ý, không phải lỗi:
 
 ```
 Publisher
     │
     ▼
-Exchange: user-logged-in [fanout]  ← 1 exchange duy nhất
-    │
-    ├── Queue: user-logged-in ──► UserLoggedInConsumer (NotificationService)
-    │
-    └── Queue: user-logged-in-audit ──► UserLoggedInAuditConsumer (AuditService, nếu có)
+Exchange: Hdos.Contracts.IntegrationEvents:UserLoggedInIntegrationEvent [fanout]
+    │   ← message-type exchange: dùng để route theo loại message
+    ▼
+Exchange: user-logged-in [fanout]
+    │   ← endpoint exchange: cùng tên queue, dùng để route tới consumer cụ thể
+    ▼
+Queue: user-logged-in ──► UserLoggedInConsumer
 ```
 
-Nếu nhiều service cùng subscribe 1 event → mỗi service có **queue riêng** → cả hai đều nhận đủ message.
+**Tại sao cần 2 exchange?**
+
+- **Message-type exchange** (`Hdos.Contracts.IntegrationEvents:*`): Publisher chỉ cần biết tên event, không cần biết có bao nhiêu consumer. Khi thêm consumer mới ở service khác, publisher không cần sửa gì.
+- **Endpoint exchange** (`user-logged-in`): Mỗi consumer có exchange riêng để queue bind vào. Cho phép nhiều consumer cùng nhận một event mà không ảnh hưởng nhau.
+
+**Ví dụ: 2 service cùng subscribe 1 event**
+
+```
+Exchange: Hdos.Contracts.IntegrationEvents:UserLoggedInIntegrationEvent [fanout]
+    ├── Exchange: user-logged-in [fanout] → Queue: user-logged-in → NotificationService
+    └── Exchange: user-logged-in-audit [fanout] → Queue: user-logged-in-audit → AuditService
+```
+
+Cả 2 service đều nhận đủ message — RabbitMQ fanout ra tất cả binding.
 
 ---
 
@@ -256,36 +257,41 @@ services.AddMassTransitMessaging(configuration, x =>
 
 ### Bước 6 — Kiểm tra kết quả
 
-Sau khi chạy service, vào `http://localhost:15672` → tab **Exchanges**:
+Sau khi chạy service, vào `http://localhost:15672` — bình thường sẽ thấy **2 exchange** per event (đây là đúng):
 
+Tab **Exchanges**:
 ```
-bao-cao-khoa-created   [fanout]   ← exchange duy nhất, không có dạng Hdos.Contracts.*
+Hdos.Contracts.IntegrationEvents:BaoCaoKhoaCreatedIntegrationEvent  [fanout]  ← message-type
+bao-cao-khoa-created                                                 [fanout]  ← endpoint
 ```
 
 Tab **Queues**:
+```
+bao-cao-khoa-created   ← bind vào endpoint exchange cùng tên
+```
 
-```
-bao-cao-khoa-created   ← queue bind vào exchange cùng tên
-```
+Click vào exchange `Hdos.Contracts.IntegrationEvents:BaoCaoKhoaCreatedIntegrationEvent` → phần **Bindings** sẽ thấy nó bind tới `bao-cao-khoa-created` (endpoint exchange).
 
 ---
 
 ## Tổng hợp các events hiện tại
 
-| Integration Event | Exchange / Queue | Publisher | Consumer | Handler |
-|---|---|---|---|---|
-| `UserRegisteredIntegrationEvent` | `user-registered` | AuthService | `UserRegisteredConsumer` | `UserRegisteredEventHandler` |
-| `UserLoggedInIntegrationEvent` | `user-logged-in` | AuthService | `UserLoggedInConsumer` | `UserLoggedInEventHandler` |
-| `OrderCreateRequestedIntegrationEvent` | `order-create-requested` | ApiGateway | `OrderCreateRequestedConsumer` | `OrderCreateRequestedEventHandler` |
-| `OrderCreatedIntegrationEvent` | `order-created` | OrderService | `OrderCreatedConsumer` | `OrderCreatedEventHandler` |
-| `OrderConfirmedIntegrationEvent` | `order-confirmed` | OrderService | `OrderConfirmedConsumer` | `OrderConfirmedEventHandler` |
-| `NotificationSendRequestedIntegrationEvent` | `notification-send-requested` | ApiGateway | `NotificationSendRequestedConsumer` | `NotificationSendRequestedEventHandler` |
-| `ProductCreatedIntegrationEvent` | `product-created` | OrderService | `ProductCreatedConsumer` | `ProductCreatedEventHandler` |
-| `ProductCreatedIntegrationEvent` | `product-created` → `product-total-updated` | OrderService | `ProductTotalUpdatedConsumer` | `ProductTotalUpdatedHandler` |
-| `BaoCaoKhoaCreatedIntegrationEvent` | `bao-cao-khoa-created` | M01Service | `BaoCaoKhoaCreatedConsumer` | `BaoCaoKhoaCreatedHandler` |
-| `TestIntegrationEvent` | `test` | ApiGateway | `TestConsumer` | `TestIntegrationEventHandler` |
-| `HoanggggfIntegrationEvent` | `hoanggggf` | ApiGateway | `HoanggggfConsumer` | `HoanggggfEventHandler` |
-| `HoanggggfIntegrationEvent` | `hoanggggf` → `hoanggggf-error` | ApiGateway | `HoanggggfErrorConsumer` | *(intentional error, demo retry)* |
+Mỗi row = 1 consumer. Mỗi consumer tạo ra **2 exchange** trong RabbitMQ (message-type + endpoint).
+
+| Integration Event | Message-type exchange | Endpoint exchange / Queue | Publisher | Consumer | Handler |
+|---|---|---|---|---|---|
+| `UserRegisteredIntegrationEvent` | `Hdos.Contracts…:UserRegisteredIntegrationEvent` | `user-registered` | AuthService | `UserRegisteredConsumer` | `UserRegisteredEventHandler` |
+| `UserLoggedInIntegrationEvent` | `Hdos.Contracts…:UserLoggedInIntegrationEvent` | `user-logged-in` | AuthService | `UserLoggedInConsumer` | `UserLoggedInEventHandler` |
+| `OrderCreateRequestedIntegrationEvent` | `Hdos.Contracts…:OrderCreateRequestedIntegrationEvent` | `order-create-requested` | ApiGateway | `OrderCreateRequestedConsumer` | `OrderCreateRequestedEventHandler` |
+| `OrderCreatedIntegrationEvent` | `Hdos.Contracts…:OrderCreatedIntegrationEvent` | `order-created` | OrderService | `OrderCreatedConsumer` | `OrderCreatedEventHandler` |
+| `OrderConfirmedIntegrationEvent` | `Hdos.Contracts…:OrderConfirmedIntegrationEvent` | `order-confirmed` | OrderService | `OrderConfirmedConsumer` | `OrderConfirmedEventHandler` |
+| `NotificationSendRequestedIntegrationEvent` | `Hdos.Contracts…:NotificationSendRequestedIntegrationEvent` | `notification-send-requested` | ApiGateway | `NotificationSendRequestedConsumer` | `NotificationSendRequestedEventHandler` |
+| `ProductCreatedIntegrationEvent` | `Hdos.Contracts…:ProductCreatedIntegrationEvent` | `product-created` | OrderService | `ProductCreatedConsumer` | `ProductCreatedEventHandler` |
+| `ProductCreatedIntegrationEvent` | `Hdos.Contracts…:ProductCreatedIntegrationEvent` | `product-total-updated` | OrderService | `ProductTotalUpdatedConsumer` | `ProductTotalUpdatedHandler` |
+| `BaoCaoKhoaCreatedIntegrationEvent` | `Hdos.Contracts…:BaoCaoKhoaCreatedIntegrationEvent` | `bao-cao-khoa-created` | M01Service | `BaoCaoKhoaCreatedConsumer` | `BaoCaoKhoaCreatedHandler` |
+| `TestIntegrationEvent` | `Hdos.Contracts…:TestIntegrationEvent` | `test` | ApiGateway | `TestConsumer` | `TestIntegrationEventHandler` |
+| `HoanggggfIntegrationEvent` | `Hdos.Contracts…:HoanggggfIntegrationEvent` | `hoanggggf` | ApiGateway | `HoanggggfConsumer` | `HoanggggfEventHandler` |
+| `HoanggggfIntegrationEvent` | `Hdos.Contracts…:HoanggggfIntegrationEvent` | `hoanggggf-error` | ApiGateway | `HoanggggfErrorConsumer` | *(demo retry/dead-letter)* |
 
 ---
 
@@ -345,45 +351,34 @@ Sau khi xóa, chúng sẽ không được tạo lại vì tất cả services đ
 ## Cấu hình RabbitMQ (ServiceCollectionExtensions)
 
 ```csharp
-x.UsingRabbitMq((ctx, cfg) =>
+services.AddMassTransit(x =>
 {
-    // Đặt tên exchange = kebab-case, bỏ suffix "IntegrationEvent"
-    cfg.MessageTopology.SetEntityNameFormatter(new KebabCaseEntityNameFormatter());
+    // Queue name = kebab-case của consumer class (bỏ suffix "Consumer")
+    x.SetKebabCaseEndpointNameFormatter();
 
-    cfg.Host(hostUri, h =>
+    configure?.Invoke(x);   // đăng ký consumer ở đây
+
+    x.UsingRabbitMq((ctx, cfg) =>
     {
-        h.Username(options.UserName);
-        h.Password(options.Password);
+        cfg.Host(hostUri, h =>
+        {
+            h.Username(options.UserName);
+            h.Password(options.Password);
+        });
+
+        // Retry exponential: 5 lần, từ 1s đến 30s
+        cfg.UseMessageRetry(r => r.Exponential(
+            retryLimit:    5,
+            minInterval:   TimeSpan.FromSeconds(1),
+            maxInterval:   TimeSpan.FromSeconds(30),
+            intervalDelta: TimeSpan.FromSeconds(5)));
+
+        cfg.ConfigureEndpoints(ctx);
     });
-
-    // Retry exponential: 5 lần, từ 1s đến 30s
-    cfg.UseMessageRetry(r => r.Exponential(
-        retryLimit:    5,
-        minInterval:   TimeSpan.FromSeconds(1),
-        maxInterval:   TimeSpan.FromSeconds(30),
-        intervalDelta: TimeSpan.FromSeconds(5)));
-
-    cfg.ConfigureEndpoints(ctx);
 });
 ```
 
-`KebabCaseEntityNameFormatter` (trong `Common/Messaging/NameFormatterExtensions.cs`):
-
-```csharp
-internal class KebabCaseEntityNameFormatter : IEntityNameFormatter
-{
-    private const string Suffix = "IntegrationEvent";
-
-    public string FormatEntityName<T>()
-    {
-        var name = typeof(T).Name;
-        // Guard: base class "IntegrationEvent" không bị strip thành empty
-        if (name.EndsWith(Suffix, StringComparison.Ordinal) && name.Length > Suffix.Length)
-            name = name[..^Suffix.Length];
-        return KebabCaseEndpointNameFormatter.Instance.SanitizeName(name);
-    }
-}
-```
+Message-type exchange dùng **full namespace mặc định của MassTransit** (`Hdos.Contracts.IntegrationEvents:XxxIntegrationEvent`). Không custom formatter — custom formatter gây ra self-binding khi tên exchange trùng tên endpoint exchange, dẫn đến message bị deliver 2 lần.
 
 ---
 

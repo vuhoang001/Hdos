@@ -53,11 +53,8 @@ public static class ServiceCollectionExtensions
 
             x.UsingRabbitMq((ctx, cfg) =>
             {
-                // Rename Exchange & queue 
-                cfg.MessageTopology.SetEntityNameFormatter(new KebabCaseEntityNameFormatter());
-
                 // Port phải encode vào URI — MassTransit không có overload riêng cho port
-                var vhost   = options.VirtualHost.TrimStart('/');
+                var vhost = options.VirtualHost.TrimStart('/');
                 var hostUri = new Uri($"amqp://{options.Host}:{options.Port}/{vhost}");
                 cfg.Host(hostUri, h =>
                 {
