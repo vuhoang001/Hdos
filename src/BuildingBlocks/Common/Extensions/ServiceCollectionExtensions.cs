@@ -39,7 +39,8 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddMassTransitMessaging(
         this IServiceCollection services,
         IConfiguration configuration,
-        Action<IBusRegistrationConfigurator>? configure = null)
+        Action<IBusRegistrationConfigurator>? configure = null,
+        string servicePrefix = "")
     {
         var options = configuration
             .GetSection(RabbitMqOptions.SectionName)
@@ -47,12 +48,17 @@ public static class ServiceCollectionExtensions
 
         services.AddMassTransit(x =>
         {
-            x.SetKebabCaseEndpointNameFormatter();
+            if (string.IsNullOrEmpty(servicePrefix))
+                x.SetKebabCaseEndpointNameFormatter();
+            else
+                x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(servicePrefix, false));
 
             configure?.Invoke(x);
 
             x.UsingRabbitMq((ctx, cfg) =>
             {
+                cfg.MessageTopology.SetEntityNameFormatter(new KebabCaseEntityNameFormatter());
+
                 // Port phải encode vào URI — MassTransit không có overload riêng cho port
                 var vhost = options.VirtualHost.TrimStart('/');
                 var hostUri = new Uri($"amqp://{options.Host}:{options.Port}/{vhost}");

@@ -43,7 +43,7 @@ public static class DependencyInjection
             x.AddConsumer<HoanggggfConsumer>();
             x.AddConsumer<HoanggggfErrorConsumer>();
             x.AddConsumer<TestConsumer>();
-        });
+        }, servicePrefix: "notification");
 
         return services;
     }

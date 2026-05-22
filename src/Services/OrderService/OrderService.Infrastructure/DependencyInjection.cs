@@ -37,7 +37,7 @@ public static class DependencyInjection
         services.AddMassTransitMessaging(configuration, x =>
         {
             x.AddConsumer<OrderCreateRequestedConsumer>();
-        });
+        }, servicePrefix: "order");
 
         var authGrpcUrl = configuration["Services:Auth:GrpcUrl"] ?? "http://localhost:5111";
         services.AddGrpcClient<UserService.UserServiceClient>(o =>
