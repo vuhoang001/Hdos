@@ -70,18 +70,22 @@ HTTP Request
     ▼
 Command Handler
     ├─ entity.DoAction()          ← entity RaiseDomainEvent()
-    └─ uow.SaveChangesAsync()     ← commit business data
-
-        │ (EF SaveChanges complete)
-        ▼
-PublishDomainEventsInterceptor.SavedChangesAsync
-    ├─ dispatch OrderCreatedDomainEvent via MediatR
-    │       │
-    │       ▼
-    │   OrderCreatedIntegrationEventHandler.Handle()
-    │       └─ eventBus.PublishAsync()  ← writes OutboxMessage to EF tracker
-    │
-    └─ ctx.SaveChangesAsync()     ← commit OutboxMessage (separate transaction)
+    └─ uow.SaveChangesAsync()
+            │
+            ▼
+        PublishDomainEventsInterceptor.SavingChangesAsync  ← TRƯỚC khi EF ghi
+            ├─ dispatch OrderCreatedDomainEvent via MediatR
+            │       │
+            │       ▼
+            │   OrderCreatedIntegrationEventHandler.Handle()
+            │       └─ eventBus.PublishAsync()  ← thêm OutboxMessage vào EF tracker
+            │
+            └─ (return — không SaveChangesAsync lần 2)
+            │
+            ▼
+        EF Core commit (1 transaction duy nhất)
+            ├─ INSERT Orders
+            └─ INSERT OutboxMessage        ← cùng transaction, thực sự atomic
 
         │ (vài trăm ms sau)
         ▼
@@ -95,11 +99,11 @@ BusOutboxDeliveryService (IHostedService)
 Downstream Consumers (NotificationService, etc.)
 ```
 
-### Tại sao 2 transactions
+### Tại sao dùng `SavingChangesAsync` (pre-save) thay vì post-save
 
-`PublishDomainEventsInterceptor` chạy **sau** `SaveChangesAsync` (post-save). Khi domain event handlers ghi `OutboxMessage` vào EF tracker, cần 1 `SaveChangesAsync` thứ hai để commit. An toàn vì:
-- Domain events đã bị xóa trước khi gọi save lần 2
-- Lần 2 không tìm thấy domain events mới → không đệ quy
+Interceptor chạy **trước** khi EF ghi. Handler thêm `OutboxMessage` vào EF tracker trong cùng lượt `SaveChangesAsync` → EF commit cả `Orders` lẫn `OutboxMessage` trong **1 transaction duy nhất**.
+
+Nếu dùng `SavedChangesAsync` (post-save): Order commit xong ở transaction 1, sau đó cần transaction 2 cho OutboxMessage — có window crash giữa 2 transaction làm mất event.
 
 ---
 

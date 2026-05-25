@@ -10,9 +10,9 @@ public sealed class PublishDomainEventsInterceptor(
     ILogger<PublishDomainEventsInterceptor> logger)
     : SaveChangesInterceptor
 {
-    public override async ValueTask<int> SavedChangesAsync(
-        SaveChangesCompletedEventData eventData,
-        int result,
+    public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
+        DbContextEventData eventData,
+        InterceptionResult<int> result,
         CancellationToken cancellationToken = default)
     {
         var ctx = eventData.Context;
@@ -29,15 +29,13 @@ public sealed class PublishDomainEventsInterceptor(
         var events = aggregates.SelectMany(a => a.DomainEvents).ToList();
         foreach (var a in aggregates) a.ClearDomainEvents();
 
-        logger.LogDebug("Dispatching {Count} domain event(s) after SaveChanges", events.Count);
+        logger.LogDebug("Dispatching {Count} domain event(s) before SaveChanges", events.Count);
 
         foreach (var @event in events)
             await publisher.Publish(@event, cancellationToken);
 
-        // Commit bất kỳ OutboxMessage nào được thêm bởi integration event handlers
-        // (second call an toàn vì domain events đã bị xóa → không đệ quy vô hạn)
-        if (ctx.ChangeTracker.HasChanges())
-            await ctx.SaveChangesAsync(cancellationToken);
+        // OutboxMessage được handler thêm vào EF tracker ở trên
+        // sẽ được commit cùng transaction với business entity — không cần SaveChangesAsync lần 2
 
         return result;
     }
