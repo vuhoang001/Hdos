@@ -27,6 +27,7 @@ Bộ tài liệu này mô tả toàn bộ hệ thống **Hdos** — một nền 
 | [19 — Test End-to-End Publish→Consumer](./19-test-masstransit-e2e.md) | Demo chạy thực tế: lấy token, publish event, verify consumer log & RabbitMQ UI, troubleshooting |
 | [20 — Adapter Ingest Gateway](./20-adapter-ingest-gateway.md) | External Project bắn data vào → song song ghi Lakehouse + push realtime Frontend |
 | [21 — Transactional Outbox Pattern](./21-outbox-pattern.md) | Giải quyết Dual Write: đảm bảo integration event không bị mất khi DB commit thành công nhưng RabbitMQ chưa nhận |
+| [22 — CDC với Debezium + Kafka](./22-cdc-debezium-kafka.md) | Change Data Capture: bắt mọi thay đổi DB row qua SQL Server CDC → Debezium → Kafka → .NET CdcConsumerService |
 
 ---
 
