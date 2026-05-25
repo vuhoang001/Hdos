@@ -9,5 +9,4 @@ public interface IM01WriteRepository
     Task<decimal> GetTongDoanhThuNgayAsync(DateTime ngayBaoCao, CancellationToken ct);
     Task<int> GetTongLuotKhamNgayAsync(DateTime ngayBaoCao, CancellationToken ct);
     Task<(int TongLuotKham, decimal TongDoanhThu, decimal DoanhThuTrungBinhTheoTuan)> GetAllTimeTotalsAsync(CancellationToken ct);
-    Task SaveChangesAsync(CancellationToken ct);
 }

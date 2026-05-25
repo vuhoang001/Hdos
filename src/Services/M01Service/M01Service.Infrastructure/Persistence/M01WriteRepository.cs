@@ -28,16 +28,17 @@ public sealed class M01WriteRepository(M01DbContext db) : IM01WriteRepository
 
     public async Task<(int TongLuotKham, decimal TongDoanhThu, decimal DoanhThuTrungBinhTheoTuan)> GetAllTimeTotalsAsync(CancellationToken ct)
     {
-        var all         = await db.KhoaDoanhThus.ToListAsync(ct);
-        var tongLuot    = all.Sum(x => x.SoBenhNhan);
-        var tongThu     = all.Sum(x => x.TongThu);
-        var minNgay     = all.Min(x => x.NgayBaoCao);
-        var maxNgay     = all.Max(x => x.NgayBaoCao);
-        var soTuan      = (decimal)Math.Max(1, Math.Ceiling((maxNgay - minNgay).TotalDays / 7.0));
-        var tbTuan      = Math.Round(tongThu / soTuan, 0);
-        return (tongLuot, tongThu, tbTuan);
+        var all     = await db.KhoaDoanhThus.ToListAsync(ct);
+        var tongLuot = all.Sum(x => x.SoBenhNhan);
+        var tongThu  = all.Sum(x => x.TongThu);
+        var minNgay  = all.Min(x => x.NgayBaoCao);
+        var maxNgay  = all.Max(x => x.NgayBaoCao);
+        var soTuan   = (decimal)Math.Max(1, Math.Ceiling((maxNgay - minNgay).TotalDays / 7.0));
+        return (tongLuot, tongThu, Math.Round(tongThu / soTuan, 0));
     }
+}
 
-    public Task SaveChangesAsync(CancellationToken ct) =>
-        db.SaveChangesAsync(ct);
+public sealed class M01UnitOfWork(M01DbContext db) : IM01UnitOfWork
+{
+    public Task<int> SaveChangesAsync(CancellationToken ct) => db.SaveChangesAsync(ct);
 }

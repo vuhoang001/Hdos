@@ -21,6 +21,7 @@ public static class DependencyInjection
 
         services.AddScoped<IM01ReadRepository, M01ReadRepository>();
         services.AddScoped<IM01WriteRepository, M01WriteRepository>();
+        services.AddScoped<IM01UnitOfWork, M01UnitOfWork>();
 
         services.AddMassTransitMessaging(configuration, x =>
         {

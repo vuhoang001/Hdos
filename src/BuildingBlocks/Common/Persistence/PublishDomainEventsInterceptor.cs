@@ -5,17 +5,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Hdos.Common.Persistence;
 
-/// <summary>
-/// EF Core SaveChanges interceptor that, *after* a successful commit, publishes
-/// every <see cref="IDomainEvent"/> raised by tracked aggregates through MediatR's
-/// <see cref="IPublisher"/>. Domain handlers stay in-process and run inside the
-/// same DI scope as the request.
-///
-/// Post-save semantics: handlers cannot mutate entities and have those changes
-/// persisted in the same transaction — events here represent facts that have
-/// already happened. If you ever need pre-save (state-mutating) handlers, switch
-/// the override below from <c>SavedChangesAsync</c> to <c>SavingChangesAsync</c>.
-/// </summary>
 public sealed class PublishDomainEventsInterceptor(
     IPublisher publisher,
     ILogger<PublishDomainEventsInterceptor> logger)
@@ -37,8 +26,6 @@ public sealed class PublishDomainEventsInterceptor(
 
         if (aggregates.Count == 0) return result;
 
-        // Snapshot then clear so re-entrant SaveChanges from within a handler
-        // doesn't re-dispatch the same events.
         var events = aggregates.SelectMany(a => a.DomainEvents).ToList();
         foreach (var a in aggregates) a.ClearDomainEvents();
 
@@ -46,6 +33,11 @@ public sealed class PublishDomainEventsInterceptor(
 
         foreach (var @event in events)
             await publisher.Publish(@event, cancellationToken);
+
+        // Commit bất kỳ OutboxMessage nào được thêm bởi integration event handlers
+        // (second call an toàn vì domain events đã bị xóa → không đệ quy vô hạn)
+        if (ctx.ChangeTracker.HasChanges())
+            await ctx.SaveChangesAsync(cancellationToken);
 
         return result;
     }

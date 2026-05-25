@@ -35,6 +35,7 @@ public sealed class CreateBaoCaoKhoaValidator : AbstractValidator<CreateBaoCaoKh
 
 public sealed class CreateBaoCaoKhoaHandler(
     IM01WriteRepository repo,
+    IM01UnitOfWork      uow,
     IEventBus           eventBus)
     : IRequestHandler<CreateBaoCaoKhoaCommand, Result<KhoaDoanhThuDto>>
 {
@@ -57,17 +58,16 @@ public sealed class CreateBaoCaoKhoaHandler(
             await repo.UpsertKhoaDoanhThuAsync(entity, ct);
         }
 
-        await repo.SaveChangesAsync(ct);
+        await uow.SaveChangesAsync(ct);
 
         var (tongLuotKham, tongDoanhThu, tbTuan) = await repo.GetAllTimeTotalsAsync(ct);
 
-        // PublishAsync ghi OutboxMessage vào EF change tracker; SaveChanges bên dưới commit nó
         await eventBus.PublishAsync(
             new Integration.BaoCaoKhoaCreatedIntegrationEvent(
                 tongLuotKham, tongDoanhThu, tbTuan, request.NgayBaoCao),
             ct);
 
-        await repo.SaveChangesAsync(ct);  // commit OutboxMessage
+        await uow.SaveChangesAsync(ct);
 
         return new KhoaDoanhThuDto(
             request.MaKhoa, request.TenKhoa, request.SoBenhNhan,

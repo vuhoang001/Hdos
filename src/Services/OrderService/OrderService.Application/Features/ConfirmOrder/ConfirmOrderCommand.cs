@@ -10,13 +10,15 @@ public sealed record ConfirmOrderCommand(Guid OrderId, OrderStatus Status) : IRe
 public class ConfirmOrderCommandHandler(IOrderRepository orderRepository, IUnitOfWork uow)
     : IRequestHandler<ConfirmOrderCommand, Result<Order>>
 {
-    public async Task<Result<Order>> Handle(ConfirmOrderCommand request, CancellationToken cancellationToken)
+    public async Task<Result<Order>> Handle(ConfirmOrderCommand request, CancellationToken ct)
     {
-        var order = await orderRepository.GetByIdAsync(request.OrderId, cancellationToken);
-        if (order is null) return Result.Failure<Order>(new Error("NOTFOUND", "Không tìm thấy đơn hàng"));
+        var order = await orderRepository.GetByIdAsync(request.OrderId, ct);
+        if (order is null)
+            return Result.Failure<Order>(new Error("NOTFOUND", "Không tìm thấy đơn hàng"));
+
         order.Confirm();
-        // SaveChanges → PublishDomainEventsInterceptor → OrderConfirmedDomainEvent → OrderConfirmedEventHandler → RabbitMQ
-        await uow.SaveChangesAsync(cancellationToken);
+        await uow.SaveChangesAsync(ct);
+
         return Result.Success(order);
     }
 }

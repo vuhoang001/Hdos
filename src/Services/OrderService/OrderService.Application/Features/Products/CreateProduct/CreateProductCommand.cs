@@ -39,7 +39,6 @@ public sealed class CreateProductCommandHandler(
         var totalCount   = await products.GetTotalCountAsync(ct);
         var averagePrice = totalCount > 0 ? Math.Round(totalPrice / totalCount, 2) : 0;
 
-        // PublishAsync ghi OutboxMessage vào EF change tracker; SaveChanges bên dưới commit nó
         await eventBus.PublishAsync(
             new Integration.ProductCreatedIntegrationEvent(
                 product.ProductId,

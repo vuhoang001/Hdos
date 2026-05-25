@@ -53,7 +53,12 @@ public sealed class Order : AggregateRoot<Guid>
         order.Total = order._items.Aggregate(Money.Zero(order._items[0].UnitPrice.Currency),
                                              (acc, item) => acc.Add(item.LineTotal));
 
-        order.RaiseDomainEvent(new OrderCreatedDomainEvent(order.Id, order.CustomerId, order.Total.Amount));
+        var eventItems = order._items
+            .Select(i => (i.ProductName, i.Quantity, i.UnitPrice.Amount))
+            .ToList();
+
+        order.RaiseDomainEvent(new OrderCreatedDomainEvent(
+            order.Id, order.CustomerId, order.CustomerEmail, order.Total.Amount, eventItems));
         return order;
     }
 
