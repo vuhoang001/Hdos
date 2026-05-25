@@ -236,7 +236,8 @@
       "Bash(export PATH=\"$PATH:$HOME/.dotnet/tools:$HOME/.dotnet\")",
       "Bash(export DOTNET_ROOT=\"$HOME/.dotnet\")",
       "Bash(export PATH=\"$DOTNET_ROOT:$DOTNET_ROOT/tools:$PATH\")",
-      "Bash(xargs cat -n)"
+      "Bash(xargs cat -n)",
+      "WebSearch"
     ]
   }
 }

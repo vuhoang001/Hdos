@@ -26,6 +26,7 @@ Bộ tài liệu này mô tả toàn bộ hệ thống **Hdos** — một nền 
 | [17 — MassTransit Messaging](./17-masstransit-messaging.md) | MassTransit + RabbitMQ: publish/consume pattern, queue naming, retry, dead-letter, test endpoint |
 | [19 — Test End-to-End Publish→Consumer](./19-test-masstransit-e2e.md) | Demo chạy thực tế: lấy token, publish event, verify consumer log & RabbitMQ UI, troubleshooting |
 | [20 — Adapter Ingest Gateway](./20-adapter-ingest-gateway.md) | External Project bắn data vào → song song ghi Lakehouse + push realtime Frontend |
+| [21 — Transactional Outbox Pattern](./21-outbox-pattern.md) | Giải quyết Dual Write: đảm bảo integration event không bị mất khi DB commit thành công nhưng RabbitMQ chưa nhận |
 
 ---
 

@@ -7,6 +7,7 @@ using Hdos.OrderService.Domain.Repositories;
 using Hdos.OrderService.Infrastructure.Consumers;
 using Hdos.OrderService.Infrastructure.Grpc;
 using Hdos.OrderService.Infrastructure.Persistence;
+using MassTransit;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -36,6 +37,12 @@ public static class DependencyInjection
 
         services.AddMassTransitMessaging(configuration, x =>
         {
+            x.AddEntityFrameworkOutbox<OrderDbContext>(o =>
+            {
+                o.UseSqlServer();
+                o.UseBusOutbox();
+            });
+
             x.AddConsumer<OrderCreateRequestedConsumer>();
         }, servicePrefix: "order");
 

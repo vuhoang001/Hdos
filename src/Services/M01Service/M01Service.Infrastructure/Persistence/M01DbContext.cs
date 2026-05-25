@@ -1,4 +1,5 @@
 using Hdos.M01Service.Domain.Entities;
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 
 namespace Hdos.M01Service.Infrastructure.Persistence;
@@ -19,6 +20,12 @@ public sealed class M01DbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(M01DbContext).Assembly);
+
+        // Outbox + Inbox tables cho MassTransit EF Outbox
+        modelBuilder.AddInboxStateEntity();
+        modelBuilder.AddOutboxMessageEntity();
+        modelBuilder.AddOutboxStateEntity();
+
         base.OnModelCreating(modelBuilder);
     }
 }

@@ -61,10 +61,13 @@ public sealed class CreateBaoCaoKhoaHandler(
 
         var (tongLuotKham, tongDoanhThu, tbTuan) = await repo.GetAllTimeTotalsAsync(ct);
 
+        // PublishAsync ghi OutboxMessage vào EF change tracker; SaveChanges bên dưới commit nó
         await eventBus.PublishAsync(
             new Integration.BaoCaoKhoaCreatedIntegrationEvent(
                 tongLuotKham, tongDoanhThu, tbTuan, request.NgayBaoCao),
             ct);
+
+        await repo.SaveChangesAsync(ct);  // commit OutboxMessage
 
         return new KhoaDoanhThuDto(
             request.MaKhoa, request.TenKhoa, request.SoBenhNhan,

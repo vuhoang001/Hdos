@@ -65,12 +65,12 @@ public sealed class CreateOrderCommandHandler : IRequestHandler<CreateOrderComma
         var order = Order.Create(request.CustomerId, lookup.Value.Email, lines);
 
         await _orders.AddAsync(order, ct);
-        await _uow.SaveChangesAsync(ct);
 
         var integrationItems = order.Items
             .Select(i => new Integration.OrderItemDto(i.ProductName, i.Quantity, i.UnitPrice.Amount))
             .ToList();
 
+        // Publish trước SaveChanges: outbox ghi Order + OutboxMessage trong 1 transaction
         await _eventBus.PublishAsync(
             new Integration.OrderCreatedIntegrationEvent(
                 order.Id,
@@ -79,6 +79,8 @@ public sealed class CreateOrderCommandHandler : IRequestHandler<CreateOrderComma
                 order.Total.Amount,
                 integrationItems),
             ct);
+
+        await _uow.SaveChangesAsync(ct);
 
         return Map(order);
     }

@@ -1,6 +1,7 @@
 using Hdos.Common.Extensions;
 using Hdos.M01Service.Domain.Repositories;
 using Hdos.M01Service.Infrastructure.Persistence;
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,7 +22,14 @@ public static class DependencyInjection
         services.AddScoped<IM01ReadRepository, M01ReadRepository>();
         services.AddScoped<IM01WriteRepository, M01WriteRepository>();
 
-        services.AddMassTransitMessaging(configuration, _ => { });
+        services.AddMassTransitMessaging(configuration, x =>
+        {
+            x.AddEntityFrameworkOutbox<M01DbContext>(o =>
+            {
+                o.UseSqlServer();
+                o.UseBusOutbox();
+            });
+        });
 
         return services;
     }
