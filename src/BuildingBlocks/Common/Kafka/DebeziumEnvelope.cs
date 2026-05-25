@@ -57,6 +57,16 @@ public sealed class DebeziumSource
 
     [JsonPropertyName("ts_ms")]
     public long CommitTimestampMs { get; init; }
+
+    /// <summary>
+    /// Log Sequence Number — vị trí chính xác trong SQL Server transaction log.
+    /// Dùng làm idempotency key: (Table, Lsn) là unique per change event.
+    /// </summary>
+    [JsonPropertyName("change_lsn")]
+    public string? Lsn { get; init; }
+
+    [JsonPropertyName("commit_lsn")]
+    public string? CommitLsn { get; init; }
 }
 
 public enum CdcOperation { Created, Updated, Deleted, Snapshot, Unknown }

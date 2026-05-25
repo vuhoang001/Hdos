@@ -6,11 +6,24 @@ using Microsoft.Extensions.Logging;
 namespace Hdos.Common.Kafka;
 
 /// <summary>
-/// Base BackgroundService để consume CDC events từ Kafka topic do Debezium publish.
-/// Subclass cần implement <see cref="HandleAsync"/> và cung cấp <see cref="Options"/>.
+/// Production-grade BackgroundService để consume CDC events từ Kafka topic do Debezium publish.
+///
+/// Delivery: at-least-once.
+/// - StoreOffset sau HandleAsync → auto-commit flush mỗi AutoCommitIntervalMs (batch, không per-message)
+/// - SetPartitionsRevokedHandler commit ngay khi rebalance để tránh replay quá nhiều
+/// - HandleAsync PHẢI idempotent — Debezium có thể replay khi connector restart
+///
+/// Threading: Kafka Consume() là blocking call.
+/// Dùng Task.Factory.StartNew + LongRunning = dedicated OS thread, tránh ThreadPool starvation.
 /// </summary>
 public abstract class CdcConsumerService<TEntity> : BackgroundService
 {
+    // static readonly: tránh allocate JsonSerializerOptions mới mỗi message (GC pressure)
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     private readonly ILogger _logger;
     private IConsumer<string, string>? _consumer;
 
@@ -22,70 +35,108 @@ public abstract class CdcConsumerService<TEntity> : BackgroundService
     protected abstract KafkaConsumerOptions Options { get; }
 
     /// <summary>
-    /// Xử lý một CDC event. Chạy sau khi deserialize thành công.
-    /// Nếu throw exception, message sẽ không được commit (retry ở lần poll tiếp theo).
+    /// Xử lý một CDC event. PHẢI idempotent.
+    /// Throw exception → offset không được store → message replay sau khi service restart.
     /// </summary>
     protected abstract Task HandleAsync(DebeziumPayload<TEntity> payload, CancellationToken ct);
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        return Task.Factory.StartNew(
+            () => RunConsumerLoop(stoppingToken),
+            stoppingToken,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default);
+    }
+
+    private void RunConsumerLoop(CancellationToken stoppingToken)
     {
         _consumer = new ConsumerBuilder<string, string>(new ConsumerConfig
         {
-            BootstrapServers    = Options.BootstrapServers,
-            GroupId             = Options.GroupId,
-            AutoOffsetReset     = AutoOffsetReset.Earliest,
-            EnableAutoCommit    = false,
-        }).Build();
+            BootstrapServers      = Options.BootstrapServers,
+            GroupId               = Options.GroupId,
+            AutoOffsetReset       = AutoOffsetReset.Earliest,
+
+            // StoreOffset() sau HandleAsync → auto-commit batch flush (không round-trip per message)
+            EnableAutoOffsetStore = false,
+            EnableAutoCommit      = true,
+            AutoCommitIntervalMs  = Options.AutoCommitIntervalMs,
+
+            // Explicit để tránh silent rebalance khi HandleAsync chậm hơn default timeout
+            SessionTimeoutMs      = Options.SessionTimeoutMs,
+            MaxPollIntervalMs     = Options.MaxPollIntervalMs,
+        })
+        .SetPartitionsRevokedHandler((c, partitions) =>
+        {
+            // Kafka gọi đây TRƯỚC khi giao partition cho consumer khác.
+            // Commit ngay để tránh replay từ đầu sau rebalance.
+            _logger.LogWarning(
+                "Partitions revoked — flushing offsets. Partitions: [{P}]",
+                string.Join(", ", partitions.Select(p => $"{p.Topic}[{p.Partition}]")));
+            try { c.Commit(); }
+            catch (KafkaException ex) { _logger.LogError(ex, "Commit on revoke failed"); }
+        })
+        .SetPartitionsAssignedHandler((_, partitions) =>
+        {
+            _logger.LogInformation(
+                "Partitions assigned: [{P}]",
+                string.Join(", ", partitions.Select(p => $"{p.Topic}[{p.Partition}]")));
+        })
+        .Build();
 
         _consumer.Subscribe(Options.Topic);
-        _logger.LogInformation("CDC consumer subscribed to topic {Topic}", Options.Topic);
+        _logger.LogInformation(
+            "CDC consumer subscribed — topic={Topic} group={Group}",
+            Options.Topic, Options.GroupId);
 
-        await Task.Run(async () =>
+        while (!stoppingToken.IsCancellationRequested)
         {
-            while (!stoppingToken.IsCancellationRequested)
+            ConsumeResult<string, string>? result = null;
+            try
             {
-                ConsumeResult<string, string>? result = null;
-                try
-                {
-                    result = _consumer.Consume(TimeSpan.FromMilliseconds(Options.ConsumeTimeoutMs));
-                    if (result?.Message?.Value is null) continue;
+                result = _consumer.Consume(TimeSpan.FromMilliseconds(Options.ConsumeTimeoutMs));
+                if (result?.Message?.Value is null) continue;
 
-                    var envelope = JsonSerializer.Deserialize<DebeziumEnvelope<TEntity>>(
-                        result.Message.Value,
-                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                var envelope = JsonSerializer.Deserialize<DebeziumEnvelope<TEntity>>(
+                    result.Message.Value, JsonOptions);
 
-                    if (envelope?.Payload is null) continue;
+                if (envelope?.Payload is null) continue;
 
-                    _logger.LogDebug(
-                        "CDC [{Op}] {Table} offset={Offset}",
-                        envelope.Payload.Op,
-                        envelope.Payload.Source?.Table,
-                        result.Offset.Value);
+                _logger.LogDebug(
+                    "CDC [{Op}] {Table} lsn={Lsn} offset={Offset}",
+                    envelope.Payload.Op,
+                    envelope.Payload.Source?.Table,
+                    envelope.Payload.Source?.Lsn,
+                    result.Offset.Value);
 
-                    await HandleAsync(envelope.Payload, stoppingToken);
+                // LongRunning thread không có SynchronizationContext → GetAwaiter().GetResult() an toàn
+                HandleAsync(envelope.Payload, stoppingToken).GetAwaiter().GetResult();
 
-                    _consumer.Commit(result);
-                }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-                {
-                    break;
-                }
-                catch (ConsumeException ex)
-                {
-                    _logger.LogError(ex, "Kafka consume error on topic {Topic}", Options.Topic);
-                    await Task.Delay(1000, stoppingToken);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex,
-                        "Error handling CDC message on topic {Topic} offset {Offset}",
-                        Options.Topic,
-                        result?.Offset.Value);
-                    // không commit → Kafka tự retry từ offset cũ sau khi restart
-                    await Task.Delay(500, stoppingToken);
-                }
+                // Mark offset sẵn sàng — auto-commit thread flush sau AutoCommitIntervalMs
+                _consumer.StoreOffset(result);
             }
-        }, stoppingToken);
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (ConsumeException ex) when (ex.Error.IsFatal)
+            {
+                _logger.LogCritical(ex, "Fatal Kafka error — consumer shutting down");
+                break;
+            }
+            catch (ConsumeException ex)
+            {
+                _logger.LogError(ex, "Transient Kafka consume error on topic {Topic}", Options.Topic);
+                Thread.Sleep(1000);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "HandleAsync failed — topic={Topic} offset={Offset} — offset NOT stored, will replay on restart",
+                    Options.Topic, result?.Offset.Value);
+                Thread.Sleep(500);
+            }
+        }
 
         _consumer.Close();
     }

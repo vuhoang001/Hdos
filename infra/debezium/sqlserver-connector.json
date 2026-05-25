@@ -2,20 +2,40 @@
   "name": "hdos-orders-connector",
   "config": {
     "connector.class": "io.debezium.connector.sqlserver.SqlServerConnector",
+
     "database.hostname": "sqlserver",
     "database.port": "1433",
     "database.user": "sa",
-    "database.password": "Hdos!DevPass123",
+    "database.password": "${env:MSSQL_SA_PASSWORD}",
     "database.names": "OrderDb",
     "database.encrypt": "false",
     "database.trustServerCertificate": "true",
+
     "table.include.list": "dbo.Orders,dbo.OrderItems",
     "topic.prefix": "hdos",
+
     "snapshot.mode": "initial",
+    "snapshot.isolation.mode": "snapshot",
+
     "schema.history.internal.kafka.bootstrap.servers": "kafka:29092",
     "schema.history.internal.kafka.topic": "schema-changes.hdos-orders",
+
     "tombstones.on.delete": "true",
     "decimal.handling.mode": "string",
-    "time.precision.mode": "adaptive"
+    "time.precision.mode": "adaptive",
+
+    "heartbeat.interval.ms": "10000",
+    "heartbeat.topics.prefix": "hdos.heartbeat",
+
+    "poll.interval.ms": "500",
+    "max.batch.size": "2048",
+    "max.queue.size": "8192",
+
+    "errors.tolerance": "all",
+    "errors.log.enable": "true",
+    "errors.log.include.messages": "true",
+    "errors.deadletterqueue.topic.name": "hdos.cdc.dlq",
+    "errors.deadletterqueue.topic.replication.factor": "1",
+    "errors.deadletterqueue.context.headers.enable": "true"
   }
 }
