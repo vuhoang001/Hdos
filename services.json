@@ -18,5 +18,9 @@
   "asyncgateway": {
     "dockerfile": "src/ApiGateway/Dockerfile",
     "context": "."
+  },
+  "datamatchingservice": {
+    "dockerfile": "src/Services/DataMatchingService/DataMatchingService.API/Dockerfile",
+    "context": "."
   }
 }

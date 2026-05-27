@@ -21,3 +21,7 @@ asyncgateway:
   - "src/ApiGateway/**"
   - "src/BuildingBlocks/**"
 
+datamatchingservice:
+  - "src/Services/DataMatchingService/**"
+  - "src/BuildingBlocks/**"
+

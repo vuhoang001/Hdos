@@ -12,9 +12,7 @@ namespace Hdos.NotificationService.API.Sse;
 public sealed class SseNotificationPusher(SseConnectionManager manager, ILogger<SseNotificationPusher> logger)
     : INotificationPusher
 {
-    private const string EventName = "notification";
-
-    // JsonSerializerDefaults.Web → dùng camelCase, phù hợp với JavaScript frontend.
+    private const string EventName = "notification"; // JsonSerializerDefaults.Web → dùng camelCase, phù hợp với JavaScript frontend.
     // static để tái sử dụng options, tránh allocate mới mỗi lần gọi.
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 

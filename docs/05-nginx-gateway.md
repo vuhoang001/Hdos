@@ -199,3 +199,6 @@ server {
 ```
 
 Prometheus exporter (`nginx-prometheus-exporter`) gọi vào endpoint này — chi tiết: [08 — Quan sát hệ thống](./08-quan-sat-he-thong.md).
+
+
+Hoanggggf was here!

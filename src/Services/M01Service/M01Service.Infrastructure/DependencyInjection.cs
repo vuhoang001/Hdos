@@ -10,14 +10,15 @@ namespace Hdos.M01Service.Infrastructure;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddM01Infrastructure(
+    public static void AddM01Infrastructure(
         this IServiceCollection services,
         IConfiguration configuration)
     {
         services.AddDbContext<M01DbContext>(opts =>
-            opts.UseSqlServer(
-                configuration.GetConnectionString("M01Db"),
-                sql => sql.MigrationsAssembly(typeof(M01DbContext).Assembly.FullName)));
+                                                opts.UseSqlServer(
+                                                    configuration.GetConnectionString("M01Db"),
+                                                    sql => sql.MigrationsAssembly(
+                                                        typeof(M01DbContext).Assembly.FullName)));
 
         services.AddScoped<IM01ReadRepository, M01ReadRepository>();
         services.AddScoped<IM01WriteRepository, M01WriteRepository>();
@@ -31,7 +32,5 @@ public static class DependencyInjection
                 o.UseBusOutbox();
             });
         });
-
-        return services;
     }
 }

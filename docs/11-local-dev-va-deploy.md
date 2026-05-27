@@ -97,6 +97,7 @@ open http://localhost:3030  # Grafana admin/admin
 ```yaml
 MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:-Hdos!DevPass123}"
 JWT_SECRET: "${JWT_SECRET:-hdos-dev-secret-change-me-in-production-!!}"
+POSTGRES_DM_PASSWORD: "${POSTGRES_DM_PASSWORD:-dm_pass}"   # DataMatchingService
 ```
 
 Nếu muốn override, tạo file `.env` ở root:
@@ -105,6 +106,7 @@ Nếu muốn override, tạo file `.env` ở root:
 # .env (gitignored)
 MSSQL_SA_PASSWORD=MyDevPassword123!
 JWT_SECRET=my-local-secret
+POSTGRES_DM_PASSWORD=my-dm-pass
 ```
 
 **Không commit file `.env`** — đã có trong `.gitignore`.
@@ -219,6 +221,16 @@ EOF
 cat > /opt/hdos-prod/m01service.env << 'EOF'
 ConnectionStrings__M01Db=Server=sqlserver,1433;Database=M01Db;User Id=sa;Password=<password>;TrustServerCertificate=True;Encrypt=False
 EOF
+
+cat > /opt/hdos-prod/datamatchingservice.env << 'EOF'
+ConnectionStrings__DataMatchingDb=Host=postgres-dm;Port=5432;Database=DataMatchingDb;Username=dm_user;Password=<postgres-dm-password>
+Matching__WorkerIntervalSeconds=30
+EOF
+```
+
+Và thêm vào `/opt/hdos-prod/.env`:
+```bash
+POSTGRES_DM_PASSWORD=<postgres-dm-password>
 ```
 
 ### Cài GitHub Actions self-hosted runner
@@ -323,6 +335,7 @@ open http://server-ip:3030
 |------------|---------|-------|
 | 5000 | nginx (API Gateway) | Entry point duy nhất cho client |
 | 1433 | SQL Server | Chỉ expose trong dev, đóng trên prod |
+| 5433 | PostgreSQL (DataMatchingService) | Chỉ expose trong dev, đóng trên prod |
 | 5672 | RabbitMQ AMQP | Dùng bởi services |
 | 15672 | RabbitMQ Management | Đóng trên prod |
 | 3030 | Grafana | Admin UI |

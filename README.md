@@ -72,6 +72,7 @@ Swagger từng service:
 | http://localhost:5000/notifications/swagger | NotificationService |
 | http://localhost:5000/m01/swagger | M01Service |
 | http://localhost:5000/async/swagger | **AsyncGateway** (Async API) |
+| http://localhost:5000/dm/swagger | **DataMatchingService** |
 | http://localhost:15672 | RabbitMQ Management (guest/guest) |
 
 > **Test API qua Swagger**: gọi `POST /auth/login` (`admin@hdos.dev` / `Admin1234!`) → copy `data.token` → bấm **Authorize** trong Swagger → paste token. Chi tiết: [docs/06-xac-thuc.md](./docs/06-xac-thuc.md).
@@ -100,7 +101,8 @@ Hdos/
 │       ├── AuthService/       ← User, JWT, gRPC server
 │       ├── OrderService/      ← Order, gRPC client + queue consumer
 │       ├── NotificationService/ ← RabbitMQ consumers, SSE
-│       └── M01Service/        ← Nghiệp vụ bệnh viện
+│       ├── M01Service/        ← Nghiệp vụ bệnh viện
+│       └── DataMatchingService/ ← Ingest + dedup + matching + báo cáo
 ├── tests/                     ← xUnit + FluentAssertions + NSubstitute
 ├── nginx/nginx.conf           ← API Gateway config
 ├── monitoring/                ← Prometheus, Loki, Tempo, Grafana config
@@ -128,3 +130,4 @@ Xem thư mục [`docs/`](./docs/README.md) — 13 file giải thích chi tiết 
 | [13 — Thêm tính năng](./docs/13-them-tinh-nang.md) | Checklist thêm endpoint / event / service |
 | [15 — Async Gateway](./docs/15-async-gateway.md) | HTTP → Queue pattern, AsyncGateway service |
 | [16 — Test Async Gateway](./docs/16-test-async-gateway.md) | Luồng test đầy đủ, xem RabbitMQ Management UI |
+| [23 — DataMatchingService](./docs/23-data-matching-service.md) | Ingest, dedup SHA-256, MatchingWorker, báo cáo y tế |

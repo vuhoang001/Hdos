@@ -32,6 +32,25 @@ services:
       retries: 10
     networks: [hdos-net]
 
+  postgres-dm:
+    image: postgres:16-alpine
+    container_name: hdos-postgres-dm
+    environment:
+      POSTGRES_DB: DataMatchingDb
+      POSTGRES_USER: dm_user
+      POSTGRES_PASSWORD: "${POSTGRES_DM_PASSWORD:-dm_pass}"
+    ports:
+      - "5433:5432"
+    volumes:
+      - hdos-pgdata-dm:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dm_user -d DataMatchingDb"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks: [hdos-net]
+
   # ── Services ──────────────────────────────────────────────────────────────────
   authservice:
     image: hdos/authservice:latest
@@ -119,6 +138,27 @@ services:
         condition: service_healthy
     networks: [hdos-net]
 
+  datamatchingservice:
+    image: hdos/datamatchingservice:latest
+    build:
+      context: .
+      dockerfile: src/Services/DataMatchingService/DataMatchingService.API/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DataMatchingDb: "Host=postgres-dm;Port=5432;Database=DataMatchingDb;Username=dm_user;Password=${POSTGRES_DM_PASSWORD:-dm_pass}"
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: 5672
+      Jwt__Issuer: "hdos-auth"
+      Jwt__Audience: "hdos-api"
+      Jwt__Secret: "${JWT_SECRET:-DEV-INSECURE-SECRET-CHANGE-ME-AT-LEAST-32-CHARS}"
+      Matching__WorkerIntervalSeconds: 30
+    depends_on:
+      postgres-dm:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks: [hdos-net]
+
   asyncgateway:
     image: hdos/asyncgateway:latest
     build:
@@ -151,6 +191,7 @@ services:
       - orderservice
       - notificationservice
       - m01service
+      - datamatchingservice
       - asyncgateway
     ports:
       - "5000:8080"
@@ -163,4 +204,5 @@ networks:
 
 volumes:
   hdos-sqldata:
+  hdos-pgdata-dm:
   hdos-nginx-ssl:

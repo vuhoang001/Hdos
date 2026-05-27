@@ -59,9 +59,17 @@ notificationservice:
 m01service:
   - "src/Services/M01Service/**"
   - "src/BuildingBlocks/**"
+
+asyncgateway:
+  - "src/ApiGateway/**"
+  - "src/BuildingBlocks/**"
+
+datamatchingservice:
+  - "src/Services/DataMatchingService/**"
+  - "src/BuildingBlocks/**"
 ```
 
-Output là JSON array: `["authservice","m01service"]` (chỉ những service có file thay đổi).
+Output là JSON array: `["authservice","datamatchingservice"]` (chỉ những service có file thay đổi).
 
 **Lý do:** Nếu chỉ sửa AuthService, không cần rebuild 3 service kia. Build thời gian từ 20 phút xuống còn 5 phút.
 
@@ -69,8 +77,8 @@ Output là JSON array: `["authservice","m01service"]` (chỉ những service có
 
 ```yaml
 if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-  # workflow_dispatch → build tất cả 4 services
-  echo 'services=["authservice","orderservice","notificationservice","m01service"]'
+  # workflow_dispatch → build tất cả services
+  echo 'services=["authservice","orderservice","notificationservice","m01service","asyncgateway","datamatchingservice"]'
 else
   # push → chỉ build những service detect-changes trả ra
   CHANGED='${{ needs.detect-changes.outputs.changed }}'
@@ -281,7 +289,16 @@ newservice:
     ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
 ```
 
-4. **Trên server** — tạo file env:
+4. **Nếu service dùng database mới** — thêm biến password vào `.env` và override trong `docker-compose.server.yml`:
+```yaml
+# docker-compose.server.yml
+postgres-newservice:
+  environment:
+    POSTGRES_PASSWORD: "${POSTGRES_NEW_PASSWORD}"
+  ports: !reset []  # đóng port trên server
+```
+
+5. **Trên server** — tạo file env:
 ```bash
 touch /opt/hdos-prod/newservice.env
 # Điền ConnectionStrings__NewDb=...

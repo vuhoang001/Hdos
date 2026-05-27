@@ -2,7 +2,7 @@
 #
 # Biến cần có trong --env-file (compose substitution):
 #   IMAGE_TAG, GHCR_OWNER, ASPNETCORE_ENVIRONMENT, ENV_DIR,
-#   MSSQL_SA_PASSWORD, JWT_SECRET
+#   MSSQL_SA_PASSWORD, POSTGRES_DM_PASSWORD, JWT_SECRET
 #
 # ENV_DIR trỏ tới thư mục chứa các file .env của từng service trên server:
 #   Staging : ENV_DIR=/opt/hdos-staging
@@ -10,13 +10,14 @@
 #
 # Cấu trúc thư mục trên mỗi server:
 #   ${ENV_DIR}/
-#   ├── .env                  ← compose vars (IMAGE_TAG, MSSQL_SA_PASSWORD, JWT_SECRET, ...)
-#   ├── common.env            ← biến dùng chung inject vào container
-#   ├── authservice.env       ← biến riêng AuthService
-#   ├── orderservice.env      ← biến riêng OrderService
+#   ├── .env                      ← compose vars (IMAGE_TAG, MSSQL_SA_PASSWORD, POSTGRES_DM_PASSWORD, JWT_SECRET, ...)
+#   ├── common.env                ← biến dùng chung inject vào container
+#   ├── authservice.env           ← biến riêng AuthService
+#   ├── orderservice.env          ← biến riêng OrderService
 #   ├── notificationservice.env
 #   ├── m01service.env
-#   └── asyncgateway.env      ← biến riêng AsyncGateway
+#   ├── asyncgateway.env          ← biến riêng AsyncGateway
+#   └── datamatchingservice.env   ← biến riêng DataMatchingService
 
 services:
 
@@ -24,6 +25,12 @@ services:
   sqlserver:
     environment:
       MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
+
+  # postgres-dm dùng riêng cho DataMatchingService, không expose port ra ngoài.
+  postgres-dm:
+    environment:
+      POSTGRES_PASSWORD: "${POSTGRES_DM_PASSWORD}"
+    ports: !reset []
 
   authservice:
     image: ghcr.io/${GHCR_OWNER}/hdos-authservice:${IMAGE_TAG}
@@ -71,6 +78,16 @@ services:
     env_file:
       - ${ENV_DIR}/common.env
       - ${ENV_DIR}/asyncgateway.env
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
+      Jwt__Secret: "${JWT_SECRET}"
+
+  datamatchingservice:
+    image: ghcr.io/${GHCR_OWNER}/hdos-datamatchingservice:${IMAGE_TAG}
+    build: !reset null
+    env_file:
+      - ${ENV_DIR}/common.env
+      - ${ENV_DIR}/datamatchingservice.env
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
       Jwt__Secret: "${JWT_SECRET}"

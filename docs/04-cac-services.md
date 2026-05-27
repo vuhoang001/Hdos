@@ -180,6 +180,48 @@ Nếu chạy nhiều replica NotificationService: cần **Redis backplane**. Kh�
 
 ---
 
+## DataMatchingService
+
+**Trách nhiệm:** Nhận dữ liệu thô từ nhiều nguồn (HIS, BHYT, CSV…), chuẩn hóa theo schema chung, phát hiện trùng lặp, và tổng hợp báo cáo nghiệp vụ y tế.
+
+Chi tiết đầy đủ: [23 — DataMatchingService](./23-data-matching-service.md).
+
+### Endpoints
+
+| Method | Path | Mô tả |
+|--------|------|-------|
+| POST | `/dm/sources` | Đăng ký nguồn dữ liệu + field mappings |
+| GET | `/dm/sources` | Danh sách nguồn đã đăng ký |
+| POST | `/dm/ingest/json` | Nạp 1 bản ghi JSON |
+| POST | `/dm/ingest/file` | Nạp batch từ file JSON hoặc CSV (max 50 MB) |
+| GET | `/dm/reports/{code}` | Tổng hợp báo cáo từ dữ liệu đã matched |
+
+### Report codes
+
+| Code | Báo cáo |
+|------|---------|
+| `chi-phi-theo-khoa` | Tổng chi phí + số bệnh nhân nhóm theo khoa |
+| `benh-nhan-theo-khoa` | Số bệnh nhân nhóm theo khoa × trạng thái |
+| `tong-hop-nguon` | Tổng hợp theo nguồn dữ liệu |
+
+### Luồng xử lý
+
+```
+POST /dm/ingest/json
+    → IngestJsonCommand
+    → ApplyMappings (theo SourceProfile)
+    → DeduplicateByHash (SHA-256 của RawPayload)
+    → StagingRecord.Receive() [status=Pending]
+    → SaveChangesAsync
+
+MatchingWorker (background, 30s interval):
+    → GetPendingBatch(50)
+    → MarkProcessing → MarkMatched(SourceSystem::BusinessKey)
+    → SaveChangesAsync
+```
+
+---
+
 ## Middleware stack của mỗi service
 
 Tất cả services có cùng thứ tự middleware (quan trọng — thứ tự ảnh hưởng đến behavior):
