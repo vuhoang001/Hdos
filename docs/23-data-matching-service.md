@@ -1,188 +1,653 @@
 # 23 — DataMatchingService
 
-**DataMatchingService** là service nhận dữ liệu thô từ nhiều nguồn khác nhau (HIS, BHYT, phòng khám bên ngoài…), chuẩn hóa về schema chung, phát hiện trùng lặp, và tổng hợp báo cáo nghiệp vụ y tế.
+**DataMatchingService** là service nhận dữ liệu thô từ nhiều nguồn bên ngoài (HIS, BHYT, phòng khám…), chuẩn hóa về schema chung, phát hiện trùng lặp, và tổng hợp báo cáo nghiệp vụ y tế.
 
 Khác với các service còn lại dùng SQL Server, DataMatchingService dùng **PostgreSQL** riêng — phù hợp với khối lượng ghi lớn (ingest batch), và không phụ thuộc instance SQL Server chung.
 
 ---
 
-## Vai trò trong hệ thống
+## Mục lục
+
+1. [Tư duy thiết kế](#1-tư-duy-thiết-kế)
+2. [Luồng hoạt động](#2-luồng-hoạt-động)
+3. [Domain Model](#3-domain-model)
+4. [API Reference](#4-api-reference)
+5. [Hướng dẫn sử dụng từ đầu đến cuối](#5-hướng-dẫn-sử-dụng-từ-đầu-đến-cuối)
+6. [Deduplication — SHA-256](#6-deduplication--sha-256)
+7. [MatchingWorker](#7-matchingworker)
+8. [Database — PostgreSQL](#8-database--postgresql)
+9. [Kiến trúc nội bộ](#9-kiến-trúc-nội-bộ)
+10. [Chạy local](#10-chạy-local)
+11. [Environment Variables](#11-environment-variables)
+12. [CI/CD](#12-cicd)
+13. [Trạng thái & Checklist](#13-trạng-thái--checklist)
+
+---
+
+## 1. Tư duy thiết kế
+
+### Vấn đề cần giải quyết
+
+HIS của bệnh viện (và các hệ thống bên ngoài) thường có nhiều **loại tài liệu** khác nhau trong cùng một hệ thống:
 
 ```
-Nguồn ngoài (HIS, CSV, API bên thứ ba)
-        │  POST /dm/ingest/json
-        │  POST /dm/ingest/file
-        ▼
-DataMatchingService :8080
-  ├─ 1. Tìm SourceProfile (mapping rules)
-  ├─ 2. Canonicalize payload     ← đổi tên field sang schema chuẩn
-  ├─ 3. SHA-256 dedup            ← từ chối record trùng nội dung
-  ├─ 4. Ghi StagingRecord        ← status = Pending → PostgreSQL
-  │
-  ├─ [MatchingWorker background] ← batch 50 record / 30 giây
-  │       └─ Pending → Matched
-  │
-  └─ GET /dm/reports/{code}      ← báo cáo từ record đã Matched
+HIS Bệnh viện A gửi lên:
+├── Hồ sơ bệnh nhân   → { patient_id, name, dob, department, ... }
+├── Chứng từ viện phí → { invoice_id, patient_id, amount, date, items, ... }
+├── Đơn thuốc         → { prescription_id, drug_name, quantity, doctor, ... }
+└── Nhân viên         → { staff_id, name, role, department, ... }
+```
+
+Mỗi loại có **bộ field khác nhau**, và mỗi hệ thống lại **đặt tên field theo chuẩn riêng** (ví dụ: `patient_id` vs `ma_benh_nhan` vs `patientCode`). Điều này gây ra vấn đề khi muốn tổng hợp báo cáo từ nhiều nguồn.
+
+### Giải pháp: SourceProfile + RecordType
+
+**Ý tưởng cốt lõi:** Trước khi ingest, khai báo một "bản dịch" cho từng loại tài liệu từng nguồn. Bản dịch này gọi là **SourceProfile**.
+
+```
+SourceProfile = (SourceSystem, RecordType) → bảng mapping field
+```
+
+- `SourceSystem`: mã nguồn dữ liệu, ví dụ `"his-01"`, `"bhyt-hn"`
+- `RecordType`: loại tài liệu trong nguồn đó, ví dụ `"benh-nhan"`, `"chung-tu"`
+- Cặp `(SourceSystem, RecordType)` là **duy nhất** — mỗi loại tài liệu có mapping riêng
+
+**Kết quả:** Dù HIS-A gọi là `patient_id` hay HIS-B gọi là `ma_benh_nhan`, sau khi ingest cả hai đều được lưu với tên chuẩn `MaBenhNhan`. Báo cáo chỉ cần đọc một tên field duy nhất.
+
+```
+HIS-A: { "patient_id": "BN-001" }  ──mapping──► { "MaBenhNhan": "BN-001" }
+HIS-B: { "ma_benh_nhan": "BN-001" } ──mapping──► { "MaBenhNhan": "BN-001" }
+                                                        ↑
+                                               CanonicalPayload — báo cáo đọc cái này
 ```
 
 ---
 
-## Domain Model
-
-### StagingRecord — vòng đời record
+## 2. Luồng hoạt động
 
 ```
-Receive()
-    │
-    ▼ Pending
-    │
-    ▼ Processing  ← MatchingWorker bắt đầu xử lý
-    │
-    ├──► Matched   ← matched key được gán
-    ├──► Duplicate ← phát hiện trùng business key
-    └──► Failed    ← lỗi trong quá trình xử lý
+[Bước 0 — Làm 1 lần]
+POST /dm/sources  →  Đăng ký SourceProfile (mapping rules cho từng loại tài liệu)
+
+[Bước 1 — Lặp lại mỗi khi có dữ liệu mới]
+POST /dm/ingest/json  hoặc  POST /dm/ingest/file
+        │
+        ├─ Tra SourceProfile theo (sourceSystem, recordType)
+        ├─ ApplyMappings: đổi tên field gốc → tên chuẩn   → CanonicalPayload
+        ├─ SHA-256(RawPayload) → check trùng → 409 nếu đã có
+        └─ INSERT StagingRecord (Status = Pending) vào PostgreSQL
+
+[Bước 2 — Tự động, mỗi 30 giây]
+MatchingWorker (background)
+        └─ SELECT * WHERE Status = Pending LIMIT 50
+           → MarkMatched("his-01::BN-001")
+           → UPDATE Status = Matched
+
+[Bước 3 — Lấy dữ liệu ra]
+GET /dm/records     →  Tìm kiếm record theo sourceSystem, recordType, field bất kỳ
+GET /dm/reports/{code}  →  Báo cáo aggregate (tổng hợp, nhóm theo khoa, ...)
 ```
+
+---
+
+## 3. Domain Model
+
+### StagingRecord — vòng đời một record
+
+```
+Receive()  →  Pending
+                │
+                ▼ (MatchingWorker chọn)
+            Processing
+                │
+        ┌───────┴──────────┐
+        ▼                  ▼
+     Matched            Failed
+  (key được gán)    (lý do lưu ở FailureReason)
+```
+
+| Field | Kiểu | Ý nghĩa |
+|-------|------|---------|
+| `Id` | Guid | Định danh duy nhất của record |
+| `SourceSystem` | string | Mã nguồn, ví dụ `"his-01"` |
+| `RecordType` | string | Loại tài liệu, ví dụ `"benh-nhan"` |
+| `RawPayload` | text | JSON gốc từ nguồn — **không bao giờ thay đổi**, dùng để audit |
+| `CanonicalPayload` | text | JSON sau khi áp mapping — báo cáo và search đọc từ đây |
+| `BusinessKey` | string | Khóa nghiệp vụ trích từ CanonicalPayload, ví dụ `"BN-001"` |
+| `PayloadHash` | string | SHA-256 của RawPayload — dùng để phát hiện trùng lặp |
+| `Status` | enum | Pending / Processing / Matched / Failed |
+| `MatchedKey` | string | `"{SourceSystem}::{BusinessKey}"` sau khi matched |
+| `FailureReason` | string | Lý do thất bại nếu Status = Failed |
+| `ReceivedAt` | DateTime | Thời điểm nhận record |
+| `ProcessedAt` | DateTime? | Thời điểm MatchingWorker xử lý xong |
+
+### SourceProfile — cấu hình mapping
 
 | Field | Ý nghĩa |
 |-------|---------|
 | `SourceSystem` | Mã nguồn, ví dụ `"his-01"` |
-| `RawPayload` | JSON gốc, giữ nguyên để audit |
-| `CanonicalPayload` | JSON sau khi áp mapping (tên field chuẩn hóa) |
-| `BusinessKey` | Khóa nghiệp vụ trích từ canonical |
-| `PayloadHash` | SHA-256 của `RawPayload` — index, dùng để dedup |
-| `MatchedKey` | `SourceSystem::BusinessKey` sau khi matched |
-| `FailureReason` | Lý do nếu `Status = Failed` |
+| `RecordType` | Loại tài liệu, ví dụ `"benh-nhan"` |
+| `DisplayName` | Tên hiển thị, ví dụ `"HIS Bệnh viện A — Bệnh nhân"` |
+| `BusinessKeyField` | Tên field canonical dùng làm khóa nghiệp vụ, ví dụ `"MaBenhNhan"` |
+| `FieldMappingsJson` | JSON lưu bảng mapping: `{"tên_gốc": "tên_chuẩn", ...}` |
 
-### SourceProfile — cấu hình nguồn dữ liệu
-
-Mỗi nguồn phải đăng ký **một lần** trước khi ingest. Nó khai báo cách ánh xạ field của nguồn sang tên field chuẩn.
-
-```json
-{
-  "sourceSystem": "his-01",
-  "displayName": "HIS Bệnh viện A",
-  "businessKeyField": "MaBenhNhan",
-  "mappings": {
-    "patient_id": "MaBenhNhan",
-    "department":  "TenKhoa",
-    "cost":        "TongChiPhi",
-    "status":      "TrangThai"
-  }
-}
-```
-
-`businessKeyField` **phải** là một trong các value của `mappings`.
+**Quy tắc quan trọng:** `businessKeyField` phải là một trong các **value** (không phải key) của `mappings`. Ví dụ nếu mappings có `{"patient_id": "MaBenhNhan"}` thì businessKeyField phải là `"MaBenhNhan"`.
 
 ---
 
-## API Endpoints
+## 4. API Reference
 
-### POST `/dm/sources` — Đăng ký nguồn
+### `POST /dm/sources` — Đăng ký SourceProfile
 
-```http
-POST /dm/sources
-Content-Type: application/json
+Đăng ký mapping cho một loại tài liệu từ một nguồn. Phải làm **trước khi ingest**.
 
+**Request:**
+```json
 {
-  "sourceSystem": "his-01",
-  "displayName": "HIS Bệnh viện A",
+  "sourceSystem":     "his-01",
+  "recordType":       "benh-nhan",
+  "displayName":      "HIS Bệnh viện A — Bệnh nhân",
   "businessKeyField": "MaBenhNhan",
   "mappings": {
-    "patient_id": "MaBenhNhan",
+    "patient_id":  "MaBenhNhan",
+    "full_name":   "HoTen",
+    "birth_date":  "NgaySinh",
     "department":  "TenKhoa",
-    "cost":        "TongChiPhi",
     "status":      "TrangThai"
   }
 }
 ```
 
-### GET `/dm/sources` — Danh sách nguồn đã đăng ký
+| Field | Bắt buộc | Mô tả |
+|-------|----------|-------|
+| `sourceSystem` | ✅ | Mã nguồn, tối đa 100 ký tự |
+| `recordType` | ✅ | Loại tài liệu, tối đa 100 ký tự |
+| `displayName` | ✅ | Tên hiển thị, tối đa 200 ký tự |
+| `businessKeyField` | ✅ | Phải là một value trong mappings |
+| `mappings` | ✅ | Dict `{tên_gốc: tên_chuẩn}`, không được rỗng |
 
-### POST `/dm/ingest/json` — Nạp 1 bản ghi
-
-```http
-POST /dm/ingest/json
-Content-Type: application/json
-
+**Response `201 Created`:**
+```json
 {
-  "sourceSystem": "his-01",
-  "payload": {
-    "patient_id": "BN-001",
-    "department": "Tim Mạch",
-    "cost": 1500000,
-    "status": "Xuất viện"
+  "success": true,
+  "data": {
+    "id": "3f2a...",
+    "sourceSystem": "his-01",
+    "recordType": "benh-nhan",
+    "displayName": "HIS Bệnh viện A — Bệnh nhân",
+    "businessKeyField": "MaBenhNhan",
+    "mappings": { "patient_id": "MaBenhNhan", ... }
   }
 }
 ```
+
+**`409 Conflict`** nếu `(sourceSystem, recordType)` đã tồn tại.
+
+---
+
+### `GET /dm/sources` — Danh sách SourceProfile
+
+```
+GET /dm/sources                          → tất cả sources
+GET /dm/sources?sourceSystem=his-01      → chỉ các loại của his-01
+```
+
+**Response `200 OK`:**
+```json
+{
+  "success": true,
+  "data": [
+    { "sourceSystem": "his-01", "recordType": "benh-nhan", ... },
+    { "sourceSystem": "his-01", "recordType": "chung-tu",  ... }
+  ]
+}
+```
+
+---
+
+### `POST /dm/ingest/json` — Nạp 1 bản ghi JSON
+
+**Request:**
+```json
+{
+  "sourceSystem": "his-01",
+  "recordType":   "benh-nhan",
+  "payload": {
+    "patient_id": "BN-001",
+    "full_name":  "Nguyen Van A",
+    "department": "Tim Mach",
+    "status":     "Xuat vien"
+  },
+  "businessKeyOverride": null
+}
+```
+
+| Field | Bắt buộc | Mô tả |
+|-------|----------|-------|
+| `sourceSystem` | ✅ | Phải khớp với SourceProfile đã đăng ký |
+| `recordType` | ✅ | Phải khớp với SourceProfile đã đăng ký |
+| `payload` | ✅ | JSON object bất kỳ |
+| `businessKeyOverride` | ❌ | Tự truyền business key thay vì để hệ thống tự trích |
 
 **Response `202 Accepted`:**
 ```json
 {
   "success": true,
   "data": {
-    "id": "7816cf83-...",
+    "id":           "7816cf83-...",
     "sourceSystem": "his-01",
-    "businessKey": "BN-001",
-    "status": "Pending"
+    "recordType":   "benh-nhan",
+    "businessKey":  "BN-001",
+    "status":       "Pending"
   }
 }
 ```
 
-**`409 Conflict`** nếu payload đã tồn tại (hash trùng).
+**`409 Conflict`** nếu payload đã tồn tại (hash trùng).  
+**`404 Not Found`** nếu SourceProfile chưa được đăng ký.
 
-### POST `/dm/ingest/file` — Nạp batch từ file
+---
 
-```http
+### `POST /dm/ingest/file` — Nạp batch từ file
+
+Upload file JSON hoặc CSV chứa nhiều records cùng loại.
+
+```
 POST /dm/ingest/file
 Content-Type: multipart/form-data
 
 sourceSystem=his-01
-file=<file.json hoặc file.csv>
+recordType=benh-nhan
+file=@patients.json
 ```
 
-Giới hạn: **50 MB**. File JSON phải là array hoặc single object. CSV: dòng đầu là header.
+Giới hạn: **50 MB**. Record trùng (hash đã có) sẽ bị bỏ qua, không lỗi.
 
-**Lưu ý:** CSV parser không xử lý quoted fields có dấu phẩy bên trong — dùng JSON cho dữ liệu phức tạp.
+**Định dạng JSON:** array hoặc single object:
+```json
+[
+  { "patient_id": "BN-001", "department": "Tim Mach", ... },
+  { "patient_id": "BN-002", "department": "Noi Tiet", ... }
+]
+```
 
-### GET `/dm/reports/{reportCode}` — Báo cáo
+**Định dạng CSV:** dòng đầu là header, các dòng sau là data:
+```csv
+patient_id,full_name,department,status
+BN-001,Nguyen Van A,Tim Mach,Xuat vien
+BN-002,Tran Thi B,Noi Tiet,Dang dieu tri
+```
 
-Query params: `sourceSystem`, `from`, `to` (ISO datetime, tất cả optional).
+> **Lưu ý:** CSV parser không xử lý quoted fields có dấu phẩy bên trong — dùng JSON cho dữ liệu phức tạp.
 
-| Code | Tên | Nhóm theo |
-|------|-----|-----------|
-| `chi-phi-theo-khoa` | Chi phí theo khoa | `TenKhoa` → SUM(`TongChiPhi`) |
-| `benh-nhan-theo-khoa` | Bệnh nhân theo khoa | `TenKhoa` × `TrangThai` |
-| `tong-hop-nguon` | Tổng hợp theo nguồn | `SourceSystem` |
-
-Báo cáo chỉ tính trên record `Status = Matched`.
+**Response `202 Accepted`:**
+```json
+{
+  "success": true,
+  "data": {
+    "count": 2,
+    "ids": ["7816cf83-...", "9a2b1c4d-..."]
+  }
+}
+```
 
 ---
 
-## Deduplication — SHA-256
+### `GET /dm/records` — Tìm kiếm record
 
-Mỗi record được hash toàn bộ `RawPayload`:
+Endpoint linh hoạt để lấy danh sách record theo bộ lọc bất kỳ. Chỉ trả về record có `Status = Matched`.
 
 ```
-SHA-256(UTF-8 bytes) → hex string 64 ký tự
+GET /dm/records?sourceSystem=his-01&recordType=benh-nhan
+GET /dm/records?sourceSystem=his-01&recordType=benh-nhan&field=TenKhoa&value=Tim+Mach
+GET /dm/records?recordType=chung-tu&from=2026-01-01&to=2026-03-31&limit=100
 ```
 
-- Index `IX_StagingRecords_PayloadHash` → `ExistsHashAsync` O(log n)
-- Hash theo nội dung **gốc** — hai bản ghi cùng raw payload sẽ bị reject dù source khác nhau
-- Nếu cần dedup theo canonical (sau khi mapping) thì đổi thành `ComputeHash(canonicalPayload)`
+| Query param | Kiểu | Mô tả |
+|-------------|------|-------|
+| `sourceSystem` | string? | Lọc theo nguồn |
+| `recordType` | string? | Lọc theo loại tài liệu |
+| `field` | string? | Tên field trong CanonicalPayload cần lọc |
+| `value` | string? | Giá trị cần tìm (không phân biệt hoa thường, tìm kiếm contains) |
+| `from` | DateTime? | Từ ngày (ReceivedAt ≥ from) |
+| `to` | DateTime? | Đến ngày (ReceivedAt ≤ to) |
+| `limit` | int | Số record tối đa trả về (mặc định 200, tối đa 1000) |
+
+**Response `200 OK`:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id":               "7816cf83-...",
+      "sourceSystem":     "his-01",
+      "recordType":       "benh-nhan",
+      "businessKey":      "BN-001",
+      "status":           "Matched",
+      "canonicalPayload": "{\"MaBenhNhan\":\"BN-001\",\"HoTen\":\"Nguyen Van A\",\"TenKhoa\":\"Tim Mach\"}",
+      "receivedAt":       "2026-05-27T10:00:00Z",
+      "processedAt":      "2026-05-27T10:00:30Z"
+    }
+  ]
+}
+```
+
+> `canonicalPayload` là JSON string — client tự parse để lấy các field cần thiết.
 
 ---
 
-## MatchingWorker
+### `GET /dm/reports/{reportCode}` — Báo cáo aggregate
 
-`IHostedService` chạy trong cùng process với API, xử lý pending records định kỳ.
+Chỉ tính trên record `Status = Matched`.
 
 ```
-Mỗi {WorkerIntervalSeconds} giây (default 30):
-  GetPendingBatchAsync(50)
-  → record.MarkProcessing()
-  → matchedKey = "{SourceSystem}::{BusinessKey}" (hoặc ::{PayloadHash} nếu không có BusinessKey)
-  → record.MarkMatched(matchedKey)
-  → SaveChangesAsync()
+GET /dm/reports/chi-phi-theo-khoa?sourceSystem=his-01&recordType=chung-tu
+GET /dm/reports/benh-nhan-theo-khoa?from=2026-01-01&to=2026-06-30
+GET /dm/reports/tong-hop-nguon
+```
+
+| Query param | Mô tả |
+|-------------|-------|
+| `sourceSystem` | Lọc theo nguồn (optional) |
+| `recordType` | Lọc theo loại tài liệu (optional) |
+| `from` | Từ ngày (optional) |
+| `to` | Đến ngày (optional) |
+
+**Các report code hỗ trợ:**
+
+| Code | Tên | Nhóm theo | Fields canonical cần có |
+|------|-----|-----------|--------------------------|
+| `chi-phi-theo-khoa` | Chi phí theo khoa | `TenKhoa` → SUM(`TongChiPhi`) | `TenKhoa`, `TongChiPhi` |
+| `benh-nhan-theo-khoa` | Bệnh nhân theo khoa | `TenKhoa` × `TrangThai` | `TenKhoa`, `TrangThai` |
+| `tong-hop-nguon` | Tổng hợp theo nguồn | `SourceSystem` | `TongChiPhi` (optional) |
+
+**Response `200 OK`:**
+```json
+{
+  "success": true,
+  "data": {
+    "reportCode":  "chi-phi-theo-khoa",
+    "reportName":  "Chi phi theo khoa",
+    "generatedAt": "2026-05-27T10:30:00Z",
+    "columns": [
+      { "key": "TenKhoa",    "label": "Ten khoa",    "type": "string" },
+      { "key": "SoBenhNhan", "label": "So benh nhan","type": "number" },
+      { "key": "TongChiPhi", "label": "Tong chi phi","type": "currency" }
+    ],
+    "rows": [
+      { "data": { "TenKhoa": "Tim Mach", "SoBenhNhan": 10, "TongChiPhi": 15000000 } },
+      { "data": { "TenKhoa": "Noi Tiet", "SoBenhNhan": 7,  "TongChiPhi": 8400000  } }
+    ],
+    "summary": {
+      "TotalRecords": 17,
+      "TotalChiPhi":  23400000
+    }
+  }
+}
+```
+
+---
+
+## 5. Hướng dẫn sử dụng từ đầu đến cuối
+
+Ví dụ thực tế: HIS bệnh viện có 2 loại dữ liệu — **bệnh nhân** và **chứng từ viện phí**.
+
+### Bước 1 — Đăng ký SourceProfile cho từng loại
+
+```bash
+# --- Loại 1: Bệnh nhân ---
+curl -s -X POST http://localhost:5000/dm/sources \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sourceSystem":     "his-01",
+    "recordType":       "benh-nhan",
+    "displayName":      "HIS BV A — Ho so benh nhan",
+    "businessKeyField": "MaBenhNhan",
+    "mappings": {
+      "patient_id":  "MaBenhNhan",
+      "full_name":   "HoTen",
+      "birth_date":  "NgaySinh",
+      "department":  "TenKhoa",
+      "status":      "TrangThai"
+    }
+  }' | python3 -m json.tool
+
+# --- Loại 2: Chứng từ viện phí ---
+curl -s -X POST http://localhost:5000/dm/sources \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sourceSystem":     "his-01",
+    "recordType":       "chung-tu",
+    "displayName":      "HIS BV A — Chung tu vien phi",
+    "businessKeyField": "SoChungTu",
+    "mappings": {
+      "invoice_id":  "SoChungTu",
+      "patient_id":  "MaBenhNhan",
+      "department":  "TenKhoa",
+      "total_cost":  "TongChiPhi",
+      "invoice_date":"NgayLap",
+      "status":      "TrangThai"
+    }
+  }' | python3 -m json.tool
+```
+
+**Xem lại tất cả sources đã đăng ký:**
+```bash
+curl -s "http://localhost:5000/dm/sources" | python3 -m json.tool
+
+# Chỉ xem sources của his-01
+curl -s "http://localhost:5000/dm/sources?sourceSystem=his-01" | python3 -m json.tool
+```
+
+---
+
+### Bước 2 — Nạp dữ liệu bệnh nhân
+
+```bash
+# Nạp 1 bệnh nhân
+curl -s -X POST http://localhost:5000/dm/ingest/json \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sourceSystem": "his-01",
+    "recordType":   "benh-nhan",
+    "payload": {
+      "patient_id":  "BN-001",
+      "full_name":   "Nguyen Van A",
+      "birth_date":  "1985-03-15",
+      "department":  "Tim Mach",
+      "status":      "Xuat vien"
+    }
+  }' | python3 -m json.tool
+
+# Nạp batch từ file JSON
+curl -s -X POST http://localhost:5000/dm/ingest/file \
+  -F "sourceSystem=his-01" \
+  -F "recordType=benh-nhan" \
+  -F "file=@patients.json" | python3 -m json.tool
+```
+
+---
+
+### Bước 3 — Nạp dữ liệu chứng từ
+
+```bash
+curl -s -X POST http://localhost:5000/dm/ingest/json \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sourceSystem": "his-01",
+    "recordType":   "chung-tu",
+    "payload": {
+      "invoice_id":   "CT-2026-001",
+      "patient_id":   "BN-001",
+      "department":   "Tim Mach",
+      "total_cost":   1500000,
+      "invoice_date": "2026-05-15",
+      "status":       "Da thanh toan"
+    }
+  }' | python3 -m json.tool
+```
+
+---
+
+### Bước 4 — Đợi MatchingWorker (tối đa 30 giây)
+
+MatchingWorker chạy ngầm, cứ 30 giây xử lý các record Pending → Matched. Sau 30s, record mới có thể query và đưa vào báo cáo.
+
+Để test nhanh hơn, set `Matching__WorkerIntervalSeconds=5` trong docker-compose.
+
+---
+
+### Bước 5 — Tìm kiếm record
+
+```bash
+# Tất cả bệnh nhân của his-01
+curl -s "http://localhost:5000/dm/records?sourceSystem=his-01&recordType=benh-nhan" \
+  | python3 -m json.tool
+
+# Bệnh nhân khoa Tim Mạch
+curl -s "http://localhost:5000/dm/records?sourceSystem=his-01&recordType=benh-nhan&field=TenKhoa&value=Tim+Mach" \
+  | python3 -m json.tool
+
+# Tìm theo tên bệnh nhân (contains, không phân biệt hoa thường)
+curl -s "http://localhost:5000/dm/records?recordType=benh-nhan&field=HoTen&value=Nguyen" \
+  | python3 -m json.tool
+
+# Chứng từ trong tháng 5/2026
+curl -s "http://localhost:5000/dm/records?sourceSystem=his-01&recordType=chung-tu&from=2026-05-01&to=2026-05-31" \
+  | python3 -m json.tool
+
+# Lấy 50 record mới nhất của chứng từ
+curl -s "http://localhost:5000/dm/records?recordType=chung-tu&limit=50" \
+  | python3 -m json.tool
+```
+
+---
+
+### Bước 6 — Lấy báo cáo
+
+```bash
+# Chi phí theo khoa — chỉ tính trên chứng từ (không lẫn record bệnh nhân)
+curl -s "http://localhost:5000/dm/reports/chi-phi-theo-khoa?sourceSystem=his-01&recordType=chung-tu" \
+  | python3 -m json.tool
+
+# Bệnh nhân theo khoa × trạng thái — tính trên hồ sơ bệnh nhân
+curl -s "http://localhost:5000/dm/reports/benh-nhan-theo-khoa?sourceSystem=his-01&recordType=benh-nhan" \
+  | python3 -m json.tool
+
+# Tổng hợp theo nguồn — tất cả sources, không lọc theo loại
+curl -s "http://localhost:5000/dm/reports/tong-hop-nguon" \
+  | python3 -m json.tool
+
+# Báo cáo theo khoảng thời gian
+curl -s "http://localhost:5000/dm/reports/chi-phi-theo-khoa?recordType=chung-tu&from=2026-01-01&to=2026-06-30" \
+  | python3 -m json.tool
+```
+
+---
+
+### Bước 7 — Test dedup
+
+Gửi lại đúng record BN-001 đã ingest → sẽ bị từ chối:
+
+```bash
+curl -s -X POST http://localhost:5000/dm/ingest/json \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sourceSystem": "his-01",
+    "recordType":   "benh-nhan",
+    "payload": {
+      "patient_id":  "BN-001",
+      "full_name":   "Nguyen Van A",
+      "birth_date":  "1985-03-15",
+      "department":  "Tim Mach",
+      "status":      "Xuat vien"
+    }
+  }' | python3 -m json.tool
+```
+
+**Response `409 Conflict`:**
+```json
+{
+  "success": false,
+  "error": { "code": "Conflict", "message": "Duplicate payload: a record with this exact content already exists." }
+}
+```
+
+---
+
+### Ví dụ với nhiều nguồn (cross-source)
+
+Hệ thống hỗ trợ nhiều nguồn song song. Ví dụ thêm HIS của bệnh viện B:
+
+```bash
+# Đăng ký his-02 — field names khác nhau, nhưng canonical names giống his-01
+curl -s -X POST http://localhost:5000/dm/sources \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sourceSystem":     "his-02",
+    "recordType":       "benh-nhan",
+    "displayName":      "HIS BV B — Ho so benh nhan",
+    "businessKeyField": "MaBenhNhan",
+    "mappings": {
+      "ma_benh_nhan": "MaBenhNhan",
+      "ho_va_ten":    "HoTen",
+      "ngay_sinh":    "NgaySinh",
+      "ten_khoa":     "TenKhoa",
+      "trang_thai":   "TrangThai"
+    }
+  }' | python3 -m json.tool
+
+# Ingest từ his-02 — dùng tên field khác nhưng kết quả lưu vào canonical giống nhau
+curl -s -X POST http://localhost:5000/dm/ingest/json \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sourceSystem": "his-02",
+    "recordType":   "benh-nhan",
+    "payload": {
+      "ma_benh_nhan": "BN-101",
+      "ho_va_ten":    "Le Thi C",
+      "ten_khoa":     "Noi Tiet",
+      "trang_thai":   "Dang dieu tri"
+    }
+  }' | python3 -m json.tool
+
+# Báo cáo tổng hợp toàn bộ bệnh nhân từ tất cả các nguồn
+curl -s "http://localhost:5000/dm/reports/benh-nhan-theo-khoa?recordType=benh-nhan" \
+  | python3 -m json.tool
+```
+
+---
+
+## 6. Deduplication — SHA-256
+
+Mỗi record được hash toàn bộ `RawPayload` trước khi lưu:
+
+```
+SHA-256(UTF-8 bytes of RawPayload) → hex string 64 ký tự
+```
+
+Nếu hash đã tồn tại trong DB → trả về `409 Conflict`, record không được lưu.
+
+**Lưu ý quan trọng:**
+- Hash tính trên **raw payload gốc** — cùng nội dung dù từ nguồn khác vẫn bị reject
+- Nếu muốn cho phép cùng nội dung từ nguồn khác nhau, đổi thành hash canonical payload và thêm sourceSystem vào hash input
+- Index `IX_StagingRecords_PayloadHash` đảm bảo check O(log n)
+
+---
+
+## 7. MatchingWorker
+
+Background service chạy trong cùng process với API, xử lý định kỳ:
+
+```
+Mỗi {WorkerIntervalSeconds} giây (mặc định 30):
+  1. GetPendingBatchAsync(50) — lấy tối đa 50 record Pending, sắp xếp theo ReceivedAt
+  2. Với mỗi record:
+     a. MarkProcessing()
+     b. Tạo matchedKey = "{SourceSystem}::{BusinessKey}"
+        (nếu không có BusinessKey → dùng PayloadHash thay thế)
+     c. MarkMatched(matchedKey)
+  3. SaveChangesAsync() — lưu tất cả thay đổi 1 lần
 ```
 
 **Config:**
@@ -190,85 +655,127 @@ Mỗi {WorkerIntervalSeconds} giây (default 30):
 { "Matching": { "WorkerIntervalSeconds": 30 } }
 ```
 
-> **Hiện tại là stub** — tạo composite key và mark Matched, chưa so khớp giữa các nguồn. Matching thực sự (golden record, cross-source linking) cần implement thêm.
+> **Hiện tại là stub** — tạo composite key và đánh dấu Matched, chưa thực hiện cross-source matching (golden record, liên kết bệnh nhân từ nhiều nguồn). Cần implement thêm tùy nghiệp vụ.
 
 ---
 
-## Database — PostgreSQL
+## 8. Database — PostgreSQL
 
-Connection string key: `DataMatchingDb`. Container riêng `postgres-dm`, **không dùng chung SQL Server** với các service khác.
+Connection string key: `DataMatchingDb`. Container riêng `postgres-dm`, không dùng chung SQL Server với các service khác.
+
+### Cấu trúc bảng
 
 ```
 postgres-dm (PostgreSQL 16)
   └── Database: DataMatchingDb
-      ├── SourceProfiles        ← UNIQUE (SourceSystem)
-      ├── StagingRecords        ← INDEX (PayloadHash), INDEX (Status, ReceivedAt)
-      ├── OutboxMessage         ← MassTransit EF Outbox
+      ├── SourceProfiles
+      │     UNIQUE INDEX: (SourceSystem, RecordType)
+      │
+      ├── StagingRecords
+      │     INDEX: PayloadHash
+      │     INDEX: (SourceSystem, RecordType)
+      │     INDEX: Status
+      │     INDEX: ReceivedAt
+      │
+      ├── OutboxMessage   ← MassTransit EF Outbox
       ├── OutboxState
       └── InboxState
 ```
 
-Migration tự apply khi service khởi động (10 lần retry, delay 3s).
+Migration tự apply khi service khởi động (retry 10 lần, delay 3 giây).
 
-**Kiểm tra DB trực tiếp:**
+### Kiểm tra DB trực tiếp
+
 ```bash
-# Local
-docker exec hdos-postgres-dm psql -U dm_user -d DataMatchingDb
+# Kết nối vào PostgreSQL local
+docker exec -it hdos-postgres-dm psql -U dm_user -d DataMatchingDb
 
-# Xem staged records
-\c DataMatchingDb
-SELECT "SourceSystem", "BusinessKey", "Status", "MatchedKey"
+# Xem tất cả SourceProfiles
+SELECT "SourceSystem", "RecordType", "DisplayName" FROM "SourceProfiles";
+
+# Xem phân bố records theo trạng thái
+SELECT "SourceSystem", "RecordType", "Status", COUNT(*)
+FROM "StagingRecords"
+GROUP BY "SourceSystem", "RecordType", "Status"
+ORDER BY 1, 2, 3;
+
+# Xem 10 record mới nhất
+SELECT "SourceSystem", "RecordType", "BusinessKey", "Status", "ReceivedAt"
 FROM "StagingRecords"
 ORDER BY "ReceivedAt" DESC
-LIMIT 20;
+LIMIT 10;
+
+# Xem canonical payload của 1 record cụ thể
+SELECT "CanonicalPayload"
+FROM "StagingRecords"
+WHERE "BusinessKey" = 'BN-001'
+  AND "RecordType" = 'benh-nhan';
 ```
 
 ---
 
-## Kiến trúc nội bộ
+## 9. Kiến trúc nội bộ
 
 ```
 Domain/
-  Entities/     StagingRecord (AggregateRoot), SourceProfile (BaseEntity)
-  Enums/        RecordStatus
-  Repositories/ IStagingRecordRepository, ISourceProfileRepository, IDataMatchingUnitOfWork
+  Entities/
+    StagingRecord     — AggregateRoot, state machine (Pending → Matched/Failed)
+    SourceProfile     — lưu mapping rules, keyed by (SourceSystem, RecordType)
+  Enums/
+    RecordStatus      — Pending, Processing, Matched, Duplicate, Failed
+  Repositories/
+    IStagingRecordRepository   — CRUD + GetFilteredAsync + GetMatchedAsync
+    ISourceProfileRepository   — GetBySystemAndTypeAsync + GetAllAsync
+    IDataMatchingUnitOfWork    — SaveChangesAsync
 
 Application/
   Features/
-    Ingest/     IngestJsonCommand, IngestFileCommand
     Sources/    RegisterSourceCommand, GetSourcesQuery
-    Reports/    GetReportQuery (3 built-in reports)
-  DTOs/         SourceProfileDto, IngestResultDto, IngestBatchResultDto, ReportDto
+    Ingest/     IngestJsonCommand, IngestFileCommand
+    Records/    GetRecordsQuery   ← search linh hoạt theo field bất kỳ
+    Reports/    GetReportQuery    ← 3 built-in aggregate reports
+  DTOs/
+    SourceProfileDto, IngestResultDto, IngestBatchResultDto,
+    StagingRecordDto, ReportDto, ReportColumnDto, ReportRowDto
 
 Infrastructure/
-  Persistence/  DataMatchingDbContext (Npgsql), EF configs, Repositories
-  Workers/      MatchingWorker (IHostedService, batch 50, interval 30s)
-  DI/           UseNpgsql + MassTransit EF Outbox (UsePostgres)
+  Persistence/
+    DataMatchingDbContext       — Npgsql + MassTransit EF Outbox tables
+    SourceProfileRepository
+    StagingRecordRepository    — filter in-memory cho CanonicalPayload (text column)
+    Configurations/            — EF Core fluent config cho cả 2 entities
+    Migrations/                — InitialCreate + AddRecordType
+  Workers/
+    MatchingWorker             — IHostedService, batch 50, interval 30s
+  DependencyInjection.cs       — UseNpgsql + UsePostgres (outbox)
 
 API/
-  Controllers/  IngestController, SourcesController, ReportsController
-  Program.cs    JWT, OTel, AddNpgSql health check, auto-migrate
+  Controllers/
+    SourcesController          — POST/GET /dm/sources
+    IngestController           — POST /dm/ingest/json, POST /dm/ingest/file
+    RecordsController          — GET /dm/records
+    ReportsController          — GET /dm/reports/{code}
+  Program.cs                   — JWT, OTel, AddNpgSql health check, auto-migrate
 ```
 
 ---
 
-## Chạy local
+## 10. Chạy local
 
-### Docker Compose (cách đơn giản nhất)
+### Docker Compose (khuyến nghị)
 
 ```bash
 docker compose up -d
 ```
 
-DataMatchingService và `postgres-dm` khởi động cùng stack. Swagger tại:
-```
-http://localhost:5000/dm/swagger
-```
+DataMatchingService và `postgres-dm` khởi động cùng stack.
 
-### dotnet run (debug)
+**Swagger UI:** `http://localhost:5000/dm/swagger`
+
+### dotnet run (debug / hot-reload)
 
 ```bash
-# Khởi động postgres-dm trước
+# Khởi động dependencies trước
 docker compose up -d postgres-dm rabbitmq
 
 # Chạy service
@@ -291,63 +798,70 @@ DOTNET_ROOT=~/.dotnet PATH="$HOME/.dotnet:$PATH" \
 
 ---
 
-## Environment Variables
+## 11. Environment Variables
 
 | Biến | Ý nghĩa | Ví dụ |
 |------|---------|-------|
 | `ConnectionStrings__DataMatchingDb` | PostgreSQL connection string | `Host=postgres-dm;Port=5432;Database=DataMatchingDb;Username=dm_user;Password=...` |
 | `Matching__WorkerIntervalSeconds` | Chu kỳ MatchingWorker (giây) | `30` |
 | `RabbitMq__Host` | RabbitMQ host | `rabbitmq` |
+| `RabbitMq__Port` | RabbitMQ port | `5672` |
 | `Jwt__Secret` | JWT signing key (chia sẻ với AuthService) | — |
+| `ASPNETCORE_ENVIRONMENT` | Môi trường | `Development` / `Production` |
 
 ---
 
-## CI/CD
+## 12. CI/CD
 
 Được tích hợp đầy đủ vào CI/CD pipeline (xem [doc 10](./10-cicd-pipeline.md)):
 
 - **`services.json`**: entry `datamatchingservice` → Dockerfile path
-- **`.github/path-filters.yml`**: trigger rebuild khi `src/Services/DataMatchingService/**` thay đổi
-- **`ci.yml`**: nằm trong `ALL` list → luôn build khi push lên `main`
-- **`docker-compose.server.yml`**: image từ GHCR + `datamatchingservice.env` + `postgres-dm` (port đóng trên server)
+- **`.github/path-filters.yml`**: rebuild khi `src/Services/DataMatchingService/**` thay đổi
+- **`docker-compose.server.yml`**: pull image từ GHCR + `datamatchingservice.env` (optional) + `postgres-dm` (port đóng trên server)
 
-**Setup trên server lần đầu:**
+**Setup server lần đầu:**
 
 ```bash
-# Thêm vào /opt/hdos-prod/.env
+# 1. Thêm vào /opt/hdos-prod/.env
 POSTGRES_DM_PASSWORD=<strong-password>
 
-# Tạo env file cho service
+# 2. Tạo env file cho service
 cat > /opt/hdos-prod/datamatchingservice.env << 'EOF'
 ConnectionStrings__DataMatchingDb=Host=postgres-dm;Port=5432;Database=DataMatchingDb;Username=dm_user;Password=<password>
 Matching__WorkerIntervalSeconds=30
 EOF
 ```
 
+> CD pipeline tự động tạo file trống nếu chưa có. Nhớ điền giá trị thực sau deploy lần đầu.
+
 ---
 
-## Trạng thái hiện tại
+## 13. Trạng thái & Checklist
+
+### Trạng thái hiện tại
 
 | Phần | Trạng thái | Ghi chú |
 |------|-----------|---------|
-| Domain (StagingRecord, SourceProfile) | ✅ | State machine đầy đủ |
-| Ingest JSON + dedup SHA-256 | ✅ | Chạy production-ready |
-| Ingest File (JSON + CSV batch) | ✅ | Max 50 MB |
-| MatchingWorker | ⚠️ Stub | Tạo key, chưa match thực sự cross-source |
-| 3 built-in reports | ✅ | chi-phi, benh-nhan, tong-hop |
+| Domain (StagingRecord, SourceProfile + RecordType) | ✅ | State machine đầy đủ, keyed by (SourceSystem, RecordType) |
+| Ingest JSON + dedup SHA-256 | ✅ | Production-ready |
+| Ingest File (JSON + CSV batch) | ✅ | Tối đa 50 MB |
+| GET /dm/records (search linh hoạt) | ✅ | Filter theo sourceSystem, recordType, field bất kỳ, date range |
+| 3 built-in reports | ✅ | chi-phi-theo-khoa, benh-nhan-theo-khoa, tong-hop-nguon |
+| Lọc report theo recordType | ✅ | Không lẫn dữ liệu giữa các loại |
 | PostgreSQL + EF migrations | ✅ | Auto-apply khi startup |
 | MassTransit Outbox (PostgreSQL) | ✅ Configured | Chưa có integration event nào được publish |
 | Docker Compose (local) | ✅ | `postgres-dm` + `datamatchingservice` |
 | CI/CD pipeline | ✅ | path-filter, GHCR build, server override |
+| MatchingWorker | ⚠️ Stub | Tạo key, chưa match thực sự cross-source |
 | `[Authorize]` trên controllers | ❌ Comment-out | Bật lại trước production |
 | Tests | ❌ Chưa có | — |
 
----
+### Checklist trước production
 
-## Checklist trước production
-
-- [ ] Bỏ comment `// [Authorize]` trên `IngestController`, `SourcesController`, `ReportsController`
+- [ ] Bỏ comment `// [Authorize]` trên `IngestController`, `SourcesController`, `ReportsController`, `RecordsController`
 - [x] Tạo `datamatchingservice.env` trên server với PostgreSQL password thực
-- [x] Thêm `POSTGRES_DM_PASSWORD` vào `/opt/hdos-prod/.env` và `/opt/hdos-staging/.env`
-- [ ] Implement matching logic thực trong `MatchingWorker`
+- [x] Thêm `POSTGRES_DM_PASSWORD` vào `/opt/hdos-prod/.env`
+- [ ] Implement matching logic thực trong `MatchingWorker` (cross-source golden record)
+- [ ] Thêm pagination cho `GET /dm/records` khi data lớn
+- [ ] Chuyển CanonicalPayload sang kiểu `jsonb` trong PostgreSQL để filter bằng SQL thay vì in-memory
 - [ ] Cập nhật bảng Outbox trong [doc 21](./21-outbox-pattern.md) khi thêm integration events
