@@ -101,10 +101,11 @@ Receive()  →  Pending
                 ▼ (MatchingWorker chọn)
             Processing
                 │
-        ┌───────┴──────────┐
-        ▼                  ▼
-     Matched            Failed
-  (key được gán)    (lý do lưu ở FailureReason)
+        ┌───────┼──────────┐
+        ▼       ▼          ▼
+     Matched  Duplicate  Failed
+  (key gán)  (hash đã    (lý do lưu ở
+              tồn tại)    FailureReason)
 ```
 
 | Field | Kiểu | Ý nghĩa |
@@ -113,10 +114,10 @@ Receive()  →  Pending
 | `SourceSystem` | string | Mã nguồn, ví dụ `"his-01"` |
 | `RecordType` | string | Loại tài liệu, ví dụ `"benh-nhan"` |
 | `RawPayload` | text | JSON gốc từ nguồn — **không bao giờ thay đổi**, dùng để audit |
-| `CanonicalPayload` | text | JSON sau khi áp mapping — báo cáo và search đọc từ đây |
+| `CanonicalPayload` | jsonb | JSON sau khi áp mapping — báo cáo và search đọc từ đây |
 | `BusinessKey` | string | Khóa nghiệp vụ trích từ CanonicalPayload, ví dụ `"BN-001"` |
 | `PayloadHash` | string | SHA-256 của RawPayload — dùng để phát hiện trùng lặp |
-| `Status` | enum | Pending / Processing / Matched / Failed |
+| `Status` | enum | Pending / Processing / Matched / Duplicate / Failed |
 | `MatchedKey` | string | `"{SourceSystem}::{BusinessKey}"` sau khi matched |
 | `FailureReason` | string | Lý do thất bại nếu Status = Failed |
 | `ReceivedAt` | DateTime | Thời điểm nhận record |
@@ -133,6 +134,8 @@ Receive()  →  Pending
 | `FieldMappingsJson` | JSON lưu bảng mapping: `{"tên_gốc": "tên_chuẩn", ...}` |
 
 **Quy tắc quan trọng:** `businessKeyField` phải là một trong các **value** (không phải key) của `mappings`. Ví dụ nếu mappings có `{"patient_id": "MaBenhNhan"}` thì businessKeyField phải là `"MaBenhNhan"`.
+
+> **Field không có trong mapping sẽ được giữ nguyên tên gốc** trong `CanonicalPayload`. Ví dụ: nếu payload gửi lên có field `extra_notes` nhưng mapping không khai báo, `CanonicalPayload` vẫn lưu `"extra_notes": "..."` (không bị bỏ qua).
 
 ---
 
@@ -260,6 +263,7 @@ Content-Type: multipart/form-data
 sourceSystem=his-01
 recordType=benh-nhan
 file=@patients.json
+businessKeyOverride=BN-MANUAL-001   ← optional, áp dụng cho toàn batch
 ```
 
 Giới hạn: **50 MB**. Record trùng (hash đã có) sẽ bị bỏ qua, không lỗi.
@@ -309,7 +313,7 @@ GET /dm/records?recordType=chung-tu&from=2026-01-01&to=2026-03-31&limit=100
 | `sourceSystem` | string? | Lọc theo nguồn |
 | `recordType` | string? | Lọc theo loại tài liệu |
 | `field` | string? | Tên field trong CanonicalPayload cần lọc |
-| `value` | string? | Giá trị cần tìm (không phân biệt hoa thường, tìm kiếm contains) |
+| `value` | string? | Giá trị cần tìm — **exact match, phân biệt hoa thường** (`@>` operator). `value=Tim Mach` ✅ `value=tim mach` ❌ |
 | `from` | DateTime? | Từ ngày (ReceivedAt ≥ from) |
 | `to` | DateTime? | Đến ngày (ReceivedAt ≤ to) |
 | `limit` | int | Số record tối đa trả về (mặc định 200, tối đa 1000) |
@@ -509,8 +513,8 @@ curl -s "http://localhost:5000/dm/records?sourceSystem=his-01&recordType=benh-nh
 curl -s "http://localhost:5000/dm/records?sourceSystem=his-01&recordType=benh-nhan&field=TenKhoa&value=Tim+Mach" \
   | python3 -m json.tool
 
-# Tìm theo tên bệnh nhân (contains, không phân biệt hoa thường)
-curl -s "http://localhost:5000/dm/records?recordType=benh-nhan&field=HoTen&value=Nguyen" \
+# Tìm theo tên bệnh nhân — phải khớp chính xác (case-sensitive)
+curl -s "http://localhost:5000/dm/records?recordType=benh-nhan&field=HoTen&value=Nguyen+Van+A" \
   | python3 -m json.tool
 
 # Chứng từ trong tháng 5/2026
@@ -888,7 +892,7 @@ FOR VALUES FROM ('2026-05-01') TO ('2026-06-01');
 ```
 Domain/
   Entities/
-    StagingRecord     — AggregateRoot, state machine (Pending → Matched/Failed)
+    StagingRecord     — AggregateRoot, state machine (Pending → Matched/Duplicate/Failed)
     SourceProfile     — lưu mapping rules, keyed by (SourceSystem, RecordType)
   Enums/
     RecordStatus      — Pending, Processing, Matched, Duplicate, Failed
@@ -911,9 +915,9 @@ Infrastructure/
   Persistence/
     DataMatchingDbContext       — Npgsql + MassTransit EF Outbox tables
     SourceProfileRepository
-    StagingRecordRepository    — filter in-memory cho CanonicalPayload (text column)
+    StagingRecordRepository    — filter bằng EF.Functions.JsonContains → SQL @> (GIN index)
     Configurations/            — EF Core fluent config cho cả 2 entities
-    Migrations/                — InitialCreate + AddRecordType
+    Migrations/                — InitialCreate + AddRecordType + AddJsonbAndGinIndex
   Workers/
     MatchingWorker             — IHostedService, batch 50, interval 30s
   DependencyInjection.cs       — UseNpgsql + UsePostgres (outbox)
