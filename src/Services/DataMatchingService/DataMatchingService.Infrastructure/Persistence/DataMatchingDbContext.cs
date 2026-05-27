@@ -4,10 +4,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Hdos.DataMatchingService.Infrastructure.Persistence;
 
-public sealed class DataMatchingDbContext : DbContext
+public sealed class DataMatchingDbContext(DbContextOptions<DataMatchingDbContext> options) : DbContext(options)
 {
-    public DataMatchingDbContext(DbContextOptions<DataMatchingDbContext> options) : base(options) { }
-
     public DbSet<StagingRecord> StagingRecords => Set<StagingRecord>();
     public DbSet<SourceProfile> SourceProfiles => Set<SourceProfile>();
 
