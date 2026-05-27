@@ -347,7 +347,7 @@ EOF
 ## Checklist trước production
 
 - [ ] Bỏ comment `// [Authorize]` trên `IngestController`, `SourcesController`, `ReportsController`
-- [ ] Tạo `datamatchingservice.env` trên server với PostgreSQL password thực
-- [ ] Thêm `POSTGRES_DM_PASSWORD` vào `/opt/hdos-prod/.env` và `/opt/hdos-staging/.env`
+- [x] Tạo `datamatchingservice.env` trên server với PostgreSQL password thực
+- [x] Thêm `POSTGRES_DM_PASSWORD` vào `/opt/hdos-prod/.env` và `/opt/hdos-staging/.env`
 - [ ] Implement matching logic thực trong `MatchingWorker`
 - [ ] Cập nhật bảng Outbox trong [doc 21](./21-outbox-pattern.md) khi thêm integration events
