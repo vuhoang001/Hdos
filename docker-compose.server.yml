@@ -29,7 +29,7 @@ services:
   # postgres-dm dùng riêng cho DataMatchingService, không expose port ra ngoài.
   postgres-dm:
     environment:
-      POSTGRES_PASSWORD: "${POSTGRES_DM_PASSWORD}"
+      POSTGRES_PASSWORD: "${POSTGRES_DM_PASSWORD:-changeme}"
     ports: !reset []
 
   authservice:
@@ -86,8 +86,10 @@ services:
     image: ghcr.io/${GHCR_OWNER}/hdos-datamatchingservice:${IMAGE_TAG}
     build: !reset null
     env_file:
-      - ${ENV_DIR}/common.env
-      - ${ENV_DIR}/datamatchingservice.env
+      - path: ${ENV_DIR}/common.env
+        required: true
+      - path: ${ENV_DIR}/datamatchingservice.env
+        required: false
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
       Jwt__Secret: "${JWT_SECRET}"
