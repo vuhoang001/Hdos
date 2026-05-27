@@ -38,46 +38,34 @@ public sealed class StagingRecordRepository(DataMatchingDbContext db) : IStaging
         return q.OrderBy(r => r.ReceivedAt).ToListAsync(ct);
     }
 
-    public async Task<List<StagingRecord>> GetFilteredAsync(
+    public Task<List<StagingRecord>> GetFilteredAsync(
         string? sourceSystem, string? recordType,
         string? field, string? value,
         DateTime? from, DateTime? to,
         int limit, CancellationToken ct)
     {
-        // Lọc cứng theo sourceSystem/recordType/thời gian ở DB trước.
         var q = db.StagingRecords.Where(r => r.Status == RecordStatus.Matched);
         if (!string.IsNullOrEmpty(sourceSystem)) q = q.Where(r => r.SourceSystem == sourceSystem);
         if (!string.IsNullOrEmpty(recordType))   q = q.Where(r => r.RecordType   == recordType);
         if (from.HasValue) q = q.Where(r => r.ReceivedAt >= from.Value);
         if (to.HasValue)   q = q.Where(r => r.ReceivedAt <= to.Value);
 
-        var candidates = await q.OrderByDescending(r => r.ReceivedAt)
-                                .Take(limit * 10)   // lấy dư để bù cho filter in-memory phía dưới
-                                .ToListAsync(ct);
-
-        // Nếu không lọc theo field cụ thể thì trả về ngay.
-        if (string.IsNullOrEmpty(field) || string.IsNullOrEmpty(value))
-            return candidates.Take(limit).ToList();
-
-        // Filter theo field trong CanonicalPayload — làm in-memory vì cột là text, không phải jsonb.
-        return candidates
-            .Where(r => MatchesField(r.CanonicalPayload, field, value))
-            .Take(limit)
-            .ToList();
-    }
-
-    // Kiểm tra xem CanonicalPayload có chứa field với value tương ứng không.
-    // So sánh không phân biệt hoa thường để tìm kiếm dễ hơn.
-    private static bool MatchesField(string? canonicalPayload, string field, string value)
-    {
-        if (string.IsNullOrEmpty(canonicalPayload)) return false;
-        try
+        if (!string.IsNullOrEmpty(field) && !string.IsNullOrEmpty(value))
         {
-            using var doc = JsonDocument.Parse(canonicalPayload);
-            if (doc.RootElement.TryGetProperty(field, out var element))
-                return element.ToString().Contains(value, StringComparison.OrdinalIgnoreCase);
+            // Tạo JSON containment filter: {"TenKhoa": "Tim Mach"}
+            // Toán tử @> kiểm tra CanonicalPayload có chứa cặp key-value này không.
+            // PostgreSQL dùng GIN index (jsonb_path_ops) → O(log n) thay vì O(n).
+            // Lưu ý: đây là exact match, không phải contains.
+            // "Tim Mach" tìm được, "tim mach" không tìm được (jsonb @> case-sensitive).
+            var jsonFilter = JsonSerializer.Serialize(
+                new Dictionary<string, string> { [field] = value });
+
+            q = q.Where(r => EF.Functions.JsonContains(r.CanonicalPayload!, jsonFilter));
         }
-        catch { }
-        return false;
+
+        return q
+            .OrderByDescending(r => r.ReceivedAt)
+            .Take(limit)
+            .ToListAsync(ct);
     }
 }

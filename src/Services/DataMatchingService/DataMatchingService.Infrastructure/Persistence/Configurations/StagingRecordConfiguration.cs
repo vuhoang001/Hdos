@@ -16,7 +16,9 @@ public sealed class StagingRecordConfiguration : IEntityTypeConfiguration<Stagin
         b.Property(x => x.SourceSystem).HasMaxLength(100).IsRequired();
         b.Property(x => x.RecordType).HasMaxLength(100).IsRequired();
         b.Property(x => x.RawPayload).HasColumnType("text").IsRequired();
-        b.Property(x => x.CanonicalPayload).HasColumnType("text");
+        // jsonb thay vì text: PostgreSQL hiểu cấu trúc JSON bên trong,
+        // cho phép tạo GIN index và filter bằng toán tử @> trực tiếp trong SQL.
+        b.Property(x => x.CanonicalPayload).HasColumnType("jsonb");
         b.Property(x => x.BusinessKey).HasMaxLength(500);
         b.Property(x => x.PayloadHash).HasMaxLength(64).IsRequired();
         b.Property(x => x.Status).HasMaxLength(30).HasConversion<string>().IsRequired();

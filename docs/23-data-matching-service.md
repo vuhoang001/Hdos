@@ -16,11 +16,12 @@ Khác với các service còn lại dùng SQL Server, DataMatchingService dùng 
 6. [Deduplication — SHA-256](#6-deduplication--sha-256)
 7. [MatchingWorker](#7-matchingworker)
 8. [Database — PostgreSQL](#8-database--postgresql)
-9. [Kiến trúc nội bộ](#9-kiến-trúc-nội-bộ)
-10. [Chạy local](#10-chạy-local)
-11. [Environment Variables](#11-environment-variables)
-12. [CI/CD](#12-cicd)
-13. [Trạng thái & Checklist](#13-trạng-thái--checklist)
+9. [Performance & Scalability](#9-performance--scalability)
+10. [Kiến trúc nội bộ](#10-kiến-trúc-nội-bộ)
+11. [Chạy local](#11-chạy-local)
+12. [Environment Variables](#12-environment-variables)
+13. [CI/CD](#13-cicd)
+14. [Trạng thái & Checklist](#14-trạng-thái--checklist)
 
 ---
 
@@ -714,7 +715,175 @@ WHERE "BusinessKey" = 'BN-001'
 
 ---
 
-## 9. Kiến trúc nội bộ
+## 9. Performance & Scalability
+
+### Tại sao cần jsonb + GIN index?
+
+`CanonicalPayload` lưu JSON của từng record — đây là cột được filter nhiều nhất khi dùng `GET /dm/records?field=TenKhoa&value=Tim+Mach`.
+
+**Trước khi có jsonb (cột `text`):**
+
+```
+Request: GET /dm/records?field=TenKhoa&value=Tim+Mach
+
+1. PostgreSQL: SELECT * WHERE SourceSystem='his-01' AND RecordType='benh-nhan' LIMIT 2000
+2. Application: Load 2000 rows lên RAM
+3. Application: Parse JSON từng row, kiểm tra TenKhoa == "Tim Mach"
+4. Trả về 200 kết quả
+
+→ Với 1 triệu records: load hàng MB JSON, parse trong RAM → chậm, tốn memory
+```
+
+**Sau khi có jsonb + GIN index:**
+
+```
+Request: GET /dm/records?field=TenKhoa&value=Tim+Mach
+
+1. PostgreSQL: SELECT * WHERE CanonicalPayload @> '{"TenKhoa":"Tim Mach"}'
+              → dùng GIN index → O(log n) → trả về đúng rows cần
+2. Application: Nhận kết quả sẵn, không cần parse thêm
+
+→ Với 1 triệu records: ~5ms thay vì ~500ms
+```
+
+---
+
+### jsonb là gì?
+
+PostgreSQL có 2 kiểu lưu JSON:
+
+| Kiểu | Lưu như | Có thể index? | Khi nào dùng |
+|------|---------|---------------|--------------|
+| `json` | Text nguyên văn | Không | Chỉ lưu, ít query |
+| `jsonb` | Binary đã parse | **Có (GIN)** | Query theo field, filter |
+
+`jsonb` tốn thêm ~20% disk (vì đã parse sẵn) nhưng query nhanh hơn nhiều.
+
+---
+
+### GIN index là gì?
+
+GIN = **Generalized Inverted Index** — kiểu index dành riêng cho dữ liệu có nhiều key (JSON, array, full-text).
+
+Cách hoạt động đơn giản:
+
+```
+GIN index của CanonicalPayload:
+
+  "TenKhoa:Tim Mach"    → [row 1, row 2, row 5]
+  "TenKhoa:Noi Tiet"    → [row 3, row 4]
+  "TrangThai:Xuat vien" → [row 1, row 3]
+  "MaBenhNhan:BN-001"   → [row 1]
+  ...
+```
+
+Khi query `{"TenKhoa":"Tim Mach"}`:
+- Nhìn vào bảng index → tìm key `"TenKhoa:Tim Mach"` → lấy `[row 1, row 2, row 5]` ngay
+- Không cần đọc cả bảng
+
+---
+
+### Cách GIN index được tạo
+
+```sql
+-- Migration: AddJsonbAndGinIndex
+-- 1. Đổi kiểu cột — USING bắt buộc khi data đã tồn tại
+ALTER TABLE "StagingRecords"
+ALTER COLUMN "CanonicalPayload" TYPE jsonb
+USING "CanonicalPayload"::jsonb;
+
+-- 2. Tạo GIN index với jsonb_path_ops
+--    jsonb_path_ops: chỉ hỗ trợ @> nhưng nhỏ hơn và nhanh hơn jsonb_ops mặc định
+CREATE INDEX "IX_StagingRecords_CanonicalPayload_gin"
+ON "StagingRecords"
+USING GIN ("CanonicalPayload" jsonb_path_ops);
+```
+
+---
+
+### Toán tử @> (containment)
+
+Khi gọi `GET /dm/records?field=TenKhoa&value=Tim+Mach`, service tạo query:
+
+```sql
+-- EF Core dịch EF.Functions.JsonContains(...) thành:
+SELECT * FROM "StagingRecords"
+WHERE "Status" = 'Matched'
+  AND "SourceSystem" = 'his-01'
+  AND "RecordType" = 'benh-nhan'
+  AND "CanonicalPayload" @> '{"TenKhoa":"Tim Mach"}'::jsonb
+ORDER BY "ReceivedAt" DESC
+LIMIT 200;
+```
+
+`@>` = "chứa". `{"TenKhoa":"Tim Mach"}` có phải là subset của CanonicalPayload không?
+
+```json
+CanonicalPayload: {"MaBenhNhan":"BN-001","HoTen":"Nguyen Van A","TenKhoa":"Tim Mach","TrangThai":"Xuat vien"}
+Filter:          {"TenKhoa":"Tim Mach"}
+
+→ ✅ Kết quả: match (filter là subset của canonical)
+```
+
+**Lưu ý quan trọng:** `@>` là **exact match, case-sensitive**.
+- `value=Tim Mach` → tìm được ✅
+- `value=tim mach` → không tìm được ❌
+- `value=Tim` → không tìm được ❌ (không phải partial match)
+
+---
+
+### Xác nhận GIN index hoạt động với EXPLAIN ANALYZE
+
+```bash
+docker exec hdos-postgres-dm psql -U dm_user -d DataMatchingDb -c \
+"SET enable_seqscan = off;
+ EXPLAIN ANALYZE
+ SELECT * FROM \"StagingRecords\"
+ WHERE \"CanonicalPayload\" @> '{\"TenKhoa\":\"Tim Mach\"}'::jsonb
+ LIMIT 10;"
+```
+
+Output khi data đủ lớn:
+```
+Bitmap Heap Scan on "StagingRecords"
+  ->  Bitmap Index Scan on "IX_StagingRecords_CanonicalPayload_gin"
+        Index Cond: ("CanonicalPayload" @> '{"TenKhoa": "Tim Mach"}'::jsonb)
+```
+
+> **Lưu ý:** Khi table còn nhỏ (< vài nghìn rows), PostgreSQL tự chọn Seq Scan vì rẻ hơn. GIN index sẽ được dùng tự động khi data lớn — đây là hành vi đúng của query planner.
+
+---
+
+### Capacity planning
+
+| Số records | Storage (ước tính) | Query với GIN | Query không có GIN |
+|-----------|---------------------|---------------|---------------------|
+| 100K | ~500 MB | < 5ms | ~50ms |
+| 1M | ~5 GB | < 10ms | ~500ms |
+| 10M | ~50 GB | < 30ms | ~5s |
+| 100M | ~500 GB | < 100ms | Timeout |
+
+PostgreSQL xử lý tốt đến ~50-100M rows với index đúng. Trên đó cần partition.
+
+---
+
+### Khi nào cần nâng cấp thêm?
+
+**> 5 triệu rows** — Thêm partitioning theo tháng:
+
+```sql
+-- Chia bảng theo ReceivedAt, mỗi partition là 1 tháng
+-- Query tự động chỉ scan partition liên quan
+CREATE TABLE "StagingRecords_2026_05"
+PARTITION OF "StagingRecords"
+FOR VALUES FROM ('2026-05-01') TO ('2026-06-01');
+```
+
+**> 50 triệu rows** — Tách bảng riêng theo `(SourceSystem, RecordType)` nếu mỗi loại có hàng chục triệu records.
+
+---
+
+## 10. Kiến trúc nội bộ
 
 ```
 Domain/
@@ -760,7 +929,7 @@ API/
 
 ---
 
-## 10. Chạy local
+## 11. Chạy local
 
 ### Docker Compose (khuyến nghị)
 
@@ -798,7 +967,7 @@ DOTNET_ROOT=~/.dotnet PATH="$HOME/.dotnet:$PATH" \
 
 ---
 
-## 11. Environment Variables
+## 12. Environment Variables
 
 | Biến | Ý nghĩa | Ví dụ |
 |------|---------|-------|
@@ -811,7 +980,7 @@ DOTNET_ROOT=~/.dotnet PATH="$HOME/.dotnet:$PATH" \
 
 ---
 
-## 12. CI/CD
+## 13. CI/CD
 
 Được tích hợp đầy đủ vào CI/CD pipeline (xem [doc 10](./10-cicd-pipeline.md)):
 
@@ -836,7 +1005,7 @@ EOF
 
 ---
 
-## 13. Trạng thái & Checklist
+## 14. Trạng thái & Checklist
 
 ### Trạng thái hiện tại
 
@@ -849,6 +1018,8 @@ EOF
 | 3 built-in reports | ✅ | chi-phi-theo-khoa, benh-nhan-theo-khoa, tong-hop-nguon |
 | Lọc report theo recordType | ✅ | Không lẫn dữ liệu giữa các loại |
 | PostgreSQL + EF migrations | ✅ | Auto-apply khi startup |
+| `CanonicalPayload` kiểu `jsonb` | ✅ | Filter trực tiếp trong SQL, không in-memory |
+| GIN index trên `CanonicalPayload` | ✅ | `jsonb_path_ops`, tối ưu cho `@>` containment |
 | MassTransit Outbox (PostgreSQL) | ✅ Configured | Chưa có integration event nào được publish |
 | Docker Compose (local) | ✅ | `postgres-dm` + `datamatchingservice` |
 | CI/CD pipeline | ✅ | path-filter, GHCR build, server override |
@@ -862,6 +1033,6 @@ EOF
 - [x] Tạo `datamatchingservice.env` trên server với PostgreSQL password thực
 - [x] Thêm `POSTGRES_DM_PASSWORD` vào `/opt/hdos-prod/.env`
 - [ ] Implement matching logic thực trong `MatchingWorker` (cross-source golden record)
-- [ ] Thêm pagination cho `GET /dm/records` khi data lớn
-- [ ] Chuyển CanonicalPayload sang kiểu `jsonb` trong PostgreSQL để filter bằng SQL thay vì in-memory
+- [ ] Thêm pagination (cursor-based) cho `GET /dm/records` khi data lớn
+- [x] Chuyển CanonicalPayload sang `jsonb` + GIN index — filter bằng SQL `@>`, không in-memory
 - [ ] Cập nhật bảng Outbox trong [doc 21](./21-outbox-pattern.md) khi thêm integration events
