@@ -8,6 +8,7 @@ using Hdos.M01Service.Application;
 using Hdos.M01Service.Infrastructure;
 using Hdos.M01Service.Infrastructure.Persistence;
 using Hdos.M01Service.Infrastructure.Persistence.Seed;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.UseHdosLogging("M01Service");
@@ -50,9 +51,15 @@ static async Task EnsureDatabaseAsync(WebApplication app)
     {
         try
         {
-            // Demo service: no migrations are checked in. Use EnsureCreated so the
-            // schema is materialised on first run, then seed the canned dataset.
-            await db.Database.EnsureCreatedAsync();
+            // If DB exists but has no __EFMigrationsHistory (was created with EnsureCreated),
+            // drop it so MigrateAsync can build the correct schema including outbox tables.
+            if (await db.Database.CanConnectAsync())
+            {
+                var applied = await db.Database.GetAppliedMigrationsAsync();
+                if (!applied.Any())
+                    await db.Database.EnsureDeletedAsync();
+            }
+            await db.Database.MigrateAsync();
             await M01Seeder.SeedAsync(db);
             return;
         }
