@@ -10,6 +10,7 @@ namespace Hdos.DataMatchingService.Application.Features.Ingest;
 
 public sealed record IngestFileCommand(
     string SourceSystem,
+    string RecordType,
     Stream FileStream,
     string FileName,
     string? BusinessKeyOverride) : IRequest<Result<IngestBatchResultDto>>;
@@ -19,6 +20,7 @@ public sealed class IngestFileValidator : AbstractValidator<IngestFileCommand>
     public IngestFileValidator()
     {
         RuleFor(x => x.SourceSystem).NotEmpty();
+        RuleFor(x => x.RecordType).NotEmpty();
         RuleFor(x => x.FileName).NotEmpty();
         RuleFor(x => x.FileStream).NotNull();
         RuleFor(x => x.FileName)
@@ -36,14 +38,13 @@ public sealed class IngestFileHandler(
 {
     public async Task<Result<IngestBatchResultDto>> Handle(IngestFileCommand request, CancellationToken ct)
     {
-        var profile = await profiles.GetBySystemAsync(request.SourceSystem, ct);
+        var profile = await profiles.GetBySystemAndTypeAsync(request.SourceSystem, request.RecordType, ct);
         if (profile is null)
             return Result.Failure<IngestBatchResultDto>(
-                Error.NotFound($"SourceProfile for '{request.SourceSystem}'"));
+                Error.NotFound($"SourceProfile '{request.SourceSystem}/{request.RecordType}' not found."));
 
         var mappings = profile.GetMappings();
         var rawJsonStrings = ParseFile(request.FileStream, request.FileName);
-
         var stagingRecords = new List<StagingRecord>();
 
         foreach (var rawJson in rawJsonStrings)
@@ -53,11 +54,11 @@ public sealed class IngestFileHandler(
                 ?? IngestJsonHandler.ExtractBusinessKey(canonicalPayload, profile.BusinessKeyField);
             var payloadHash = IngestJsonHandler.ComputeHash(rawJson);
 
-            var isDuplicate = await records.ExistsHashAsync(payloadHash, ct);
-            if (isDuplicate) continue;
+            if (await records.ExistsHashAsync(payloadHash, ct)) continue;
 
             stagingRecords.Add(StagingRecord.Receive(
                 request.SourceSystem,
+                request.RecordType,
                 rawJson,
                 canonicalPayload,
                 businessKey,
@@ -70,50 +71,36 @@ public sealed class IngestFileHandler(
             await uow.SaveChangesAsync(ct);
         }
 
-        return new IngestBatchResultDto(
-            stagingRecords.Count,
-            stagingRecords.Select(r => r.Id).ToList());
+        return new IngestBatchResultDto(stagingRecords.Count, stagingRecords.Select(r => r.Id).ToList());
     }
 
     private static List<string> ParseFile(Stream stream, string fileName)
     {
-        if (fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
-            return ParseJson(stream);
-
-        if (fileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
-            return ParseCsv(stream);
-
+        if (fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) return ParseJson(stream);
+        if (fileName.EndsWith(".csv",  StringComparison.OrdinalIgnoreCase)) return ParseCsv(stream);
         return [];
     }
 
     private static List<string> ParseJson(Stream stream)
     {
         var result = new List<string>();
-
         using var doc = JsonDocument.Parse(stream);
         if (doc.RootElement.ValueKind == JsonValueKind.Array)
-        {
             foreach (var element in doc.RootElement.EnumerateArray())
                 result.Add(element.GetRawText());
-        }
         else if (doc.RootElement.ValueKind == JsonValueKind.Object)
-        {
             result.Add(doc.RootElement.GetRawText());
-        }
-
         return result;
     }
 
     private static List<string> ParseCsv(Stream stream)
     {
         var result = new List<string>();
-
         using var reader = new StreamReader(stream);
         var headerLine = reader.ReadLine();
         if (string.IsNullOrWhiteSpace(headerLine)) return result;
 
         var headers = headerLine.Split(',').Select(h => h.Trim()).ToArray();
-
         while (!reader.EndOfStream)
         {
             var line = reader.ReadLine();
@@ -121,16 +108,11 @@ public sealed class IngestFileHandler(
 
             var values = line.Split(',');
             var dict = new Dictionary<string, string>();
-
             for (var i = 0; i < headers.Length; i++)
-            {
-                var value = i < values.Length ? values[i].Trim() : string.Empty;
-                dict[headers[i]] = value;
-            }
+                dict[headers[i]] = i < values.Length ? values[i].Trim() : string.Empty;
 
             result.Add(JsonSerializer.Serialize(dict));
         }
-
         return result;
     }
 }

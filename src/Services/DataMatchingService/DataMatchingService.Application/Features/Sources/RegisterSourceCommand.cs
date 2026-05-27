@@ -9,6 +9,7 @@ namespace Hdos.DataMatchingService.Application.Features.Sources;
 
 public sealed record RegisterSourceCommand(
     string SourceSystem,
+    string RecordType,
     string DisplayName,
     string BusinessKeyField,
     Dictionary<string, string> Mappings) : IRequest<Result<SourceProfileDto>>;
@@ -18,6 +19,7 @@ public sealed class RegisterSourceValidator : AbstractValidator<RegisterSourceCo
     public RegisterSourceValidator()
     {
         RuleFor(x => x.SourceSystem).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.RecordType).NotEmpty().MaximumLength(100);
         RuleFor(x => x.DisplayName).NotEmpty().MaximumLength(200);
         RuleFor(x => x.BusinessKeyField).NotEmpty().MaximumLength(200);
         RuleFor(x => x.Mappings).NotEmpty();
@@ -34,13 +36,14 @@ public sealed class RegisterSourceHandler(
 {
     public async Task<Result<SourceProfileDto>> Handle(RegisterSourceCommand request, CancellationToken ct)
     {
-        var existing = await repo.GetBySystemAsync(request.SourceSystem, ct);
+        var existing = await repo.GetBySystemAndTypeAsync(request.SourceSystem, request.RecordType, ct);
         if (existing is not null)
             return Result.Failure<SourceProfileDto>(
-                Error.Conflict($"SourceSystem '{request.SourceSystem}' is already registered."));
+                Error.Conflict($"SourceProfile '{request.SourceSystem}/{request.RecordType}' is already registered."));
 
         var profile = SourceProfile.Create(
             request.SourceSystem,
+            request.RecordType,
             request.DisplayName,
             request.BusinessKeyField,
             request.Mappings);
@@ -51,6 +54,7 @@ public sealed class RegisterSourceHandler(
         return new SourceProfileDto(
             profile.Id,
             profile.SourceSystem,
+            profile.RecordType,
             profile.DisplayName,
             profile.BusinessKeyField,
             profile.GetMappings());

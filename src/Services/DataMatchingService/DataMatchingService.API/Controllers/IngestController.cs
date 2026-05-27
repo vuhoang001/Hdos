@@ -17,8 +17,7 @@ public sealed class IngestController(ISender sender) : ControllerBase
         [FromBody] IngestJsonRequest body,
         CancellationToken ct)
     {
-        var rawPayload = body.Payload.GetRawText();
-        var cmd = new IngestJsonCommand(body.SourceSystem, rawPayload, body.BusinessKeyOverride);
+        var cmd = new IngestJsonCommand(body.SourceSystem, body.RecordType, body.Payload.GetRawText(), body.BusinessKeyOverride);
         var result = await sender.Send(cmd, ct);
 
         return result.IsSuccess
@@ -29,10 +28,11 @@ public sealed class IngestController(ISender sender) : ControllerBase
     }
 
     [HttpPost("file")]
-    [RequestSizeLimit(50 * 1024 * 1024)] // 50 MB limit
+    [RequestSizeLimit(50 * 1024 * 1024)]
     public async Task<IActionResult> IngestFile(
         IFormFile file,
         [FromForm] string sourceSystem,
+        [FromForm] string recordType,
         [FromForm] string? businessKeyOverride,
         CancellationToken ct)
     {
@@ -40,7 +40,7 @@ public sealed class IngestController(ISender sender) : ControllerBase
             return BadRequest(ApiResponse.Fail("BadRequest", "No file uploaded."));
 
         using var stream = file.OpenReadStream();
-        var cmd = new IngestFileCommand(sourceSystem, stream, file.FileName, businessKeyOverride);
+        var cmd = new IngestFileCommand(sourceSystem, recordType, stream, file.FileName, businessKeyOverride);
         var result = await sender.Send(cmd, ct);
 
         return result.IsSuccess
@@ -51,5 +51,6 @@ public sealed class IngestController(ISender sender) : ControllerBase
 
 public sealed record IngestJsonRequest(
     string SourceSystem,
+    string RecordType,
     JsonElement Payload,
     string? BusinessKeyOverride);

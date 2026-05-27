@@ -12,6 +12,7 @@ namespace Hdos.DataMatchingService.Application.Features.Ingest;
 
 public sealed record IngestJsonCommand(
     string SourceSystem,
+    string RecordType,
     string RawPayload,
     string? BusinessKeyOverride) : IRequest<Result<IngestResultDto>>;
 
@@ -20,6 +21,7 @@ public sealed class IngestJsonValidator : AbstractValidator<IngestJsonCommand>
     public IngestJsonValidator()
     {
         RuleFor(x => x.SourceSystem).NotEmpty();
+        RuleFor(x => x.RecordType).NotEmpty();
         RuleFor(x => x.RawPayload)
             .NotEmpty()
             .Must(IsValidJson).WithMessage("RawPayload must be valid JSON.");
@@ -27,15 +29,8 @@ public sealed class IngestJsonValidator : AbstractValidator<IngestJsonCommand>
 
     private static bool IsValidJson(string payload)
     {
-        try
-        {
-            JsonDocument.Parse(payload);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
+        try { JsonDocument.Parse(payload); return true; }
+        catch { return false; }
     }
 }
 
@@ -47,26 +42,25 @@ public sealed class IngestJsonHandler(
 {
     public async Task<Result<IngestResultDto>> Handle(IngestJsonCommand request, CancellationToken ct)
     {
-        var profile = await profiles.GetBySystemAsync(request.SourceSystem, ct);
+        // Tìm profile theo (sourceSystem, recordType) — mỗi loại tài liệu có mapping riêng.
+        var profile = await profiles.GetBySystemAndTypeAsync(request.SourceSystem, request.RecordType, ct);
         if (profile is null)
             return Result.Failure<IngestResultDto>(
-                Error.NotFound($"SourceProfile for '{request.SourceSystem}'"));
+                Error.NotFound($"SourceProfile '{request.SourceSystem}/{request.RecordType}' not found."));
 
-        var mappings = profile.GetMappings();
+        var mappings       = profile.GetMappings();
         var canonicalPayload = ApplyMappings(request.RawPayload, mappings);
+        var businessKey    = request.BusinessKeyOverride
+                             ?? ExtractBusinessKey(canonicalPayload, profile.BusinessKeyField);
+        var payloadHash    = ComputeHash(request.RawPayload);
 
-        var businessKey = request.BusinessKeyOverride
-            ?? ExtractBusinessKey(canonicalPayload, profile.BusinessKeyField);
-
-        var payloadHash = ComputeHash(request.RawPayload);
-
-        var isDuplicate = await records.ExistsHashAsync(payloadHash, ct);
-        if (isDuplicate)
+        if (await records.ExistsHashAsync(payloadHash, ct))
             return Result.Failure<IngestResultDto>(
                 Error.Conflict("Duplicate payload: a record with this exact content already exists."));
 
         var record = StagingRecord.Receive(
             request.SourceSystem,
+            request.RecordType,
             request.RawPayload,
             canonicalPayload,
             businessKey,
@@ -75,13 +69,11 @@ public sealed class IngestJsonHandler(
         await records.AddAsync(record, ct);
         await uow.SaveChangesAsync(ct);
 
-        return new IngestResultDto(
-            record.Id,
-            record.SourceSystem,
-            record.BusinessKey,
-            record.Status.ToString());
+        return new IngestResultDto(record.Id, record.SourceSystem, record.RecordType, record.BusinessKey, record.Status.ToString());
     }
 
+    // Đổi tên field của JSON gốc sang tên chuẩn theo bảng mapping.
+    // Field không có trong mapping → giữ nguyên, không mất dữ liệu.
     internal static string ApplyMappings(string rawPayload, Dictionary<string, string> mappings)
     {
         using var doc = JsonDocument.Parse(rawPayload);
@@ -89,37 +81,31 @@ public sealed class IngestJsonHandler(
 
         foreach (var prop in doc.RootElement.EnumerateObject())
         {
-            if (mappings.TryGetValue(prop.Name, out var canonicalName))
-                result[canonicalName] = prop.Value.Clone();
-            else
-                result[prop.Name] = prop.Value.Clone();
+            var key = mappings.TryGetValue(prop.Name, out var canonical) ? canonical : prop.Name;
+            result[key] = prop.Value.Clone();
         }
 
         return JsonSerializer.Serialize(result);
     }
 
+    // Trích giá trị của businessKeyField từ canonicalPayload.
     internal static string? ExtractBusinessKey(string? canonicalPayload, string businessKeyField)
     {
         if (string.IsNullOrEmpty(canonicalPayload)) return null;
-
         try
         {
             using var doc = JsonDocument.Parse(canonicalPayload);
             if (doc.RootElement.TryGetProperty(businessKeyField, out var val))
                 return val.ToString();
         }
-        catch
-        {
-            // ignore parse errors, return null
-        }
-
+        catch { }
         return null;
     }
 
+    // SHA-256 của raw payload dưới dạng hex lowercase — dùng để phát hiện trùng lặp.
     internal static string ComputeHash(string input)
     {
         var bytes = Encoding.UTF8.GetBytes(input);
-        var hashBytes = SHA256.HashData(bytes);
-        return Convert.ToHexString(hashBytes).ToLowerInvariant();
+        return Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
     }
 }

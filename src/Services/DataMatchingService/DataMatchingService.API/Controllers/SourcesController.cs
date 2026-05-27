@@ -18,15 +18,18 @@ public sealed class SourcesController(ISender sender) : ControllerBase
     {
         var result = await sender.Send(cmd, ct);
         return result.IsSuccess
-            ? CreatedAtAction(nameof(GetSources), null,
-                ApiResponse<SourceProfileDto>.Ok(result.Value))
+            ? CreatedAtAction(nameof(GetSources), null, ApiResponse<SourceProfileDto>.Ok(result.Value))
             : Conflict(ApiResponse<SourceProfileDto>.Fail(result.Error.Code, result.Error.Message));
     }
 
+    // GET /dm/sources                   → tất cả sources
+    // GET /dm/sources?sourceSystem=his-01 → chỉ các loại của his-01
     [HttpGet]
-    public async Task<IActionResult> GetSources(CancellationToken ct)
+    public async Task<IActionResult> GetSources(
+        [FromQuery] string? sourceSystem,
+        CancellationToken ct)
     {
-        var result = await sender.Send(new GetSourcesQuery(), ct);
+        var result = await sender.Send(new GetSourcesQuery(sourceSystem), ct);
         return Ok(ApiResponse<List<SourceProfileDto>>.Ok(result.Value));
     }
 }
