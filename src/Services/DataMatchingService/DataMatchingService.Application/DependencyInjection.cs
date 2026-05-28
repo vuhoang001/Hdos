@@ -3,6 +3,8 @@ using FluentValidation;
 using Hdos.Common.Extensions;
 using Hdos.DataMatchingService.Application.Dashboard;
 using Hdos.DataMatchingService.Application.Dashboard.Configs;
+using Hdos.DataMatchingService.Application.Sdui;
+using Hdos.DataMatchingService.Application.Sdui.Pages;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Hdos.DataMatchingService.Application;
@@ -19,6 +21,10 @@ public static class DependencyInjection
         // Dashboard Engine — thêm dashboard mới: AddSingleton<DashboardConfig, YourConfig>()
         services.AddSingleton<DashboardConfig, M02DashboardConfig>();
         services.AddSingleton<DashboardEngine>();
+
+        // SDUI Engine — thêm page mới: AddSingleton<SduiPageConfig, YourPageConfig>()
+        services.AddSingleton<SduiPageConfig, ExecutiveSduiConfig>();
+        services.AddSingleton<SduiEngine>();
 
         return services;
     }
