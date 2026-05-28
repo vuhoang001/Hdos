@@ -131,3 +131,5 @@ Xem thư mục [`docs/`](./docs/README.md) — 13 file giải thích chi tiết 
 | [15 — Async Gateway](./docs/15-async-gateway.md) | HTTP → Queue pattern, AsyncGateway service |
 | [16 — Test Async Gateway](./docs/16-test-async-gateway.md) | Luồng test đầy đủ, xem RabbitMQ Management UI |
 | [23 — DataMatchingService](./docs/23-data-matching-service.md) | Ingest, dedup SHA-256, MatchingWorker, báo cáo y tế |
+| [24 — Dashboard Engine](./docs/24-dashboard-data-matching.md) | Dashboard config pattern, ingest HIS → sections[], test M02 |
+| [25 — Server-Driven UI](./docs/25-sdui-server-driven-ui.md) | SDUI engine, component types, test executive page, thêm page mới |
