@@ -45,3 +45,43 @@ public sealed record ReportDto(
     List<ReportColumnDto> Columns,
     List<ReportRowDto> Rows,
     Dictionary<string, object?> Summary);
+
+// --- M02: Trực quan khoa Nội ---
+
+public sealed record M02SummaryDto(
+    int TongGiuongDangSuDung,
+    int TongGiuongKhaDung,
+    double BorPercent,
+    int DangDieuTri,
+    int VaoVienHomNay,
+    int RaVienHomNay,
+    double Alos);
+
+public sealed record M02DoiTuongDto(
+    string DoiTuong,
+    int SoLuong,
+    double PhanTram);
+
+public sealed record M02IcdDto(
+    string MaIcd,
+    string TenIcd,
+    int SoLuong);
+
+public sealed record M02BenhNhanDto(
+    string Mrn,
+    string TenBenhNhan,
+    string TenKhoa,
+    string? SoGiuong,
+    string? NgayNhap,
+    string? NgayXuat,
+    string? DoiTuong,
+    string? TrangThai,
+    string? ChanDoan);
+
+public sealed record M02ReportDto(
+    DateOnly ReportDate,
+    DateTime GeneratedAt,
+    M02SummaryDto Summary,
+    List<M02DoiTuongDto> DoiTuongKcb,
+    List<M02IcdDto> TopIcd,
+    List<M02BenhNhanDto> BenhNhanNoiTru);

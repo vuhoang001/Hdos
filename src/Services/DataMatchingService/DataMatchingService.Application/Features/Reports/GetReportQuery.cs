@@ -23,7 +23,8 @@ public sealed class GetReportHandler(IStagingRecordRepository records)
     {
         if (!SupportedCodes.Contains(request.ReportCode))
             return Result.Failure<ReportDto>(
-                Error.NotFound($"Report '{request.ReportCode}' not supported. Supported: {string.Join(", ", SupportedCodes)}"));
+                Error.NotFound(
+                    $"Report '{request.ReportCode}' not supported. Supported: {string.Join(", ", SupportedCodes)}"));
 
         var matched = await records.GetMatchedAsync(
             request.SourceSystem, request.RecordType, request.From, request.To, ct);
@@ -33,8 +34,14 @@ public sealed class GetReportHandler(IStagingRecordRepository records)
             .Where(r => !string.IsNullOrEmpty(r.CanonicalPayload))
             .Select(r =>
             {
-                try { return JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(r.CanonicalPayload!) ?? []; }
-                catch { return new Dictionary<string, JsonElement>(); }
+                try
+                {
+                    return JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(r.CanonicalPayload!) ?? [];
+                }
+                catch
+                {
+                    return new Dictionary<string, JsonElement>();
+                }
             })
             .Where(d => d.Count > 0)
             .ToList();
@@ -52,16 +59,22 @@ public sealed class GetReportHandler(IStagingRecordRepository records)
     {
         var grouped = rows
             .GroupBy(r => GetString(r, "TenKhoa") ?? "(unknown)")
-            .Select(g => new { TenKhoa = g.Key, SoBenhNhan = g.Count(), TongChiPhi = g.Sum(r => GetDecimal(r, "TongChiPhi")) })
+            .Select(g => new
+            {
+                TenKhoa = g.Key, SoBenhNhan = g.Count(), TongChiPhi = g.Sum(r => GetDecimal(r, "TongChiPhi"))
+            })
             .OrderByDescending(x => x.TongChiPhi)
             .ToList();
 
         return new ReportDto(
-            "chi-phi-theo-khoa", "Chi phi theo khoa", DateTime.UtcNow,
-            Columns: [
-                new("TenKhoa",    "Ten khoa",    "string"),
-                new("SoBenhNhan", "So benh nhan","number"),
-                new("TongChiPhi", "Tong chi phi","currency")
+            "chi-phi-theo-khoa",
+            "Chi phi theo khoa",
+            DateTime.UtcNow,
+            Columns:
+            [
+                new("TenKhoa", "Ten khoa", "string"),
+                new("SoBenhNhan", "So benh nhan", "number"),
+                new("TongChiPhi", "Tong chi phi", "currency")
             ],
             Rows: grouped.Select(x => new ReportRowDto(new Dictionary<string, object?>
             {
@@ -79,17 +92,19 @@ public sealed class GetReportHandler(IStagingRecordRepository records)
     private static Result<ReportDto> BuildBenhNhanTheoKhoa(List<Dictionary<string, JsonElement>> rows)
     {
         var grouped = rows
-            .GroupBy(r => (TenKhoa: GetString(r, "TenKhoa") ?? "(unknown)", TrangThai: GetString(r, "TrangThai") ?? "(unknown)"))
+            .GroupBy(r => (TenKhoa: GetString(r, "TenKhoa")   ?? "(unknown)",
+                         TrangThai: GetString(r, "TrangThai") ?? "(unknown)"))
             .Select(g => new { g.Key.TenKhoa, g.Key.TrangThai, SoBenhNhan = g.Count() })
             .OrderBy(x => x.TenKhoa).ThenBy(x => x.TrangThai)
             .ToList();
 
         return new ReportDto(
             "benh-nhan-theo-khoa", "Benh nhan theo khoa", DateTime.UtcNow,
-            Columns: [
-                new("TenKhoa",    "Ten khoa",    "string"),
-                new("TrangThai",  "Trang thai",  "string"),
-                new("SoBenhNhan", "So benh nhan","number")
+            Columns:
+            [
+                new("TenKhoa", "Ten khoa", "string"),
+                new("TrangThai", "Trang thai", "string"),
+                new("SoBenhNhan", "So benh nhan", "number")
             ],
             Rows: grouped.Select(x => new ReportRowDto(new Dictionary<string, object?>
             {
@@ -107,16 +122,20 @@ public sealed class GetReportHandler(IStagingRecordRepository records)
         var grouped = sourceSystems
             .Zip(rows, (s, r) => (SourceSystem: s, Row: r))
             .GroupBy(x => x.SourceSystem)
-            .Select(g => new { SourceSystem = g.Key, SoBenhNhan = g.Count(), TongChiPhi = g.Sum(x => GetDecimal(x.Row, "TongChiPhi")) })
+            .Select(g => new
+            {
+                SourceSystem = g.Key, SoBenhNhan = g.Count(), TongChiPhi = g.Sum(x => GetDecimal(x.Row, "TongChiPhi"))
+            })
             .OrderByDescending(x => x.SoBenhNhan)
             .ToList();
 
         return new ReportDto(
             "tong-hop-nguon", "Tong hop theo nguon", DateTime.UtcNow,
-            Columns: [
-                new("SourceSystem", "Nguon du lieu","string"),
-                new("SoBenhNhan",   "So benh nhan", "number"),
-                new("TongChiPhi",   "Tong chi phi", "currency")
+            Columns:
+            [
+                new("SourceSystem", "Nguon du lieu", "string"),
+                new("SoBenhNhan", "So benh nhan", "number"),
+                new("TongChiPhi", "Tong chi phi", "currency")
             ],
             Rows: grouped.Select(x => new ReportRowDto(new Dictionary<string, object?>
             {
