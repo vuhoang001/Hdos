@@ -49,14 +49,9 @@ public static class DependencyInjection
             x.AddConsumer<ProcessedToFeConsumer>();
         }, servicePrefix: "notification", configureReceiveEndpoints: (cfg, ctx) =>
         {
-            cfg.ReceiveEndpoint("notification-processed-to-fe", e =>
+            cfg.ReceiveEndpoint("be.hdos.dashboard.fe.ready", e =>
             {
                 e.UseRawJsonDeserializer();
-                e.Bind("processed_to_fe", b =>
-                {
-                    b.ExchangeType = "direct";
-                    b.RoutingKey = "be.hdos.dashboard.fe.ready";
-                });
                 e.ConfigureConsumer<ProcessedToFeConsumer>(ctx);
             });
         });

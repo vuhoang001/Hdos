@@ -4,6 +4,7 @@ using MassTransit;
 
 namespace Hdos.NotificationService.Infrastructure.Consumers;
 
+[ExcludeFromConfigureEndpoints]
 public sealed class ProcessedToFeConsumer(ProcessedToFeHandler handler)
     : IConsumer<ProcessedToFeMessage>
 {
