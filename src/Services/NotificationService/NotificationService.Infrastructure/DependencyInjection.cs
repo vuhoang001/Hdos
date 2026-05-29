@@ -55,7 +55,7 @@ public static class DependencyInjection
                 e.Bind("processed_to_fe", b =>
                 {
                     b.ExchangeType = "direct";
-                    b.RoutingKey = "";
+                    b.RoutingKey = "be.hdos.dashboard.fe.ready";
                 });
                 e.ConfigureConsumer<ProcessedToFeConsumer>(ctx);
             });
