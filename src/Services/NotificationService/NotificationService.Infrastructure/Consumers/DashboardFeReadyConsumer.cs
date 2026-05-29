@@ -4,7 +4,6 @@ using MassTransit;
 
 namespace Hdos.NotificationService.Infrastructure.Consumers;
 
-[ExcludeFromConfigureEndpoints]
 public sealed class DashboardFeReadyConsumer(DashboardFeReadyHandler handler)
     : IConsumer<DashboardFeReadyIntegrationEvent>
 {
