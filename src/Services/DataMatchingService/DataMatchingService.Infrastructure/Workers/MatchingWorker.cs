@@ -1,5 +1,3 @@
-using Hdos.Common.Messaging;
-using Hdos.Contracts.IntegrationEvents;
 using Hdos.DataMatchingService.Domain.Repositories;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -40,14 +38,12 @@ public sealed class MatchingWorker(
     private async Task ProcessBatchAsync(CancellationToken ct)
     {
         using var scope = scopeFactory.CreateScope();
-        var records  = scope.ServiceProvider.GetRequiredService<IStagingRecordRepository>();
-        var uow      = scope.ServiceProvider.GetRequiredService<IDataMatchingUnitOfWork>();
-        var eventBus = scope.ServiceProvider.GetRequiredService<IEventBus>();
+        var records = scope.ServiceProvider.GetRequiredService<IStagingRecordRepository>();
+        var uow     = scope.ServiceProvider.GetRequiredService<IDataMatchingUnitOfWork>();
 
         var batch = await records.GetPendingBatchAsync(50, ct);
         if (batch.Count == 0) return;
 
-        var affectedSystems = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var processed = 0;
 
         foreach (var record in batch)
@@ -61,7 +57,6 @@ public sealed class MatchingWorker(
                     : $"{record.SourceSystem}::{record.BusinessKey}";
 
                 record.MarkMatched(matchedKey);
-                affectedSystems.Add(record.SourceSystem);
                 processed++;
             }
             catch (Exception ex)
@@ -70,10 +65,6 @@ public sealed class MatchingWorker(
                 record.MarkFailed(ex.Message);
             }
         }
-
-        if (processed > 0)
-            await eventBus.PublishAsync(
-                new DashboardFeReadyIntegrationEvent(processed, [.. affectedSystems]), ct);
 
         await uow.SaveChangesAsync(ct);
 
