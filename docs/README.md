@@ -28,6 +28,10 @@ Bộ tài liệu này mô tả toàn bộ hệ thống **Hdos** — một nền 
 | [20 — Adapter Ingest Gateway](./20-adapter-ingest-gateway.md) | External Project bắn data vào → song song ghi Lakehouse + push realtime Frontend |
 | [21 — Transactional Outbox Pattern](./21-outbox-pattern.md) | Giải quyết Dual Write: đảm bảo integration event không bị mất khi DB commit thành công nhưng RabbitMQ chưa nhận |
 | [22 — CDC với Debezium + Kafka](./22-cdc-debezium-kafka.md) | Change Data Capture: bắt mọi thay đổi DB row qua SQL Server CDC → Debezium → Kafka → .NET CdcConsumerService |
+| [23 — DataMatchingService](./23-data-matching-service.md) | Ingest, deduplication, matching records từ nhiều source system |
+| [24 — Dashboard Data Matching](./24-dashboard-data-matching.md) | Dashboard engine: config-driven, SDUI sections, REST API |
+| [25 — Server-Driven UI](./25-sdui-server-driven-ui.md) | SDUI engine: server quyết định layout, client chỉ render |
+| [26 — Dashboard SSE Push](./26-dashboard-sse-push.md) | MatchingWorker publish event → queue tên cố định → SSE broadcast frontend; giải thích `[ExcludeFromConfigureEndpoints]` và custom `ReceiveEndpoint` |
 
 ---
 
