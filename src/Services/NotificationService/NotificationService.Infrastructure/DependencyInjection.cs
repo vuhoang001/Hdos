@@ -10,8 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Hdos.NotificationService.Infrastructure;
-
+namespace Hdos.NotificationService.Infrastructure; 
 public static class DependencyInjection
 {
     public static IServiceCollection AddNotificationInfrastructure(

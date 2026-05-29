@@ -12,7 +12,7 @@ public sealed class MatchingWorker(
     ILogger<MatchingWorker> logger) : BackgroundService
 {
     private readonly int _intervalSeconds =
-        configuration.GetValue<int>("Matching:WorkerIntervalSeconds", 30);
+        configuration.GetValue("Matching:WorkerIntervalSeconds", 30);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {

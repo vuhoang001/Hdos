@@ -3,10 +3,10 @@ using System.Text.Json.Serialization;
 namespace Hdos.DataMatchingService.Application.Dashboard;
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
-[JsonDerivedType(typeof(KpiGridSection),  "kpi-grid")]
+[JsonDerivedType(typeof(KpiGridSection), "kpi-grid")]
 [JsonDerivedType(typeof(PieChartSection), "pie-chart")]
 [JsonDerivedType(typeof(BarChartSection), "bar-chart")]
-[JsonDerivedType(typeof(TableSection),    "table")]
+[JsonDerivedType(typeof(TableSection), "table")]
 public abstract record DashboardSection(string Id, string Title);
 
 // --- KPI Grid ---
@@ -15,7 +15,7 @@ public sealed record KpiItem(
     string Label,
     double Value,
     string? Unit,
-    string Format);   // "number" | "percent" | "currency" | "days"
+    string Format); // "number" | "percent" | "currency" | "days"
 
 public sealed record KpiGridSection(
     string Id,
