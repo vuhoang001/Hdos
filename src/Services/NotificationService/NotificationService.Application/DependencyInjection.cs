@@ -24,6 +24,7 @@ public static class DependencyInjection
         services.AddScoped<HoanggggfEventHandler>();
         services.AddScoped<OrderConfirmedEventHandler>();
         services.AddScoped<TestIntegrationEventHandler>();
+        services.AddScoped<ProcessedToFeHandler>();
 
         return services;
     }

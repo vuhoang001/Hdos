@@ -40,7 +40,8 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration,
         Action<IBusRegistrationConfigurator>? configure = null,
-        string servicePrefix = "")
+        string servicePrefix = "",
+        Action<IRabbitMqBusFactoryConfigurator, IBusRegistrationContext>? configureReceiveEndpoints = null)
     {
         var options = configuration
             .GetSection(RabbitMqOptions.SectionName)
@@ -74,6 +75,7 @@ public static class ServiceCollectionExtensions
                                         maxInterval: TimeSpan.FromSeconds(30),
                                         intervalDelta: TimeSpan.FromSeconds(5)));
 
+                configureReceiveEndpoints?.Invoke(cfg, ctx);
                 cfg.ConfigureEndpoints(ctx);
             });
         });
