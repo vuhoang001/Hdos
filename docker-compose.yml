@@ -32,6 +32,25 @@ services:
       retries: 10
     networks: [hdos-net]
 
+  postgres-df:
+    image: postgres:16-alpine
+    container_name: hdos-postgres-df
+    environment:
+      POSTGRES_DB: DynamicFormDb
+      POSTGRES_USER: df_user
+      POSTGRES_PASSWORD: "${POSTGRES_DF_PASSWORD:-df_pass}"
+    ports:
+      - "5434:5432"
+    volumes:
+      - hdos-pgdata-df:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U df_user -d DynamicFormDb"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks: [hdos-net]
+
   postgres-dm:
     image: postgres:16-alpine
     container_name: hdos-postgres-dm
@@ -138,6 +157,26 @@ services:
         condition: service_healthy
     networks: [hdos-net]
 
+  dynamicformservice:
+    image: hdos/dynamicformservice:latest
+    build:
+      context: .
+      dockerfile: src/Services/DynamicFormService/DynamicFormService.API/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DynamicFormDb: "Host=postgres-df;Port=5432;Database=DynamicFormDb;Username=df_user;Password=${POSTGRES_DF_PASSWORD:-df_pass}"
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: 5672
+      Jwt__Issuer: "hdos-auth"
+      Jwt__Audience: "hdos-api"
+      Jwt__Secret: "${JWT_SECRET:-DEV-INSECURE-SECRET-CHANGE-ME-AT-LEAST-32-CHARS}"
+    depends_on:
+      postgres-df:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks: [hdos-net]
+
   datamatchingservice:
     image: hdos/datamatchingservice:latest
     build:
@@ -192,6 +231,7 @@ services:
       - notificationservice
       - m01service
       - datamatchingservice
+      - dynamicformservice
       - asyncgateway
     ports:
       - "5000:8080"
@@ -205,4 +245,5 @@ networks:
 volumes:
   hdos-sqldata:
   hdos-pgdata-dm:
+  hdos-pgdata-df:
   hdos-nginx-ssl:
