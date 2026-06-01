@@ -94,6 +94,23 @@ services:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
       Jwt__Secret: "${JWT_SECRET}"
 
+  postgres-df:
+    environment:
+      POSTGRES_PASSWORD: "${POSTGRES_DF_PASSWORD:-changeme}"
+    ports: !reset []
+
+  dynamicformservice:
+    image: ghcr.io/${GHCR_OWNER}/hdos-dynamicformservice:${IMAGE_TAG}
+    build: !reset null
+    env_file:
+      - path: ${ENV_DIR}/common.env
+        required: true
+      - path: ${ENV_DIR}/dynamicformservice.env
+        required: false
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
+      Jwt__Secret: "${JWT_SECRET}"
+
   nginx:
     image: nginx:1.27-alpine
     volumes:

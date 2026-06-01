@@ -31,7 +31,7 @@ jobs:
         run: |
           # Tạo file env còn thiếu để compose không lỗi khi service mới được thêm vào.
           # Operator cần tự điền giá trị thực sau khi deploy lần đầu.
-          for svc in asyncgateway datamatchingservice; do
+          for svc in asyncgateway datamatchingservice dynamicformservice; do
             f="${ENV_DIR}/${svc}.env"
             if [ ! -f "$f" ]; then
               echo "⚠️  $f not found — creating empty file. Set real values on server."
@@ -42,6 +42,11 @@ jobs:
           if ! grep -q "POSTGRES_DM_PASSWORD" "${ENV_DIR}/.env" 2>/dev/null; then
             echo "⚠️  POSTGRES_DM_PASSWORD not set — appending placeholder. Change on server!"
             echo "POSTGRES_DM_PASSWORD=changeme-set-real-password" >> "${ENV_DIR}/.env"
+          fi
+          # Thêm POSTGRES_DF_PASSWORD vào .env nếu chưa có
+          if ! grep -q "POSTGRES_DF_PASSWORD" "${ENV_DIR}/.env" 2>/dev/null; then
+            echo "⚠️  POSTGRES_DF_PASSWORD not set — appending placeholder. Change on server!"
+            echo "POSTGRES_DF_PASSWORD=changeme-set-real-password" >> "${ENV_DIR}/.env"
           fi
 
       - name: Deploy
@@ -122,7 +127,7 @@ jobs:
         env:
           ENV_DIR: /opt/hdos-prod
         run: |
-          for svc in asyncgateway datamatchingservice; do
+          for svc in asyncgateway datamatchingservice dynamicformservice; do
             f="${ENV_DIR}/${svc}.env"
             if [ ! -f "$f" ]; then
               echo "⚠️  $f not found — creating empty file. Set real values on server."
@@ -132,6 +137,10 @@ jobs:
           if ! grep -q "POSTGRES_DM_PASSWORD" "${ENV_DIR}/.env" 2>/dev/null; then
             echo "⚠️  POSTGRES_DM_PASSWORD not set — appending placeholder. Change on server!"
             echo "POSTGRES_DM_PASSWORD=changeme-set-real-password" >> "${ENV_DIR}/.env"
+          fi
+          if ! grep -q "POSTGRES_DF_PASSWORD" "${ENV_DIR}/.env" 2>/dev/null; then
+            echo "⚠️  POSTGRES_DF_PASSWORD not set — appending placeholder. Change on server!"
+            echo "POSTGRES_DF_PASSWORD=changeme-set-real-password" >> "${ENV_DIR}/.env"
           fi
 
       - name: Deploy
