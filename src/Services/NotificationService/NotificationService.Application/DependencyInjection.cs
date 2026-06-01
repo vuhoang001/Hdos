@@ -23,6 +23,7 @@ public static class DependencyInjection
         services.AddScoped<DashboardFeReadyHandler>();
         services.AddScoped<OrderConfirmedEventHandler>();
         services.AddScoped<ProcessedToFeHandler>();
+        services.AddScoped<DebugFeReadyHandler>();
 
         return services;
     }
