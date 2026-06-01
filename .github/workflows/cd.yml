@@ -35,7 +35,7 @@ jobs:
             f="${ENV_DIR}/${svc}.env"
             if [ ! -f "$f" ]; then
               echo "⚠️  $f not found — creating empty file. Set real values on server."
-              touch "$f"
+              sudo touch "$f"
             fi
           done
           # Thêm POSTGRES_DM_PASSWORD vào .env nếu chưa có
@@ -131,7 +131,7 @@ jobs:
             f="${ENV_DIR}/${svc}.env"
             if [ ! -f "$f" ]; then
               echo "⚠️  $f not found — creating empty file. Set real values on server."
-              touch "$f"
+              sudo touch "$f"
             fi
           done
           if ! grep -q "POSTGRES_DM_PASSWORD" "${ENV_DIR}/.env" 2>/dev/null; then
