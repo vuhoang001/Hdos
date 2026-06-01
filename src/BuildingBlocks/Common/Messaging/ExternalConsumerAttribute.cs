@@ -3,11 +3,9 @@ using MassTransit;
 namespace Hdos.Common.Messaging;
 
 [AttributeUsage(AttributeTargets.Class)]
-public sealed class ExternalConsumerAttribute : ExcludeFromConfigureEndpointsAttribute
+public sealed class ExternalConsumerAttribute(string queueName) : ExcludeFromConfigureEndpointsAttribute
 {
-    public ExternalConsumerAttribute(string queueName) => QueueName = queueName;
-
-    public string QueueName { get; }
+    public string QueueName { get; } = queueName;
 
     /// <summary>Raw JSON deserializer — bật cho messages từ bên ngoài không dùng MassTransit envelope.</summary>
     public bool UseRawJson { get; init; } = true;
