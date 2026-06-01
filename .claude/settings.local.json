@@ -237,7 +237,27 @@
       "Bash(export DOTNET_ROOT=\"$HOME/.dotnet\")",
       "Bash(export PATH=\"$DOTNET_ROOT:$DOTNET_ROOT/tools:$PATH\")",
       "Bash(xargs cat -n)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(xargs -I{} sh -c 'echo \"=== {} ===\"; cat {}')",
+      "WebFetch(domain:docs.confluent.io)",
+      "WebFetch(domain:debezium.io)",
+      "WebFetch(domain:estuary.dev)",
+      "WebFetch(domain:nodogmablog.bryanhogan.net)",
+      "Bash(mkdir -p /home/hoanggggf/Documents/Code/work/Hdos/src/Services/DataMatchingService/DataMatchingService.Domain/Enums)",
+      "Bash(mkdir -p /home/hoanggggf/Documents/Code/work/Hdos/src/Services/DataMatchingService/DataMatchingService.Domain/Entities)",
+      "Bash(mkdir -p /home/hoanggggf/Documents/Code/work/Hdos/src/Services/DataMatchingService/DataMatchingService.Domain/Repositories)",
+      "Bash(mkdir -p /home/hoanggggf/Documents/Code/work/Hdos/src/Services/DataMatchingService/DataMatchingService.Application/DTOs)",
+      "Bash(mkdir -p /home/hoanggggf/Documents/Code/work/Hdos/src/Services/DataMatchingService/DataMatchingService.Application/Features/Sources)",
+      "Bash(awk -F/ '{ *)",
+      "Bash(dotnet tool *)",
+      "Bash(~/.dotnet/dotnet restore *)",
+      "Bash(~/.dotnet/tools/dotnet-ef migrations *)",
+      "Bash(docker build *)",
+      "Bash(~/.dotnet/dotnet decompile *)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Read(//usr/local/share/dotnet/**)",
+      "Read(//usr/local/**)"
     ]
   }
 }

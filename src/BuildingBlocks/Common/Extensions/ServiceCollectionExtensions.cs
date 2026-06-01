@@ -1,3 +1,4 @@
+using System.Reflection;
 using Hdos.Common.Behaviors;
 using Hdos.Common.Messaging;
 using Hdos.Common.Persistence;
@@ -41,7 +42,8 @@ public static class ServiceCollectionExtensions
         IConfiguration configuration,
         Action<IBusRegistrationConfigurator>? configure = null,
         string servicePrefix = "",
-        Action<IRabbitMqBusFactoryConfigurator, IBusRegistrationContext>? configureReceiveEndpoints = null)
+        Action<IRabbitMqBusFactoryConfigurator, IBusRegistrationContext>? configureReceiveEndpoints = null,
+        Assembly? externalConsumersAssembly = null)
     {
         var options = configuration
             .GetSection(RabbitMqOptions.SectionName)
@@ -55,6 +57,9 @@ public static class ServiceCollectionExtensions
                 x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(servicePrefix, false));
 
             configure?.Invoke(x);
+
+            if (externalConsumersAssembly is not null)
+                x.AddExternalConsumers(externalConsumersAssembly);
 
             x.UsingRabbitMq((ctx, cfg) =>
             {
@@ -76,6 +81,10 @@ public static class ServiceCollectionExtensions
                                         intervalDelta: TimeSpan.FromSeconds(5)));
 
                 configureReceiveEndpoints?.Invoke(cfg, ctx);
+
+                if (externalConsumersAssembly is not null)
+                    cfg.ConfigureExternalEndpoints(ctx, externalConsumersAssembly);
+
                 cfg.ConfigureEndpoints(ctx);
             });
         });

@@ -32,6 +32,7 @@ Bộ tài liệu này mô tả toàn bộ hệ thống **Hdos** — một nền 
 | [24 — Dashboard Data Matching](./24-dashboard-data-matching.md) | Dashboard engine: config-driven, SDUI sections, REST API |
 | [25 — Server-Driven UI](./25-sdui-server-driven-ui.md) | SDUI engine: server quyết định layout, client chỉ render |
 | [26 — Dashboard SSE Push](./26-dashboard-sse-push.md) | MatchingWorker publish event → queue tên cố định → SSE broadcast frontend; giải thích `[ExcludeFromConfigureEndpoints]` và custom `ReceiveEndpoint` |
+| [27 — External Consumer Pattern](./27-external-consumer-pattern.md) | Nhận messages từ hệ thống bên ngoài qua RabbitMQ: `[ExternalConsumer]` attribute, auto-scan assembly, mỗi consumer độc lập, không cần sửa DI khi thêm mới |
 
 ---
 

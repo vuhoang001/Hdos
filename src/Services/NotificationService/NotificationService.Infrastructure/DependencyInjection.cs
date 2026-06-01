@@ -1,12 +1,10 @@
 using Hdos.Common.Extensions;
 using Hdos.Common.Kafka;
 using Hdos.Common.Persistence;
-using Hdos.NotificationService.Application.EventHandlers;
 using Hdos.NotificationService.Domain.Repositories;
 using Hdos.NotificationService.Infrastructure.Cdc;
 using Hdos.NotificationService.Infrastructure.Consumers;
 using Hdos.NotificationService.Infrastructure.Persistence;
-using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -46,15 +44,8 @@ public static class DependencyInjection
             x.AddConsumer<HoanggggfConsumer>();
             x.AddConsumer<HoanggggfErrorConsumer>();
             x.AddConsumer<TestConsumer>();
-            x.AddConsumer<ProcessedToFeConsumer>();
-        }, servicePrefix: "notification", configureReceiveEndpoints: (cfg, ctx) =>
-        {
-            cfg.ReceiveEndpoint("be.hdos.dashboard.fe.ready", e =>
-            {
-                e.UseRawJsonDeserializer();
-                e.ConfigureConsumer<ProcessedToFeConsumer>(ctx);
-            });
-        });
+        }, servicePrefix: "notification",
+           externalConsumersAssembly: typeof(DependencyInjection).Assembly);
 
         // CDC consumer — chỉ active khi Kafka:Topic được cấu hình
         var kafkaSection = configuration.GetSection(KafkaConsumerOptions.SectionName);
