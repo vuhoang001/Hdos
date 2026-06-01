@@ -22,5 +22,9 @@
   "datamatchingservice": {
     "dockerfile": "src/Services/DataMatchingService/DataMatchingService.API/Dockerfile",
     "context": "."
+  },
+  "dynamicformservice": {
+    "dockerfile": "src/Services/DynamicFormService/DynamicFormService.API/Dockerfile",
+    "context": "."
   }
 }
