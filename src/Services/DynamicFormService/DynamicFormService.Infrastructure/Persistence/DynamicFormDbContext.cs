@@ -10,6 +10,7 @@ public sealed class DynamicFormDbContext(DbContextOptions<DynamicFormDbContext> 
     public DbSet<FormTemplate>   FormTemplates   => Set<FormTemplate>();
     public DbSet<FormField>      FormFields      => Set<FormField>();
     public DbSet<FormSubmission> FormSubmissions => Set<FormSubmission>();
+    public DbSet<FormPage>       FormPages       => Set<FormPage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
