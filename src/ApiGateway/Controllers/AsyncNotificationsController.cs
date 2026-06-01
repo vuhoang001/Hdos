@@ -33,7 +33,7 @@ public sealed class AsyncNotificationsController(IEventBus eventBus) : Controlle
         var correlationId = Guid.NewGuid();
         await eventBus.PublishAsync(
             new NotificationSendRequestedIntegrationEvent(
-                CorrelationId: correlationId,
+                RequestId: correlationId,
                 RecipientEmail: request.RecipientEmail,
                 Subject: request.Subject,
                 Body: request.Body),

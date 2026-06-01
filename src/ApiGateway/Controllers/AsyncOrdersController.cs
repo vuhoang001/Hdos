@@ -39,7 +39,7 @@ public sealed class AsyncOrdersController(IEventBus eventBus) : ControllerBase
         var correlationId = Guid.NewGuid();
         await eventBus.PublishAsync(
             new OrderCreateRequestedIntegrationEvent(
-                CorrelationId: correlationId,
+                RequestId: correlationId,
                 CustomerId: customerId,
                 Items: request.Items),
             ct);

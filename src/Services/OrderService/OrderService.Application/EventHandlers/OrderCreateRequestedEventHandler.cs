@@ -16,7 +16,7 @@ public sealed class OrderCreateRequestedEventHandler(
     {
         logger.LogInformation(
             "Processing async order creation. CorrelationId={CorrelationId} CustomerId={CustomerId}",
-            @event.CorrelationId, @event.CustomerId);
+            @event.RequestId, @event.CustomerId);
 
         var items = @event.Items
             .Select(i => new OrderItemInputDto(i.ProductName, i.Quantity, i.UnitPrice, "VND"))
@@ -28,10 +28,10 @@ public sealed class OrderCreateRequestedEventHandler(
         if (result.IsFailure)
             logger.LogWarning(
                 "Async order creation failed. CorrelationId={CorrelationId} Error={Error}",
-                @event.CorrelationId, result.Error.Message);
+                @event.RequestId, result.Error.Message);
         else
             logger.LogInformation(
                 "Async order created. CorrelationId={CorrelationId} OrderId={OrderId}",
-                @event.CorrelationId, result.Value.Id);
+                @event.RequestId, result.Value.Id);
     }
 }

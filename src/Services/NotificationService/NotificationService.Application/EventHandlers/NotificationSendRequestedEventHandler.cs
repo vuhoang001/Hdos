@@ -19,7 +19,7 @@ public sealed class NotificationSendRequestedEventHandler(
     {
         logger.LogInformation(
             "Processing async notification. CorrelationId={CorrelationId} Recipient={Recipient}",
-            @event.CorrelationId, @event.RecipientEmail);
+            @event.RequestId, @event.RecipientEmail);
 
         var notification = Notification.Create(
             recipient: @event.RecipientEmail,
