@@ -31,11 +31,11 @@ jobs:
         run: |
           # Tạo file env còn thiếu để compose không lỗi khi service mới được thêm vào.
           # Operator cần tự điền giá trị thực sau khi deploy lần đầu.
-          for svc in asyncgateway datamatchingservice dynamicformservice; do
+          for svc in asyncgateway datamatchingservice; do
             f="${ENV_DIR}/${svc}.env"
             if [ ! -f "$f" ]; then
               echo "⚠️  $f not found — creating empty file. Set real values on server."
-              sudo touch "$f"
+              touch "$f"
             fi
           done
           # Thêm POSTGRES_DM_PASSWORD vào .env nếu chưa có
@@ -127,11 +127,11 @@ jobs:
         env:
           ENV_DIR: /opt/hdos-prod
         run: |
-          for svc in asyncgateway datamatchingservice dynamicformservice; do
+          for svc in asyncgateway datamatchingservice; do
             f="${ENV_DIR}/${svc}.env"
             if [ ! -f "$f" ]; then
               echo "⚠️  $f not found — creating empty file. Set real values on server."
-              sudo touch "$f"
+              touch "$f"
             fi
           done
           if ! grep -q "POSTGRES_DM_PASSWORD" "${ENV_DIR}/.env" 2>/dev/null; then
