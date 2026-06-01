@@ -25,3 +25,7 @@ datamatchingservice:
   - "src/Services/DataMatchingService/**"
   - "src/BuildingBlocks/**"
 
+dynamicformservice:
+  - "src/Services/DynamicFormService/**"
+  - "src/BuildingBlocks/**"
+
