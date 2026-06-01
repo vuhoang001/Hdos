@@ -11,11 +11,20 @@ public sealed class ProcessedToFeHandler(
     public async Task HandleAsync(ProcessedToFeMessage message, CancellationToken ct)
     {
         logger.LogInformation(
-            "Received processed_to_fe: eventType={EventType}", message.EventType);
+            "Received external message | eventType={EventType} source={Source} correlation={CorrelationId}",
+            message.EventType, message.Source, message.CorrelationId);
 
         await pusher.BroadcastEventAsync(
             "processed-to-fe",
-            new { eventType = message.EventType, payload = message.Payload, data = message.Data },
+            new
+            {
+                eventType     = message.EventType,
+                source        = message.Source,
+                correlationId = message.CorrelationId,
+                occurredAt    = message.OccurredAt,
+                payload       = message.Payload,
+                data          = message.Data
+            },
             ct);
     }
 }

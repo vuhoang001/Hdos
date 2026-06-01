@@ -1,10 +1,10 @@
 using System.Text.Json;
+using Hdos.Contracts.ExternalMessages;
 
 namespace Hdos.NotificationService.Application.DTOs;
 
-// Message từ bên thứ 3 publish lên exchange "processed_to_fe"
-// Dùng JsonElement? để nhận bất kỳ JSON value nào (string, object, array)
+// Message nhận từ hệ thống ngoài qua queue "be.hdos.dashboard.fe.ready"
+// EventType, Source, CorrelationId... kế thừa từ ExternalMessage (CloudEvents standard)
 public sealed record ProcessedToFeMessage(
-    string?      EventType,
     JsonElement? Payload,
-    JsonElement? Data);
+    JsonElement? Data) : ExternalMessage;
