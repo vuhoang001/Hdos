@@ -1,6 +1,8 @@
 # 27 — External Consumer Pattern
 
-Pattern để nhận messages từ **các ứng dụng bên ngoài** (không dùng MassTransit) thông qua RabbitMQ, với mỗi consumer hoàn toàn độc lập và cách khai báo đơn giản bằng attribute.
+Pattern để nhận messages từ **các ứng dụng bên ngoài không dùng MassTransit envelope format** thông qua RabbitMQ, với mỗi consumer hoàn toàn độc lập và cách khai báo đơn giản bằng attribute.
+
+> Toàn bộ pattern vẫn chạy trên MassTransit — `IConsumer<T>`, `ReceiveEndpoint`, retry, dead-letter đều nguyên vẹn. Điểm khác biệt duy nhất là dùng `UseRawJsonDeserializer` để bỏ qua MassTransit envelope mà bên ngoài không gửi.
 
 ---
 
@@ -8,7 +10,7 @@ Pattern để nhận messages từ **các ứng dụng bên ngoài** (không dù
 
 Các service nội bộ giao tiếp qua MassTransit — envelope, typing, retry đều được MassTransit tự xử lý. Nhưng khi nhận messages từ **hệ thống bên ngoài** (third-party HIS, ERP, hệ thống legacy…), chúng ta phải đối mặt với:
 
-- Message format tùy ý, không có MassTransit envelope
+- Bên ngoài gửi JSON thuần, không có MassTransit envelope (`messageType`, `messageId`…)
 - Tên queue/exchange do bên ngoài quy định, không theo convention nội bộ
 - Mỗi source system có thể cần prefetch count và concurrency khác nhau
 - Số lượng source tăng dần theo thời gian → không muốn sửa file DI mỗi lần thêm mới

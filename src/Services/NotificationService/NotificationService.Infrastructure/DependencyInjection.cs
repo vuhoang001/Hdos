@@ -41,9 +41,6 @@ public static class DependencyInjection
             x.AddConsumer<ProductTotalUpdatedConsumer>();
             x.AddConsumer<BaoCaoKhoaCreatedConsumer>();
             x.AddConsumer<DashboardFeReadyConsumer>();
-            x.AddConsumer<HoanggggfConsumer>();
-            x.AddConsumer<HoanggggfErrorConsumer>();
-            x.AddConsumer<TestConsumer>();
         }, servicePrefix: "notification",
            externalConsumersAssembly: typeof(DependencyInjection).Assembly);
 

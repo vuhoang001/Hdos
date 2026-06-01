@@ -23,16 +23,15 @@ Bộ tài liệu này mô tả toàn bộ hệ thống **Hdos** — một nền 
 | [14 — SignalR Realtime](./14-signalr-realtime.md) | Hub, envelope chuẩn, cách test từ frontend |
 | [15 — Async Gateway](./15-async-gateway.md) | HTTP→Queue→Service, endpoints, test guide, Grafana observability |
 | [16 — HTTPS & TLS](./16-https-ssl.md) | Self-signed cert cho nginx, HTTPS termination tại 8443, hướng dẫn production thay cert thật |
-| [17 — MassTransit Messaging](./17-masstransit-messaging.md) | MassTransit + RabbitMQ: publish/consume pattern, queue naming, retry, dead-letter, test endpoint |
-| [19 — Test End-to-End Publish→Consumer](./19-test-masstransit-e2e.md) | Demo chạy thực tế: lấy token, publish event, verify consumer log & RabbitMQ UI, troubleshooting |
+| [17 — MassTransit Messaging](./17-masstransit-messaging.md) | MassTransit + RabbitMQ: topology, naming, cách thêm event nội bộ, test E2E, tất cả events hiện tại, retry/dead-letter |
 | [20 — Adapter Ingest Gateway](./20-adapter-ingest-gateway.md) | External Project bắn data vào → song song ghi Lakehouse + push realtime Frontend |
 | [21 — Transactional Outbox Pattern](./21-outbox-pattern.md) | Giải quyết Dual Write: đảm bảo integration event không bị mất khi DB commit thành công nhưng RabbitMQ chưa nhận |
 | [22 — CDC với Debezium + Kafka](./22-cdc-debezium-kafka.md) | Change Data Capture: bắt mọi thay đổi DB row qua SQL Server CDC → Debezium → Kafka → .NET CdcConsumerService |
 | [23 — DataMatchingService](./23-data-matching-service.md) | Ingest, deduplication, matching records từ nhiều source system |
 | [24 — Dashboard Data Matching](./24-dashboard-data-matching.md) | Dashboard engine: config-driven, SDUI sections, REST API |
 | [25 — Server-Driven UI](./25-sdui-server-driven-ui.md) | SDUI engine: server quyết định layout, client chỉ render |
-| [26 — Dashboard SSE Push](./26-dashboard-sse-push.md) | MatchingWorker publish event → queue tên cố định → SSE broadcast frontend; giải thích `[ExcludeFromConfigureEndpoints]` và custom `ReceiveEndpoint` |
-| [27 — External Consumer Pattern](./27-external-consumer-pattern.md) | Nhận messages từ hệ thống bên ngoài qua RabbitMQ: `[ExternalConsumer]` attribute, auto-scan assembly, mỗi consumer độc lập, không cần sửa DI khi thêm mới |
+| [26 — Dashboard SSE Push](./26-dashboard-sse-push.md) | MatchingWorker publish event → consumer chuẩn → SSE broadcast frontend; JavaScript EventSource integration |
+| [27 — External Consumer Pattern](./27-external-consumer-pattern.md) | Nhận messages từ hệ thống bên ngoài không dùng MassTransit envelope: `[ExternalConsumer]` attribute + `UseRawJsonDeserializer`, auto-scan assembly, mỗi consumer độc lập |
 
 ---
 

@@ -121,56 +121,17 @@ AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport
 
 ## RabbitMQ / MassTransit (Asynchronous)
 
-Hệ thống dùng **MassTransit 8.2** làm abstraction layer trên RabbitMQ, không dùng RabbitMQ.Client trực tiếp.
+Hệ thống dùng **MassTransit 8.2** làm abstraction layer trên RabbitMQ. Tất cả services dùng `IEventBus` để publish, `IConsumer<T>` để consume — không dùng RabbitMQ.Client trực tiếp.
 
-### Topology
+MassTransit tạo **2 exchange** cho mỗi consumer: message-type exchange (theo namespace) và endpoint exchange (kebab-case từ tên consumer). Retry exponential backoff 5 lần, sau đó vào dead-letter queue `{name}_error`.
 
-MassTransit tạo **2 exchange** cho mỗi consumer — đây là thiết kế chuẩn, không phải lỗi:
+**Tài liệu chi tiết:**
 
-```
-Exchange: Hdos.Contracts.IntegrationEvents:UserRegisteredIntegrationEvent [fanout]
-     └── Exchange: user-registered [fanout]
-              └── Queue: user-registered  →  NotificationService.UserRegisteredConsumer
-
-Exchange: Hdos.Contracts.IntegrationEvents:OrderCreatedIntegrationEvent [fanout]
-     └── Exchange: order-created [fanout]
-              └── Queue: order-created    →  NotificationService.OrderCreatedConsumer
-```
-
-- **Message-type exchange** (full namespace): Publisher gửi vào đây, không cần biết có bao nhiêu consumer.
-- **Endpoint exchange + Queue** (kebab-case): Tên tự động từ tên consumer, bỏ suffix `Consumer`.
-
-### Publisher
-
-Tất cả services dùng `IEventBus` để publish — interface nằm trong `Common`, không phụ thuộc MassTransit:
-
-```csharp
-await eventBus.PublishAsync(new UserRegisteredIntegrationEvent(
-    UserId: user.Id,
-    Email: user.Email.Value,
-    FullName: user.FullName), ct);
-```
-
-### Consumer
-
-Mỗi consumer là `IConsumer<T>` (MassTransit), delegate xuống Application handler chứa business logic:
-
-```csharp
-// Infrastructure layer
-public sealed class UserRegisteredConsumer(UserRegisteredEventHandler handler)
-    : IConsumer<UserRegisteredIntegrationEvent>
-{
-    public Task Consume(ConsumeContext<UserRegisteredIntegrationEvent> context)
-        => handler.HandleAsync(context.Message, context.CancellationToken);
-}
-```
-
-### Retry & Dead-letter
-
-- Retry exponential backoff: tối đa **5 lần**, từ 1s đến 30s
-- Sau 5 lần thất bại → message chuyển sang queue `{name}_error` (dead-letter tự động)
-
-**Chi tiết đầy đủ, quy tắc đặt tên, hướng dẫn thêm publisher/consumer mới:** xem [17 — MassTransit Messaging](./17-masstransit-messaging.md).
+| Chủ đề | Doc |
+|---|---|
+| Topology, naming, cách thêm event mới, test E2E, tất cả events | [17 — MassTransit Messaging](./17-masstransit-messaging.md) |
+| Đảm bảo event không mất (Outbox) | [21 — Transactional Outbox Pattern](./21-outbox-pattern.md) |
+| Nhận messages từ hệ thống bên ngoài | [27 — External Consumer Pattern](./27-external-consumer-pattern.md) |
 
 ---
 
