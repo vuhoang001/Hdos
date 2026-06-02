@@ -6,12 +6,14 @@ namespace Hdos.DynamicFormService.Domain.Entities;
 
 public sealed class FormModule : AggregateRoot<Guid>
 {
-    public string       Code        { get; private set; } = null!;
-    public string       Name        { get; private set; } = null!;
-    public string?      Description { get; private set; }
-    public ModuleStatus Status      { get; private set; }
+    public string Code { get; private set; } = null!;
+    public string Name { get; private set; } = null!;
+    public string? Description { get; private set; }
+    public ModuleStatus Status { get; private set; }
 
-    private FormModule() { }
+    private FormModule()
+    {
+    }
 
     public static FormModule Create(string code, string name, string? description)
     {

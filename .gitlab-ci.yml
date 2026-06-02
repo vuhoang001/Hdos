@@ -1,0 +1,187 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# GitLab CI/CD — Hdos Microservices Platform
+# Stages: test → build → deploy
+# Branches: main (production) | staging (staging)
+# ─────────────────────────────────────────────────────────────────────────────
+
+stages:
+  - build
+  - deploy
+
+# Chỉ chạy pipeline khi push lên main/staging hoặc bấm nút thủ công trên GitLab
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "staging"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+# ─── Variables dùng chung ─────────────────────────────────────────────────────
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+
+# ─── Stage 1: Build & Push image lên GitLab Registry ─────────────────────────
+# Matrix build: mỗi service build song song
+# main    → tag :prod-latest + :SHA
+# staging → tag :dev-latest  + :SHA
+build:
+  stage: build
+  tags:
+    - self-hosted
+  parallel:
+    matrix:
+      - SERVICE:
+          - authservice
+          - orderservice
+          - notificationservice
+          - m01service
+          - asyncgateway
+          - datamatchingservice
+          - dynamicformservice
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - DOCKERFILE=$(jq -r ".\"$SERVICE\".dockerfile" services.json)
+    - CONTEXT=$(jq -r ".\"$SERVICE\".context" services.json)
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "main" ]; then
+        ENV_TAG="prod-latest"
+      else
+        ENV_TAG="dev-latest"
+      fi
+    - |
+      docker build \
+        -t $CI_REGISTRY_IMAGE/hdos-$SERVICE:$ENV_TAG \
+        -t $CI_REGISTRY_IMAGE/hdos-$SERVICE:$CI_COMMIT_SHA \
+        -f $DOCKERFILE $CONTEXT
+    - docker push $CI_REGISTRY_IMAGE/hdos-$SERVICE:$ENV_TAG
+    - docker push $CI_REGISTRY_IMAGE/hdos-$SERVICE:$CI_COMMIT_SHA
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "staging"
+      when: on_success
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: on_success
+
+# ─── Stage 2a: Deploy Staging ─────────────────────────────────────────────────
+deploy-staging:
+  stage: deploy
+  tags:
+    - self-hosted
+  environment:
+    name: staging
+    url: http://staging.hdos.local
+  variables:
+    ENV_DIR: /opt/hdos-staging
+    ASPNETCORE_ENVIRONMENT: Staging
+    ENV_TAG: dev-latest
+    REGISTRY_IMAGE: $CI_REGISTRY_IMAGE
+    IMAGE_TAG: dev-latest
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - |
+      for svc in asyncgateway datamatchingservice; do
+        f="${ENV_DIR}/${svc}.env"
+        if [ ! -f "$f" ]; then
+          echo "WARNING: $f not found — creating empty file. Set real values on server."
+          touch "$f"
+        fi
+      done
+    - |
+      if ! grep -q "POSTGRES_DM_PASSWORD" "${ENV_DIR}/.env" 2>/dev/null; then
+        echo "POSTGRES_DM_PASSWORD=changeme-set-real-password" >> "${ENV_DIR}/.env"
+      fi
+    - |
+      if ! grep -q "POSTGRES_DF_PASSWORD" "${ENV_DIR}/.env" 2>/dev/null; then
+        echo "POSTGRES_DF_PASSWORD=changeme-set-real-password" >> "${ENV_DIR}/.env"
+      fi
+    - |
+      COMPOSE_ARGS="--env-file ${ENV_DIR}/.env \
+        -f docker-compose.yml \
+        -f docker-compose.server.yml \
+        -f docker-compose.monitoring.yml"
+      docker compose $COMPOSE_ARGS pull
+      docker compose $COMPOSE_ARGS down --remove-orphans --timeout 30
+      docker ps -a --format '{{.Names}}' | grep '^hdos-' | xargs -r docker rm -f 2>/dev/null || true
+      docker compose $COMPOSE_ARGS up -d
+      docker image prune -f
+    - sleep 15
+    - |
+      COMPOSE_ARGS="--env-file ${ENV_DIR}/.env \
+        -f docker-compose.yml \
+        -f docker-compose.server.yml \
+        -f docker-compose.monitoring.yml"
+      FAILED=$(docker compose $COMPOSE_ARGS ps 2>/dev/null | grep -E ' Exit| Restarting' || true)
+      if [ -n "$FAILED" ]; then
+        echo "Containers in bad state:"
+        docker compose $COMPOSE_ARGS ps
+        docker compose $COMPOSE_ARGS logs --tail=100
+        exit 1
+      fi
+  needs:
+    - build
+  rules:
+    - if: $CI_COMMIT_BRANCH == "staging"
+      when: on_success
+
+# ─── Stage 2b: Deploy Production ──────────────────────────────────────────────
+deploy-production:
+  stage: deploy
+  tags:
+    - self-hosted
+  environment:
+    name: production
+    url: http://hdos.local
+  variables:
+    ENV_DIR: /opt/hdos-prod
+    ASPNETCORE_ENVIRONMENT: Production
+    ENV_TAG: prod-latest
+    REGISTRY_IMAGE: $CI_REGISTRY_IMAGE
+    IMAGE_TAG: prod-latest
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - |
+      for svc in asyncgateway datamatchingservice; do
+        f="${ENV_DIR}/${svc}.env"
+        if [ ! -f "$f" ]; then
+          echo "WARNING: $f not found — creating empty file. Set real values on server."
+          touch "$f"
+        fi
+      done
+    - |
+      if ! grep -q "POSTGRES_DM_PASSWORD" "${ENV_DIR}/.env" 2>/dev/null; then
+        echo "POSTGRES_DM_PASSWORD=changeme-set-real-password" >> "${ENV_DIR}/.env"
+      fi
+    - |
+      if ! grep -q "POSTGRES_DF_PASSWORD" "${ENV_DIR}/.env" 2>/dev/null; then
+        echo "POSTGRES_DF_PASSWORD=changeme-set-real-password" >> "${ENV_DIR}/.env"
+      fi
+    - |
+      COMPOSE_ARGS="--env-file ${ENV_DIR}/.env \
+        -f docker-compose.yml \
+        -f docker-compose.server.yml \
+        -f docker-compose.monitoring.yml"
+      docker compose $COMPOSE_ARGS pull
+      docker compose $COMPOSE_ARGS down --remove-orphans --timeout 30
+      docker ps -a --format '{{.Names}}' | grep '^hdos-' | xargs -r docker rm -f 2>/dev/null || true
+      docker compose $COMPOSE_ARGS up -d
+      docker image prune -f
+    - sleep 15
+    - |
+      COMPOSE_ARGS="--env-file ${ENV_DIR}/.env \
+        -f docker-compose.yml \
+        -f docker-compose.server.yml \
+        -f docker-compose.monitoring.yml"
+      FAILED=$(docker compose $COMPOSE_ARGS ps 2>/dev/null | grep -E ' Exit| Restarting' || true)
+      if [ -n "$FAILED" ]; then
+        echo "Containers in bad state:"
+        docker compose $COMPOSE_ARGS ps
+        docker compose $COMPOSE_ARGS logs --tail=100
+        exit 1
+      fi
+  needs:
+    - build
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: on_success

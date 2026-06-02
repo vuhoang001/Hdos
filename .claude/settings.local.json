@@ -257,7 +257,40 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "Read(//usr/local/share/dotnet/**)",
-      "Read(//usr/local/**)"
+      "Read(//usr/local/**)",
+      "Bash(~/.dotnet/tools/dotnet-ef --version)",
+      "Bash(DOTNET_ROOT=/home/hoanggggf/.dotnet ~/.dotnet/tools/dotnet-ef *)",
+      "Bash(PATH=\"/home/hoanggggf/.dotnet:$PATH\" DOTNET_ROOT=/home/hoanggggf/.dotnet ~/.dotnet/tools/dotnet-ef migrations *)",
+      "Bash(PATH=/home/hoanggggf/.dotnet:__TRACKED_VAR__ DOTNET_ROOT=/home/hoanggggf/.dotnet dotnet build /home/hoanggggf/Documents/Code/work/Hdos/src/Services/DynamicFormService/ --configuration Release)",
+      "Bash(PATH=/home/hoanggggf/.dotnet:__TRACKED_VAR__ DOTNET_ROOT=/home/hoanggggf/.dotnet dotnet build /home/hoanggggf/Documents/Code/work/Hdos/src/Services/DynamicFormService/DynamicFormService.API/DynamicFormService.API.csproj --configuration Release)",
+      "Bash(PATH=/home/hoanggggf/.dotnet:__TRACKED_VAR__ DOTNET_ROOT=/home/hoanggggf/.dotnet dotnet ef migrations add InitialCreate --project /home/hoanggggf/Documents/Code/work/Hdos/src/Services/DynamicFormService/DynamicFormService.Infrastructure/DynamicFormService.Infrastructure.csproj --startup-project /home/hoanggggf/Documents/Code/work/Hdos/src/Services/DynamicFormService/DynamicFormService.API/DynamicFormService.API.csproj --output-dir Persistence/Migrations)",
+      "Bash(PATH=\"/home/hoanggggf/.dotnet:$PATH\" DOTNET_ROOT=/home/hoanggggf/.dotnet ~/.dotnet/tools/dotnet-ef *)",
+      "Bash(PATH=/home/hoanggggf/.dotnet:__TRACKED_VAR__/.dotnet/tools:__TRACKED_VAR__ DOTNET_ROOT=/home/hoanggggf/.dotnet dotnet-ef migrations add InitialCreate --project /home/hoanggggf/Documents/Code/work/Hdos/src/Services/DynamicFormService/DynamicFormService.Infrastructure/DynamicFormService.Infrastructure.csproj --startup-project /home/hoanggggf/Documents/Code/work/Hdos/src/Services/DynamicFormService/DynamicFormService.API/DynamicFormService.API.csproj --output-dir Persistence/Migrations)",
+      "Bash(export PATH=\"$HOME/.dotnet:$HOME/.dotnet/tools:$PATH\")"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "BuildingBlocks",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'WARNING: Editing BuildingBlocks affects ALL services. Confirm with user first.'"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '\\n┌─────────────────────────────────────┐\\n│      POST-SESSION CHECKLIST         │\\n├─────────────────────────────────────┤\\n│ [ ] git diff --name-only  (scope?)  │\\n│ [ ] dotnet build          (pass?)   │\\n│ [ ] dotnet test           (pass?)   │\\n│ [ ] Feature mới → docs/NN-*.md ?    │\\n│ [ ] IntegrationEvent → Contracts?   │\\n│ [ ] Secret nào trong code không?    │\\n└─────────────────────────────────────┘\\n'"
+          }
+        ]
+      }
     ]
   }
 }

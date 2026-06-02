@@ -1,11 +1,9 @@
 name: CI
 
+# GitHub Actions CI — tạm thời chỉ chạy thủ công.
+# CI/CD chính chạy trên GitLab (GitLab mirror GitHub repo).
+# Kích hoạt lại auto-run: thêm lại push/pull_request triggers bên dưới.
 on:
-  push:
-    branches: [main, staging]
-  pull_request:
-    branches: [main, staging]
-  # Bấm nút thủ công để force build tất cả service (dùng lần đầu hoặc khi cần rebuild)
   workflow_dispatch:
     inputs:
       force_build_all:

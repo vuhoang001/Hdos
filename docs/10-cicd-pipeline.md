@@ -1,6 +1,6 @@
 # 10 — CI/CD Pipeline
 
-Mỗi lần push code lên GitHub, hệ thống tự động: chạy test → build Docker image → push lên registry → deploy lên server. Không cần SSH vào server để deploy thủ công.
+Code lưu trên **GitHub**. CI/CD chạy trên **GitLab** (GitLab mirror GitHub repo tự động). Mỗi lần push lên GitHub, GitLab kéo code về, chạy build → push image lên GitLab Registry → deploy container lên server. Không cần SSH vào server để deploy thủ công.
 
 ---
 
@@ -10,199 +10,138 @@ Mỗi lần push code lên GitHub, hệ thống tự động: chạy test → bu
 git push origin main
         │
         ▼
-┌─────────────────────────────────────────┐
-│                  CI                      │
-│                                         │
-│  detect-changes ──► resolve-services    │
-│                              │          │
-│                              ▼          │
-│                          test (all)     │
-│                              │          │
-│                   ┌──────────┘          │
-│                   ▼                     │
-│        build-push (matrix: services)    │
-│        → push image lên GHCR           │
-└────────────────────┬────────────────────┘
-                     │ (workflow_run event)
-                     ▼
-┌─────────────────────────────────────────┐
-│                  CD                      │
-│                                         │
-│  nhánh dev  → deploy-staging (auto)     │
-│  nhánh main → deploy-production (manual)│
-└─────────────────────────────────────────┘
+   GitHub repo
+        │  (mirror tự động — webhook)
+        ▼
+   GitLab repo
+        │
+        ▼
+┌─────────────────────────────────────┐
+│           GitLab CI (build)          │
+│                                     │
+│  build 7 services song song         │
+│  → push image lên GitLab Registry   │
+│    registry.gitlab.com/project/     │
+│    hdos-SERVICE:prod-latest          │
+└──────────────┬──────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────┐
+│           GitLab CD (deploy)         │
+│                                     │
+│  nhánh staging → deploy-staging     │
+│  nhánh main    → deploy-production  │
+└─────────────────────────────────────┘
+               │
+               ▼
+        Server (self-hosted runner)
+        docker compose pull + up -d
 ```
-
-**Quan trọng:** Production không tự động deploy — phải bấm nút thủ công trên GitHub Actions. Đây là deliberate safety measure.
 
 ---
 
-## CI Workflow (`.github/workflows/ci.yml`)
+## Setup GitLab Mirror (làm một lần)
 
-### Job 1: detect-changes
+### Bước 1: Tạo GitLab project và mirror từ GitHub
 
-Dùng `dorny/paths-filter@v3` đọc `.github/path-filters.yml`:
+1. Vào GitLab → New project → **Import project** → chọn GitHub
+2. Hoặc tạo project trống → **Settings → Repository → Mirroring repositories**
+3. Điền:
+   - **Git repository URL:** `https://github.com/<owner>/<repo>.git`
+   - **Mirror direction:** Pull
+   - **Authentication:** GitHub Personal Access Token (cần `repo` scope)
+4. Bật **Trigger pipelines for mirror updates**
 
-```yaml
-authservice:
-  - "src/Services/AuthService/**"
-  - "src/BuildingBlocks/**"
+### Bước 2: Thêm webhook GitHub → GitLab (trigger ngay khi push)
 
-orderservice:
-  - "src/Services/OrderService/**"
-  - "src/BuildingBlocks/**"
+Mặc định GitLab mirror 5 phút/lần. Để trigger ngay khi push:
 
-notificationservice:
-  - "src/Services/NotificationService/**"
-  - "src/BuildingBlocks/**"
+1. Vào GitLab project → **Settings → Repository → Mirroring** → copy **Trigger URL**
+2. Vào GitHub repo → **Settings → Webhooks → Add webhook**
+   - Payload URL: URL vừa copy từ GitLab
+   - Content type: `application/json`
+   - Event: **Just the push event**
 
-m01service:
-  - "src/Services/M01Service/**"
-  - "src/BuildingBlocks/**"
+Từ đây, mỗi lần push lên GitHub → GitHub gọi webhook → GitLab sync code ngay → pipeline chạy.
 
-asyncgateway:
-  - "src/ApiGateway/**"
-  - "src/BuildingBlocks/**"
-
-datamatchingservice:
-  - "src/Services/DataMatchingService/**"
-  - "src/BuildingBlocks/**"
-```
-
-Output là JSON array: `["authservice","datamatchingservice"]` (chỉ những service có file thay đổi).
-
-**Lý do:** Nếu chỉ sửa AuthService, không cần rebuild 3 service kia. Build thời gian từ 20 phút xuống còn 5 phút.
-
-### Job 2: resolve-services
-
-```yaml
-if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-  # workflow_dispatch → build tất cả services
-  echo 'services=["authservice","orderservice","notificationservice","m01service","asyncgateway","datamatchingservice"]'
-else
-  # push → chỉ build những service detect-changes trả ra
-  CHANGED='${{ needs.detect-changes.outputs.changed }}'
-```
-
-`workflow_dispatch` luôn build tất cả — dùng khi cần force rebuild (ví dụ: sửa Dockerfile nhưng code không đổi, hoặc cần rollout lại sau incident).
-
-### Job 3: test
-
-Chạy `dotnet test` cho toàn bộ solution — không phân biệt service nào thay đổi:
-
-```yaml
-- run: dotnet restore
-- run: dotnet build --no-restore --configuration Release
-- run: dotnet test --no-build --configuration Release --logger "trx;LogFileName=results.trx"
-- uses: actions/upload-artifact@v4  # Upload .trx file để xem kết quả test
-  if: always()
-  with:
-    name: test-results
-    path: "**/*.trx"
-```
-
-Test chạy song song với detect-changes (không có `needs` dependency). build-push chỉ bắt đầu khi cả test và resolve-services đều xong.
-
-### Job 4: build-push
-
-Matrix job — mỗi service build song song:
-
-```yaml
-strategy:
-  fail-fast: false      # Một service fail không cancel các service khác
-  matrix:
-    service: ${{ fromJSON(needs.resolve-services.outputs.services) }}
-```
-
-Với mỗi service:
-
-1. **Load config từ `services.json`:**
-```json
-{
-  "authservice": {
-    "dockerfile": "src/Services/AuthService/AuthService.API/Dockerfile",
-    "context": "."
-  }
-}
-```
-`context: "."` — build context là root của repo vì Dockerfile cần copy `src/BuildingBlocks/` (shared code).
-
-2. **Resolve image tag:**
-```
-nhánh main → prod-latest
-nhánh dev  → dev-latest
-```
-Ngoài ra luôn có tag theo SHA commit: `ghcr.io/owner/hdos-authservice:abc1234`
-
-3. **Build và push lên GHCR:**
-```yaml
-tags: |
-  ghcr.io/${{ github.repository_owner }}/hdos-authservice:prod-latest
-  ghcr.io/${{ github.repository_owner }}/hdos-authservice:${{ github.sha }}
-```
-
-Dùng GitHub Actions cache (`type=gha,scope=authservice`) để giảm thời gian build khi layers không thay đổi.
-
----
-
-## CD Workflow (`.github/workflows/cd.yml`)
-
-### Self-hosted runner
-
-```yaml
-runs-on: self-hosted
-```
-
-Tức là job chạy ngay trên server production/staging (đã cài GitHub Actions runner). Runner có quyền truy cập Docker daemon và các file `.env` trên server.
-
-**Tại sao self-hosted?** Không cần mở SSH port từ bên ngoài. Server chủ động kết nối ra GitHub, nhận job rồi tự deploy. Bảo mật hơn nhiều so với GitHub-hosted runner SSH vào server.
-
-### Deploy staging (tự động)
-
-Trigger: CI trên nhánh `dev` hoàn thành thành công.
-
-```yaml
-on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [dev]
-```
+### Bước 3: Thêm tag cho GitLab runner
 
 ```bash
-# Pull images mới
+sudo nano /etc/gitlab-runner/config.toml
+# Thêm: tags = ["self-hosted"]
+sudo gitlab-runner restart
+```
+
+### Bước 4: Cấu hình GitLab CI/CD Variables
+
+Vào GitLab project → **Settings → CI/CD → Variables**, thêm:
+
+| Variable | Mô tả | Protected |
+|----------|-------|-----------|
+| `JWT_SECRET` | JWT signing key, tối thiểu 32 ký tự | Yes |
+| `MSSQL_SA_PASSWORD` | SQL Server SA password | Yes |
+| `POSTGRES_DM_PASSWORD` | PostgreSQL DataMatching password | Yes |
+| `POSTGRES_DF_PASSWORD` | PostgreSQL DynamicForm password | Yes |
+
+`CI_REGISTRY_IMAGE`, `CI_REGISTRY_USER`, `CI_REGISTRY_PASSWORD` — GitLab tự inject, không cần thêm.
+
+---
+
+## GitLab CI Pipeline (`.gitlab-ci.yml`)
+
+### Stage 1: build
+
+Matrix build — 7 service chạy song song:
+
+```yaml
+parallel:
+  matrix:
+    - SERVICE:
+        - authservice
+        - orderservice
+        - notificationservice
+        - m01service
+        - asyncgateway
+        - datamatchingservice
+        - dynamicformservice
+```
+
+Mỗi service:
+1. Đọc `Dockerfile` và `context` từ `services.json`
+2. Resolve tag:
+   - `main` → `prod-latest`
+   - `staging` → `dev-latest`
+3. Build và push 2 tag lên GitLab Registry:
+   ```
+   registry.gitlab.com/project/hdos-authservice:prod-latest
+   registry.gitlab.com/project/hdos-authservice:<SHA>
+   ```
+
+### Stage 2: deploy
+
+| Job | Trigger | Môi trường |
+|-----|---------|-----------|
+| `deploy-staging` | push lên `staging` | `/opt/hdos-staging` |
+| `deploy-production` | push lên `main` | `/opt/hdos-prod` |
+
+Script deploy:
+```bash
+REGISTRY_IMAGE=$CI_REGISTRY_IMAGE   # registry.gitlab.com/project
+IMAGE_TAG=prod-latest               # hoặc dev-latest
+
 docker compose \
-  --env-file "${ENV_DIR}/.env" \          # /opt/hdos-staging/.env
+  --env-file /opt/hdos-prod/.env \
   -f docker-compose.yml \
   -f docker-compose.server.yml \
   -f docker-compose.monitoring.yml \
   pull
 
-# Restart với image mới
-docker compose ... up -d --remove-orphans
-
-# Xóa images cũ để tiết kiệm disk
+docker compose ... down --remove-orphans --timeout 30
+docker compose ... up -d
 docker image prune -f
 ```
 
-`--remove-orphans` xóa container của service đã bị remove khỏi compose file.
-
-### Deploy production (thủ công)
-
-```yaml
-on:
-  workflow_dispatch:
-    inputs:
-      sha:
-        description: "SHA cụ thể cần deploy (để trống = HEAD của main)"
-```
-
-Khi deploy production:
-- Vào **GitHub → Actions → CD → Run workflow**
-- Để trống SHA → deploy `prod-latest` (HEAD của main)
-- Điền SHA cụ thể → deploy đúng commit đó (rollback bằng cách điền SHA cũ)
-
-`environment: production` — GitHub Environments có thể cấu hình required reviewers (ai đó phải approve trước khi deploy).
+Sau 15 giây, kiểm tra container nào ở trạng thái `Exit` hoặc `Restarting` → fail pipeline nếu có.
 
 ---
 
@@ -211,44 +150,44 @@ Khi deploy production:
 ```
 /opt/hdos-prod/           (/opt/hdos-staging/ cho staging)
 ├── .env                  ← compose substitution variables
-│   # IMAGE_TAG=prod-latest
-│   # GHCR_OWNER=hoanggggf
-│   # ASPNETCORE_ENVIRONMENT=Production
-│   # MSSQL_SA_PASSWORD=...
-│   # JWT_SECRET=...
+│   REGISTRY_IMAGE=registry.gitlab.com/project
+│   IMAGE_TAG=prod-latest
+│   MSSQL_SA_PASSWORD=...
+│   POSTGRES_DM_PASSWORD=...
+│   POSTGRES_DF_PASSWORD=...
+│   JWT_SECRET=...
+│   ASPNETCORE_ENVIRONMENT=Production
 │
 ├── common.env            ← inject vào tất cả service containers
-│   # Jwt__Secret=...
-│   # RabbitMq__Host=rabbitmq
-│   # OpenTelemetry__OtlpEndpoint=http://tempo:4317
-│   # Loki__Uri=http://loki:3100
+│   Jwt__Secret=...
+│   RabbitMq__Host=rabbitmq
+│   OpenTelemetry__OtlpEndpoint=http://tempo:4317
+│   Loki__Uri=http://loki:3100
 │
-├── authservice.env       ← chỉ inject vào authservice container
-│   # ConnectionStrings__AuthDb=Server=sqlserver,...
+├── authservice.env
+│   ConnectionStrings__AuthDb=Server=sqlserver,...
 │
 ├── orderservice.env
-│   # ConnectionStrings__OrderDb=...
-│   # Services__Auth__GrpcUrl=http://authservice:8081
+│   ConnectionStrings__OrderDb=...
+│   Services__Auth__GrpcUrl=http://authservice:8081
 │
 ├── notificationservice.env
-└── m01service.env
+├── m01service.env
+├── asyncgateway.env
+├── datamatchingservice.env
+└── dynamicformservice.env
 ```
-
-**Tại sao split thành nhiều file?** Principle of least privilege — orderservice không cần biết connection string của authservice database.
 
 ---
 
 ## docker-compose.server.yml
 
-Override file dùng cho mọi server environment. Nó:
-1. Thay `build:` thành `image:` (pull từ GHCR thay vì build local)
-2. Inject `env_file` từ `${ENV_DIR}/`
-3. Mount nginx config
+Override file dùng chung cho mọi server environment. Dùng biến generic `${REGISTRY_IMAGE}` và `${IMAGE_TAG}` — không phụ thuộc vào GitLab hay GitHub:
 
 ```yaml
 authservice:
-  image: ghcr.io/${GHCR_OWNER}/hdos-authservice:${IMAGE_TAG}
-  build: !reset null          # Xóa build config khỏi base compose
+  image: ${REGISTRY_IMAGE}/hdos-authservice:${IMAGE_TAG}
+  build: !reset null
   env_file:
     - ${ENV_DIR}/common.env
     - ${ENV_DIR}/authservice.env
@@ -256,11 +195,26 @@ authservice:
     ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
 ```
 
-`!reset null` là cú pháp Docker Compose v2 để xóa hoàn toàn key `build` từ base file. Nếu không có `!reset`, compose sẽ merge build và image — có thể gây hành vi không mong muốn.
+`!reset null` xóa key `build` từ base compose file, tránh conflict giữa `build` và `image`.
+
+| CI | `REGISTRY_IMAGE` | `IMAGE_TAG` |
+|----|-----------------|-------------|
+| GitLab | `$CI_REGISTRY_IMAGE` | `prod-latest` |
+| GitHub Actions (thủ công) | `ghcr.io/$GHCR_USER` | commit SHA |
 
 ---
 
-## Thêm service vào CI/CD
+## GitHub Actions (dự phòng, chỉ chạy thủ công)
+
+File `.github/workflows/ci.yml` và `cd.yml` vẫn giữ nguyên nhưng **trigger đã đổi thành `workflow_dispatch` only** — không auto-run khi push.
+
+Dùng khi nào: cần deploy khẩn từ GitHub mà GitLab runner đang offline.
+
+Kích hoạt lại auto-run: thêm lại trigger `push`/`pull_request` vào `ci.yml` và `workflow_run` vào `cd.yml`.
+
+---
+
+## Thêm service mới vào CI/CD
 
 1. **`services.json`** — thêm entry:
 ```json
@@ -270,17 +224,17 @@ authservice:
 }
 ```
 
-2. **`.github/path-filters.yml`** — thêm filter:
+2. **`.gitlab-ci.yml`** — thêm service vào matrix:
 ```yaml
-newservice:
-  - "src/Services/NewService/**"
-  - "src/BuildingBlocks/**"
+- SERVICE:
+    - ...
+    - newservice
 ```
 
-3. **`docker-compose.server.yml`** — thêm service override:
+3. **`docker-compose.server.yml`** — thêm override:
 ```yaml
 newservice:
-  image: ghcr.io/${GHCR_OWNER}/hdos-newservice:${IMAGE_TAG}
+  image: ${REGISTRY_IMAGE}/hdos-newservice:${IMAGE_TAG}
   build: !reset null
   env_file:
     - ${ENV_DIR}/common.env
@@ -289,32 +243,23 @@ newservice:
     ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
 ```
 
-4. **Nếu service dùng database mới** — thêm biến password vào `.env` và override trong `docker-compose.server.yml`:
-```yaml
-# docker-compose.server.yml
-postgres-newservice:
-  environment:
-    POSTGRES_PASSWORD: "${POSTGRES_NEW_PASSWORD}"
-  ports: !reset []  # đóng port trên server
-```
-
-5. **Trên server** — tạo file env:
+4. **Trên server** — tạo file env:
 ```bash
 touch /opt/hdos-prod/newservice.env
 # Điền ConnectionStrings__NewDb=...
 ```
 
-5. Push lên `main` → `workflow_dispatch` với `force_build_all=true` để build lần đầu.
+5. Push lên `main` → pipeline tự chạy.
 
 ---
 
-## Troubleshooting CI/CD
+## Troubleshooting
 
 | Triệu chứng | Nguyên nhân | Fix |
 |------------|------------|-----|
-| build-push skip dù có code change | `path-filters.yml` không match đúng path | Kiểm tra path pattern trong path-filters.yml |
-| deploy không cập nhật service mới | Service chưa có trong path-filters.yml | `workflow_dispatch` với force_build_all=true |
-| `jq: parse error` trong Load service config | `services.json` invalid JSON (trailing comma, comment) | Validate JSON: `jq . services.json` |
-| CD runner offline | Self-hosted runner service không chạy | `sudo systemctl start actions.runner.*` trên server |
-| Image pull failed: unauthorized | GHCR_TOKEN hết hạn hoặc sai | Cập nhật secret `GHCR_TOKEN` trong GitHub repo settings |
-| Container không restart sau deploy | `docker compose up` không detect image mới | `docker compose pull` trước rồi mới `up -d` |
+| Pipeline không chạy sau khi push GitHub | Webhook chưa cấu hình hoặc mirror chưa sync | Kiểm tra GitLab → Settings → Repository → Mirroring → bấm sync thủ công |
+| Runner không nhận job | Tag `self-hosted` chưa có hoặc runner chưa start | `sudo gitlab-runner status`, kiểm tra tag trong config.toml |
+| Image pull failed: unauthorized | Runner chưa login GitLab Registry | Kiểm tra `before_script: docker login` trong `.gitlab-ci.yml` |
+| `jq: parse error` | `services.json` invalid JSON | `jq . services.json` để validate |
+| Container Exit/Restarting sau deploy | Biến env thiếu hoặc sai | Kiểm tra file `.env` trên server |
+| `REGISTRY_IMAGE` trống trong compose | Biến chưa được export | Kiểm tra `variables:` trong deploy job của `.gitlab-ci.yml` |

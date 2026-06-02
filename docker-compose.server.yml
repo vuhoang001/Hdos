@@ -33,7 +33,7 @@ services:
     ports: !reset []
 
   authservice:
-    image: ghcr.io/${GHCR_OWNER}/hdos-authservice:${IMAGE_TAG}
+    image: ${REGISTRY_IMAGE}/hdos-authservice:${IMAGE_TAG}
     build: !reset null
     env_file:
       - ${ENV_DIR}/common.env
@@ -43,7 +43,7 @@ services:
       Jwt__Secret: "${JWT_SECRET}"
 
   orderservice:
-    image: ghcr.io/${GHCR_OWNER}/hdos-orderservice:${IMAGE_TAG}
+    image: ${REGISTRY_IMAGE}/hdos-orderservice:${IMAGE_TAG}
     build: !reset null
     env_file:
       - ${ENV_DIR}/common.env
@@ -53,7 +53,7 @@ services:
       Jwt__Secret: "${JWT_SECRET}"
 
   notificationservice:
-    image: ghcr.io/${GHCR_OWNER}/hdos-notificationservice:${IMAGE_TAG}
+    image: ${REGISTRY_IMAGE}/hdos-notificationservice:${IMAGE_TAG}
     build: !reset null
     env_file:
       - ${ENV_DIR}/common.env
@@ -63,7 +63,7 @@ services:
       Jwt__Secret: "${JWT_SECRET}"
 
   m01service:
-    image: ghcr.io/${GHCR_OWNER}/hdos-m01service:${IMAGE_TAG}
+    image: ${REGISTRY_IMAGE}/hdos-m01service:${IMAGE_TAG}
     build: !reset null
     env_file:
       - ${ENV_DIR}/common.env
@@ -73,7 +73,7 @@ services:
       Jwt__Secret: "${JWT_SECRET}"
 
   asyncgateway:
-    image: ghcr.io/${GHCR_OWNER}/hdos-asyncgateway:${IMAGE_TAG}
+    image: ${REGISTRY_IMAGE}/hdos-asyncgateway:${IMAGE_TAG}
     build: !reset null
     env_file:
       - ${ENV_DIR}/common.env
@@ -83,7 +83,7 @@ services:
       Jwt__Secret: "${JWT_SECRET}"
 
   datamatchingservice:
-    image: ghcr.io/${GHCR_OWNER}/hdos-datamatchingservice:${IMAGE_TAG}
+    image: ${REGISTRY_IMAGE}/hdos-datamatchingservice:${IMAGE_TAG}
     build: !reset null
     env_file:
       - path: ${ENV_DIR}/common.env
@@ -100,7 +100,7 @@ services:
     ports: !reset []
 
   dynamicformservice:
-    image: ghcr.io/${GHCR_OWNER}/hdos-dynamicformservice:${IMAGE_TAG}
+    image: ${REGISTRY_IMAGE}/hdos-dynamicformservice:${IMAGE_TAG}
     build: !reset null
     env_file:
       - path: ${ENV_DIR}/common.env
