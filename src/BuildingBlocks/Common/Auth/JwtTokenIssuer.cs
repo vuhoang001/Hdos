@@ -6,10 +6,30 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace Hdos.Common.Auth;
 
+/// <summary>
+/// Triển khai <see cref="IJwtTokenIssuer"/> dùng HS256 (HMAC-SHA256) với shared secret.
+/// Đăng ký là Singleton trong DI qua <c>AddHdosJwtAuth()</c>.
+/// </summary>
+/// <remarks>
+/// Claims được nhúng vào JWT:
+/// <list type="table">
+///   <listheader><term>Claim</term><description>Nguồn</description></listheader>
+///   <item><term><c>sub</c></term><description><paramref name="userId"/></description></item>
+///   <item><term><c>email</c>, <c>preferred_username</c></term><description><paramref name="email"/></description></item>
+///   <item><term><c>name</c></term><description><paramref name="fullName"/></description></item>
+///   <item><term><c>jti</c></term><description>GUID ngẫu nhiên — unique per token</description></item>
+///   <item><term><c>roles</c></term><description>Mỗi role một claim riêng</description></item>
+///   <item><term><c>permission</c></term><description>Mỗi permission một claim riêng</description></item>
+///   <item><term><c>lic_plan</c>, <c>lic_mod</c>, <c>lic_exp</c></term><description>Từ <see cref="LicenseInfo"/> nếu có</description></item>
+/// </list>
+/// </remarks>
 public sealed class JwtTokenIssuer : IJwtTokenIssuer
 {
     private readonly JwtOptions _options;
 
+    /// <exception cref="InvalidOperationException">
+    /// Ném nếu <c>Jwt:Secret</c> chưa được set hoặc ngắn hơn 32 ký tự.
+    /// </exception>
     public JwtTokenIssuer(IOptions<JwtOptions> options)
     {
         _options = options.Value;
@@ -18,6 +38,7 @@ public sealed class JwtTokenIssuer : IJwtTokenIssuer
                 "Jwt:Secret phải >= 32 ký tự. Set qua env Jwt__Secret.");
     }
 
+    /// <inheritdoc/>
     public JwtTokenResult Issue(
         Guid userId,
         string email,
