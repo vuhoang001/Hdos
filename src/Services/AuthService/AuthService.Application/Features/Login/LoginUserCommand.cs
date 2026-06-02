@@ -25,6 +25,7 @@ public sealed class LoginUserCommandValidator : AbstractValidator<LoginUserComma
 public sealed class LoginUserCommandHandler(
     IUserRepository users,
     IUserRoleRepository userRoles,
+    IUserLicenseRepository licenses,
     IUnitOfWork uow,
     IPasswordHasher<User> hasher,
     IJwtTokenIssuer jwt)
@@ -62,7 +63,15 @@ public sealed class LoginUserCommandHandler(
             .Distinct()
             .ToList();
 
-        var token = jwt.Issue(user.Id, user.Email.Value, user.FullName, roleNames, permissions);
+        var activeLicense = await licenses.GetActiveByUserIdAsync(user.Id, ct);
+        LicenseInfo? licenseInfo = null;
+        if (activeLicense is not null && !activeLicense.IsExpired())
+            licenseInfo = new LicenseInfo(
+                activeLicense.Plan,
+                activeLicense.GetModules(),
+                activeLicense.ExpiresAtUtc);
+
+        var token = jwt.Issue(user.Id, user.Email.Value, user.FullName, roleNames, permissions, licenseInfo);
         await uow.SaveChangesAsync(ct);
 
         return new LoginResultDto(user.Id, user.Email.Value, token.Token);

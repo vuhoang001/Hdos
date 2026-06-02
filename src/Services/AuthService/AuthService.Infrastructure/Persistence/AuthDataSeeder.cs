@@ -33,19 +33,26 @@ public static class AuthDataSeeder
         var (adminRole, userRole) = await SeedRolesAsync(db, ct);
         await db.SaveChangesAsync(ct);
 
-        await SeedUserAsync(db, users, hasher, adminRole,
+        var adminUser = await SeedUserAsync(db, users, hasher, adminRole,
             email: "admin@hdos.dev",
             fullName: "Hdos Admin",
             password: config["Seed:AdminPassword"] ?? "Admin1234!",
             logger,
             ct);
 
-        await SeedUserAsync(db, users, hasher, userRole,
+        var testUser = await SeedUserAsync(db, users, hasher, userRole,
             email: "testuser@hdos.dev",
             fullName: "Test User",
             password: config["Seed:TestUserPassword"] ?? "Test1234!",
             logger,
             ct);
+
+        await db.SaveChangesAsync(ct);
+
+        await SeedLicenseAsync(db, adminUser, "enterprise", HdosModules.All, expiresAt: null, logger, ct);
+        await SeedLicenseAsync(db, testUser, "basic",
+            [HdosModules.Orders, HdosModules.Notifications],
+            expiresAt: DateTime.UtcNow.AddYears(1), logger, ct);
 
         await db.SaveChangesAsync(ct);
         logger.LogInformation("AuthDataSeeder: seed hoàn tất");
@@ -104,7 +111,7 @@ public static class AuthDataSeeder
             db.RolePermissions.Add(RolePermission.Create(role.Id, pid));
     }
 
-    private static async Task SeedUserAsync(
+    private static async Task<User> SeedUserAsync(
         AuthDbContext db,
         IUserRepository users,
         IPasswordHasher<User> hasher,
@@ -125,7 +132,7 @@ public static class AuthDataSeeder
             db.Users.Add(u);
             db.UserRoles.Add(UserRole.Assign(u.Id, role.Id));
             logger.LogInformation("Seeded new user {Email}", email);
-            return;
+            return u;
         }
 
         // User cũ có PasswordHash rỗng (vd JIT từ Keycloak trước migration) → set lại để login được.
@@ -142,5 +149,23 @@ public static class AuthDataSeeder
             db.UserRoles.Add(UserRole.Assign(existing.Id, role.Id));
             logger.LogInformation("Assigned role {Role} to existing user {Email}", role.Name, email);
         }
+
+        return existing;
+    }
+
+    private static async Task SeedLicenseAsync(
+        AuthDbContext db,
+        User user,
+        string plan,
+        IEnumerable<string> modules,
+        DateTime? expiresAt,
+        ILogger logger,
+        CancellationToken ct)
+    {
+        var hasActive = await db.UserLicenses.AnyAsync(l => l.UserId == user.Id && l.IsActive, ct);
+        if (hasActive) return;
+
+        db.UserLicenses.Add(UserLicense.Create(user.Id, plan, modules, expiresAt));
+        logger.LogInformation("Seeded license plan={Plan} for {Email}", plan, user.Email.Value);
     }
 }

@@ -12,6 +12,7 @@ public sealed class AuthDbContext : DbContext
     public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
     public DbSet<UserRole> UserRoles => Set<UserRole>();
+    public DbSet<UserLicense> UserLicenses => Set<UserLicense>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

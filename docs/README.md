@@ -33,6 +33,7 @@ Bộ tài liệu này mô tả toàn bộ hệ thống **Hdos** — một nền 
 | [26 — Dashboard SSE Push](./26-dashboard-sse-push.md) | MatchingWorker publish event → consumer chuẩn → SSE broadcast frontend; JavaScript EventSource integration |
 | [27 — External Consumer Pattern](./27-external-consumer-pattern.md) | Nhận messages từ hệ thống bên ngoài không dùng MassTransit envelope: `[ExternalConsumer]` attribute + `UseRawJsonDeserializer`, auto-scan assembly, mỗi consumer độc lập |
 | [28 — Message Payload Standard](./28-message-payload-standard.md) | Quy chuẩn cấu trúc message theo CloudEvents (CNCF): `IntegrationEvent` cho internal, `ExternalMessage` cho external, field mapping, versioning, auto-enrichment |
+| [31 — License Management](./31-license-management.md) | Gán/revoke license per-user, embed claims vào JWT, bảo vệ endpoint theo module, hướng dẫn admin API |
 
 ---
 

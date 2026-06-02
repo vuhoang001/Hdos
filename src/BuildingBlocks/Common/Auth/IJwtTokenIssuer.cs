@@ -2,16 +2,21 @@ namespace Hdos.Common.Auth;
 
 public interface IJwtTokenIssuer
 {
-    /// <summary>
-    /// Phát access token chứa sub, email, name, roles (claim "roles") và permissions (claim "permission").
-    /// Mỗi service tự validate token + đọc claim "permission" để enforce policy — không cần round-trip về AuthService.
-    /// </summary>
     JwtTokenResult Issue(
         Guid userId,
         string email,
         string fullName,
         IEnumerable<string> roles,
-        IEnumerable<string> permissions);
+        IEnumerable<string> permissions,
+        LicenseInfo? license = null);
 }
+
+/// <param name="Plan">Tên plan: free | basic | pro | enterprise</param>
+/// <param name="Modules">Danh sách module slugs được phép, xem <see cref="HdosModules"/>.</param>
+/// <param name="ExpiresAtUtc">null = vĩnh viễn.</param>
+public sealed record LicenseInfo(
+    string Plan,
+    IEnumerable<string> Modules,
+    DateTime? ExpiresAtUtc);
 
 public sealed record JwtTokenResult(string Token, DateTime ExpiresAtUtc);

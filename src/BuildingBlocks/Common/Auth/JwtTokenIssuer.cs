@@ -23,7 +23,8 @@ public sealed class JwtTokenIssuer : IJwtTokenIssuer
         string email,
         string fullName,
         IEnumerable<string> roles,
-        IEnumerable<string> permissions)
+        IEnumerable<string> permissions,
+        LicenseInfo? license = null)
     {
         var expires = DateTime.UtcNow.AddMinutes(_options.ExpiresMinutes);
         var creds = new SigningCredentials(
@@ -38,10 +39,21 @@ public sealed class JwtTokenIssuer : IJwtTokenIssuer
             new("preferred_username", email),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
         };
+
         foreach (var r in roles.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct())
             claims.Add(new Claim("roles", r));
         foreach (var p in permissions.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct())
             claims.Add(new Claim("permission", p));
+
+        if (license is not null)
+        {
+            claims.Add(new Claim(LicenseClaimTypes.Plan, license.Plan));
+            foreach (var mod in license.Modules.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct())
+                claims.Add(new Claim(LicenseClaimTypes.Module, mod));
+            if (license.ExpiresAtUtc.HasValue)
+                claims.Add(new Claim(LicenseClaimTypes.ExpiresAt,
+                    license.ExpiresAtUtc.Value.ToString("O")));
+        }
 
         var token = new JwtSecurityToken(
             issuer: _options.Issuer,

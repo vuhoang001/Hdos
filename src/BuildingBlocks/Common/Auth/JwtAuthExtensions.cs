@@ -100,6 +100,20 @@ public static class JwtAuthExtensions
                               p => p.RequireClaim("permission", HdosPermissions.UsersManage));
             options.AddPolicy(HdosPermissions.RolesManage,
                               p => p.RequireClaim("permission", HdosPermissions.RolesManage));
+
+            // License module policies — check claim "lic_mod" trong JWT
+            options.AddPolicy(HdosLicensePolicies.ModuleOrders,
+                              p => p.RequireClaim(LicenseClaimTypes.Module, HdosModules.Orders));
+            options.AddPolicy(HdosLicensePolicies.ModuleNotifications,
+                              p => p.RequireClaim(LicenseClaimTypes.Module, HdosModules.Notifications));
+            options.AddPolicy(HdosLicensePolicies.ModuleM01,
+                              p => p.RequireClaim(LicenseClaimTypes.Module, HdosModules.M01));
+            options.AddPolicy(HdosLicensePolicies.ModuleDataMatching,
+                              p => p.RequireClaim(LicenseClaimTypes.Module, HdosModules.DataMatching));
+            options.AddPolicy(HdosLicensePolicies.ModuleForms,
+                              p => p.RequireClaim(LicenseClaimTypes.Module, HdosModules.Forms));
+            options.AddPolicy(HdosLicensePolicies.ModuleAsync,
+                              p => p.RequireClaim(LicenseClaimTypes.Module, HdosModules.Async));
         });
         return services;
     }
