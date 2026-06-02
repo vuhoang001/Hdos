@@ -1,10 +1,6 @@
-# 17 — MassTransit Messaging
+# 17 — MassTransit Messaging, Outbox Pattern & External Consumer
 
 Hệ thống dùng **MassTransit 8.2** làm lớp abstraction trên **RabbitMQ** để truyền integration events giữa các microservices.
-
-**Docs liên quan:**
-- [21 — Transactional Outbox Pattern](./21-outbox-pattern.md) — đảm bảo event không bị mất khi publish
-- [27 — External Consumer Pattern](./27-external-consumer-pattern.md) — nhận messages từ hệ thống bên ngoài không dùng MassTransit envelope
 
 ---
 
@@ -194,7 +190,7 @@ Queues:
 | `BaoCaoKhoaCreatedIntegrationEvent` | `notification-bao-cao-khoa-created` | M01Service | `BaoCaoKhoaCreatedConsumer` | `BaoCaoKhoaCreatedHandler` |
 | `DashboardFeReadyIntegrationEvent` | `notification-dashboard-fe-ready` | DataMatchingService | `DashboardFeReadyConsumer` | `DashboardFeReadyHandler` |
 
-**External consumers** (nhận từ hệ thống bên ngoài, xem [doc 27](./27-external-consumer-pattern.md)):
+**External consumers** (nhận từ hệ thống bên ngoài — xem [External Consumer Pattern](#external-consumer-pattern)):
 
 | Consumer | Queue | Source |
 |---|---|---|
@@ -216,8 +212,6 @@ Handler throw exception
     └─ Hết retry → message chuyển sang: {queue}_error
 ```
 
-Để test cơ chế này, viết một consumer tạm thời throw exception và quan sát queue `{name}_error` trên RabbitMQ Management.
-
 ### Re-process message lỗi
 
 1. Vào `http://localhost:15672` → **Queues** → `{queue}_error`
@@ -227,8 +221,6 @@ Handler throw exception
 ---
 
 ## Test End-to-End
-
-Dùng luồng async order để kiểm chứng publish → consumer.
 
 ### 1. Lấy JWT token
 
@@ -268,11 +260,6 @@ curl -s -u guest:guest http://localhost:15672/api/queues/%2F/notification-order-
 
 # Có message lỗi không?
 curl -s -u guest:guest http://localhost:15672/api/queues/%2F/notification-order-created_error | jq '.messages'
-```
-
-Nếu `consumer_count = 0`:
-```bash
-docker compose restart notificationservice
 ```
 
 ---
@@ -319,14 +306,377 @@ services.AddMassTransit(x =>
 
 ---
 
+## Transactional Outbox Pattern
+
+Đọc section này trước khi thêm bất kỳ `PublishAsync` mới nào vào codebase.
+
+### Vấn đề — Dual Write
+
+Mọi command handler publish integration event đều phải thực hiện **2 thao tác ghi độc lập**:
+
+```
+1. Ghi vào SQL Server  (business data)
+2. Publish lên RabbitMQ (integration event)
+```
+
+Hai thao tác này **không có transaction chung**. Nếu service crash hoặc RabbitMQ bị ngắt giữa bước 1 và bước 2, kết quả là:
+
+```
+SQL Server: ✅ order đã ghi        ← dữ liệu tồn tại
+RabbitMQ:   ❌ event không bao giờ publish ← downstream service không biết
+```
+
+Đây gọi là **Dual Write Problem**. Xảy ra trong thực tế khi: rolling deploy, RabbitMQ restart ngắn (~1-2s), unhandled exception sau `SaveChangesAsync`, OOM/pod eviction.
+
+### Giải pháp — Transactional Outbox
+
+**Ý tưởng cốt lõi**: thay vì publish thẳng lên RabbitMQ, **ghi event vào 1 bảng trong cùng DB transaction với business data**. Một background worker đọc bảng đó và publish.
+
+```
+CommandHandler:
+  BEGIN TRANSACTION
+    INSERT INTO Orders
+    INSERT INTO OutboxMessage  ← cùng transaction
+  COMMIT
+
+BusOutboxDeliveryService (background, ~1s interval):
+  SELECT * FROM OutboxMessage WHERE DeliveredAt IS NULL
+  → Publish to RabbitMQ
+  → UPDATE OutboxMessage SET DeliveredAt = NOW()
+```
+
+**Đảm bảo**: nếu `COMMIT` thành công → event **chắc chắn** được deliver. Crash trước `COMMIT` → không có gì được ghi. Crash sau `COMMIT` → background worker retry lại sau khi restart.
+
+**Trade-off phải chấp nhận:**
+- **At-least-once delivery**: background worker có thể publish lại. Consumer phải **idempotent**.
+- **Slight latency**: event đến RabbitMQ sau ~1s thay vì ngay lập tức.
+- **3 bảng thêm vào DB**: `OutboxMessage`, `OutboxState`, `InboxState`.
+
+### Kiến trúc trong Hdos
+
+Hệ thống dùng **MassTransit EF Core Outbox** kết hợp với **Domain Event → Integration Event** pattern.
+
+**Luồng đầy đủ:**
+
+```
+HTTP Request
+    │
+    ▼
+Command Handler
+    ├─ entity.DoAction()          ← entity RaiseDomainEvent()
+    └─ uow.SaveChangesAsync()
+            │
+            ▼
+        PublishDomainEventsInterceptor.SavingChangesAsync  ← TRƯỚC khi EF ghi
+            ├─ dispatch OrderCreatedDomainEvent via MediatR
+            │       │
+            │       ▼
+            │   OrderCreatedIntegrationEventHandler.Handle()
+            │       └─ eventBus.PublishAsync()  ← thêm OutboxMessage vào EF tracker
+            │
+            └─ (return — không SaveChangesAsync lần 2)
+            │
+            ▼
+        EF Core commit (1 transaction duy nhất)
+            ├─ INSERT Orders
+            └─ INSERT OutboxMessage        ← cùng transaction, thực sự atomic
+
+        │ (vài trăm ms sau)
+        ▼
+BusOutboxDeliveryService (IHostedService)
+    ├─ SELECT OutboxMessage WHERE DeliveredAt IS NULL
+    ├─ Publish to RabbitMQ exchange
+    └─ UPDATE OutboxMessage SET DeliveredAt = NOW()
+```
+
+**Tại sao dùng `SavingChangesAsync` (pre-save)?** Interceptor chạy **trước** khi EF ghi. Handler thêm `OutboxMessage` vào EF tracker trong cùng lượt `SaveChangesAsync` → EF commit cả `Orders` lẫn `OutboxMessage` trong **1 transaction duy nhất**.
+
+### 2 pattern publish trong Hdos
+
+#### Pattern A — Domain event handler (ưu tiên)
+
+Dùng khi integration event chứa **đúng data từ domain event** — không cần truy vấn thêm.
+
+```csharp
+// ✅ CreateOrderCommandHandler — sạch, không publish trực tiếp
+public async Task<Result<OrderDto>> Handle(CreateOrderCommand request, CancellationToken ct)
+{
+    var order = Order.Create(...);  // RaiseDomainEvent bên trong
+    await orders.AddAsync(order, ct);
+    await uow.SaveChangesAsync(ct);  // → interceptor → handler → OutboxMessage
+    return Map(order);
+}
+```
+
+| Domain Event | Integration Event Handler | Integration Event |
+|---|---|---|
+| `OrderCreatedDomainEvent` | `OrderCreatedIntegrationEventHandler` | `OrderCreatedIntegrationEvent` |
+| `OrderConfirmedDomainEvent` | `OrderConfirmedIntegrationEventHandler` | `OrderConfirmedIntegrationEvent` |
+
+#### Pattern B — Command handler publish trực tiếp (exception)
+
+Dùng khi integration event cần **aggregate data từ DB** không có sẵn trong domain event.
+
+```csharp
+// ✅ CreateProductCommandHandler — cần đọc totalPrice/Count sau save
+await products.AddAsync(product, ct);
+await uow.SaveChangesAsync(ct);              // commit product
+
+var totalPrice = await products.GetTotalPriceAsync(ct);
+var totalCount = await products.GetTotalCountAsync(ct);
+
+await eventBus.PublishAsync(new ProductCreatedIntegrationEvent(...), ct);
+await uow.SaveChangesAsync(ct);              // commit OutboxMessage
+```
+
+| Service | Handler | Lý do không dùng Pattern A |
+|---|---|---|
+| `OrderService` | `CreateProductCommandHandler` | `ProductCreatedIntegrationEvent` cần `totalCount`, `totalPrice` từ DB aggregate |
+| `M01Service` | `CreateBaoCaoKhoaHandler` | `BaoCaoKhoaCreatedIntegrationEvent` cần `GetAllTimeTotalsAsync` từ DB |
+
+### Quy tắc viết Domain Event
+
+Domain event phải chứa **đủ data** để handler downstream tạo được integration event mà không cần query thêm.
+
+```csharp
+// ✅ Đúng — có đủ data
+public sealed record OrderCreatedDomainEvent(
+    Guid OrderId, Guid CustomerId, string CustomerEmail,
+    decimal TotalAmount,
+    IReadOnlyList<(string ProductName, int Quantity, decimal UnitPrice)> Items
+) : DomainEvent;
+
+// ❌ Sai — handler phải query DB
+public sealed record OrderCreatedDomainEvent(Guid OrderId) : DomainEvent;
+```
+
+### Hướng dẫn thêm Outbox cho service mới
+
+**Bước 1** — Thêm NuGet package:
+
+```xml
+<PackageReference Include="MassTransit.EntityFrameworkCore" Version="8.2.5" />
+```
+
+**Bước 2** — Thêm entity config vào DbContext:
+
+```csharp
+protected override void OnModelCreating(ModelBuilder modelBuilder)
+{
+    modelBuilder.ApplyConfigurationsFromAssembly(typeof(NewDbContext).Assembly);
+    modelBuilder.AddInboxStateEntity();
+    modelBuilder.AddOutboxMessageEntity();
+    modelBuilder.AddOutboxStateEntity();
+    base.OnModelCreating(modelBuilder);
+}
+```
+
+**Bước 3** — Register trong DependencyInjection.cs:
+
+```csharp
+services.AddMassTransitMessaging(configuration, x =>
+{
+    x.AddEntityFrameworkOutbox<NewDbContext>(o =>
+    {
+        o.UseSqlServer();
+        o.UseBusOutbox();
+    });
+    x.AddConsumer<SomeEventConsumer>();
+});
+```
+
+**Bước 4** — Tạo migration:
+
+```bash
+dotnet ef migrations add AddOutbox \
+  --project src/Services/NewService/NewService.Infrastructure \
+  --startup-project src/Services/NewService/NewService.API
+```
+
+### Trạng thái hiện tại trong Hdos
+
+| Service | Outbox | Pattern | Integration Events |
+|---|---|---|---|
+| **OrderService** | ✅ | A (domain event handler) | `OrderCreated`, `OrderConfirmed` |
+| **OrderService** | ✅ | B (command handler) | `ProductCreated` (cần aggregate) |
+| **M01Service** | ✅ | B (command handler) | `BaoCaoKhoaCreated` (cần aggregate) |
+| **NotificationService** | ❌ | — | Chỉ consume, không publish |
+| **AuthService** | ❌ | — | Chưa kiểm tra |
+
+### Kiểm tra hoạt động
+
+```sql
+-- Message chờ deliver
+SELECT MessageId, MessageType, EnqueueTime
+FROM OutboxMessage WHERE DeliveredAt IS NULL
+ORDER BY EnqueueTime DESC;
+
+-- Message đã deliver
+SELECT MessageId, MessageType, DeliveredAt
+FROM OutboxMessage WHERE DeliveredAt IS NOT NULL
+ORDER BY DeliveredAt DESC;
+```
+
+```bash
+docker compose logs order-service --tail=50 | grep -i "outbox\|domain event"
+```
+
+### Troubleshooting Outbox
+
+| Triệu chứng | Fix |
+|---|---|
+| OutboxMessage không được deliver | Kiểm tra `UseBusOutbox()` trong DI; RabbitMQ down (worker retry tự động) |
+| `InvalidOperationException: requires a primary key` | Migration chưa apply |
+| Integration event không gửi dù domain event raised | Kiểm tra `PublishDomainEventsInterceptor` đã đăng ký; `INotificationHandler` nằm trong assembly được scan |
+
+---
+
+## External Consumer Pattern
+
+Pattern để nhận messages từ **hệ thống bên ngoài không dùng MassTransit envelope format** qua RabbitMQ, với mỗi consumer hoàn toàn độc lập và khai báo đơn giản bằng attribute.
+
+> Toàn bộ pattern vẫn chạy trên MassTransit — `IConsumer<T>`, `ReceiveEndpoint`, retry, dead-letter đều nguyên vẹn. Điểm khác biệt duy nhất là dùng `UseRawJsonDeserializer` để bỏ qua MassTransit envelope mà bên ngoài không gửi.
+
+### Vấn đề cần giải quyết
+
+- Bên ngoài gửi JSON thuần, không có MassTransit envelope (`messageType`, `messageId`…)
+- Tên queue/exchange do bên ngoài quy định, không theo convention nội bộ
+- Mỗi source system có thể cần prefetch count và concurrency khác nhau
+- Số lượng source tăng dần → không muốn sửa file DI mỗi lần thêm mới
+
+### Giải pháp: `[ExternalConsumer]` Attribute
+
+Đặt attribute lên consumer class → system tự scan, tự tạo queue, tự wire up. Mỗi consumer hoàn toàn độc lập.
+
+```csharp
+[ExternalConsumer("tên-queue")]                                         // mặc định
+[ExternalConsumer("tên-queue", UseRawJson = false)]                    // bên ngoài gửi MassTransit envelope
+[ExternalConsumer("tên-queue", PrefetchCount = 50, ConcurrentLimit = 10)]
+```
+
+| Property | Mặc định | Ý nghĩa |
+|---|---|---|
+| `QueueName` | *(bắt buộc)* | Tên queue trên RabbitMQ |
+| `UseRawJson` | `true` | Bật raw JSON deserializer |
+| `PrefetchCount` | `10` | Số messages prefetch từ broker |
+| `ConcurrentLimit` | `5` | Số messages xử lý đồng thời |
+
+Attribute này kế thừa `ExcludeFromConfigureEndpointsAttribute` của MassTransit — `cfg.ConfigureEndpoints()` sẽ **bỏ qua** consumer này, tránh tạo endpoint trùng.
+
+### Cách thêm consumer mới
+
+**Bước 1** — Tạo message contract:
+
+```csharp
+// Application/DTOs/LabResultMessage.cs
+public sealed record LabResultMessage(
+    string? PatientId, string? TestCode, string? Result, DateTime? TestedAt);
+```
+
+**Bước 2** — Tạo handler trong Application layer:
+
+```csharp
+// Application/EventHandlers/LabResultHandler.cs
+public sealed class LabResultHandler(INotificationPusher pusher, ILogger<LabResultHandler> logger)
+{
+    public async Task HandleAsync(LabResultMessage message, CancellationToken ct)
+    {
+        logger.LogInformation("Lab result received for patient {PatientId}", message.PatientId);
+        await pusher.BroadcastEventAsync("lab-result",
+            new { patientId = message.PatientId, testCode = message.TestCode, result = message.Result }, ct);
+    }
+}
+```
+
+**Bước 3** — Tạo consumer với `[ExternalConsumer]`:
+
+```csharp
+// Infrastructure/Consumers/LabResultConsumer.cs
+[ExternalConsumer("external.lab-result", PrefetchCount = 20, ConcurrentLimit = 8)]
+public sealed class LabResultConsumer(LabResultHandler handler)
+    : IConsumer<LabResultMessage>
+{
+    public Task Consume(ConsumeContext<LabResultMessage> context)
+        => handler.HandleAsync(context.Message, context.CancellationToken);
+}
+```
+
+**Xong.** Không cần sửa bất kỳ file nào khác.
+
+### Setup một lần trong DependencyInjection.cs
+
+```csharp
+services.AddMassTransitMessaging(configuration, x =>
+{
+    // Internal consumers — đăng ký thủ công
+    x.AddConsumer<UserLoggedInConsumer>();
+    x.AddConsumer<OrderCreatedConsumer>();
+    // External consumers KHÔNG đăng ký ở đây — [ExternalConsumer] tự xử lý
+},
+servicePrefix: "notification",
+externalConsumersAssembly: typeof(DependencyInjection).Assembly);  // ← scan assembly này
+```
+
+### Cơ chế hoạt động (lúc startup)
+
+```
+AddMassTransitMessaging()
+    │
+    ├── configure?.Invoke(x)           ← internal consumers đăng ký thủ công
+    ├── x.AddExternalConsumers(asm)    ← scan [ExternalConsumer], đăng ký vào DI
+    └── UsingRabbitMq(...)
+             ├── cfg.ConfigureExternalEndpoints(ctx, asm)
+             │        └── per found type:
+             │             ├── cfg.ReceiveEndpoint(attr.QueueName, ...)
+             │             ├── e.UseRawJsonDeserializer()  [nếu UseRawJson = true]
+             │             └── e.ConfigureConsumer(ctx, type)
+             └── cfg.ConfigureEndpoints(ctx)   ← bỏ qua [ExternalConsumer] classes
+```
+
+### Consumers hiện có
+
+| Consumer | Queue | Source | PrefetchCount |
+|---|---|---|---|
+| `ProcessedToFeConsumer` | `be.hdos.dashboard.fe.ready` | DataMatchingService | 10 (mặc định) |
+
+### Troubleshooting External Consumer
+
+```bash
+# Tìm tất cả external consumers trong codebase
+grep -r "\[ExternalConsumer" src/ --include="*.cs"
+```
+
+| Triệu chứng | Fix |
+|---|---|
+| Consumer không nhận được message | Kiểm tra tên queue trong attribute; kiểm tra binding exchange ↔ queue trên RabbitMQ Management |
+| Deserialization lỗi | Kiểm tra field names trong record khớp với JSON; dùng `object?` cho field có format thay đổi |
+
+---
+
 ## Checklist trước khi commit
 
+**Khi thêm integration event mới (Pattern A):**
+- [ ] Domain event đã có đủ data (không cần query thêm)
+- [ ] `INotificationHandler<TDomainEvent>` nằm trong `Application/EventHandlers/`
+- [ ] Handler chỉ dùng `IEventBus.PublishAsync`, không có logic nghiệp vụ
+- [ ] Command handler **không có** `IEventBus` injection
+
+**Khi dùng Pattern B (aggregate data):**
+- [ ] Lý do không dùng Pattern A đã được document
+- [ ] `IUnitOfWork` (không phải `IRepository`) được dùng để save
+
+**Outbox (mọi service publish event):**
+- [ ] `MassTransit.EntityFrameworkCore` đã thêm vào Infrastructure `.csproj`
+- [ ] `AddInboxStateEntity / AddOutboxMessageEntity / AddOutboxStateEntity` trong `OnModelCreating`
+- [ ] `AddEntityFrameworkOutbox<TDbContext>(o => { o.UseSqlServer(); o.UseBusOutbox(); })` trong DI
+- [ ] Migration `AddOutbox` đã tạo và apply
+- [ ] Cập nhật bảng "Trạng thái hiện tại" ở trên
+
+**Chung:**
 - [ ] Event nằm trong `Contracts` project, record kế thừa `IntegrationEvent`
 - [ ] Tên consumer = `{EventName bỏ IntegrationEvent}Consumer` (để exchange merge về 1)
 - [ ] Handler implement `IIntegrationEventHandler<TEvent>`, không import MassTransit
 - [ ] Consumer implement `IConsumer<TEvent>`, chỉ delegate sang handler, không có logic
-- [ ] Consumer được `AddConsumer<T>()` trong `AddMassTransitMessaging()`
+- [ ] Consumer được `AddConsumer<T>()` hoặc `[ExternalConsumer]` attribute
 - [ ] Handler được `AddScoped` trong Infrastructure `DependencyInjection.cs`
 - [ ] Cập nhật bảng "Tổng hợp các events hiện tại" ở trên
-- [ ] Nếu cần Outbox: xem [21 — Outbox Pattern](./21-outbox-pattern.md)
-- [ ] Nếu nhận từ hệ thống ngoài: xem [27 — External Consumer Pattern](./27-external-consumer-pattern.md)

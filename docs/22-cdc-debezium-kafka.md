@@ -1,4 +1,4 @@
-# 22 — CDC với Debezium + Kafka
+# 22 — CDC với Debezium + Kafka & Adapter Ingest Gateway
 
 **Change Data Capture (CDC)** là kỹ thuật bắt mọi thay đổi ở cấp độ DB row (INSERT/UPDATE/DELETE) và stream chúng sang các hệ thống khác theo thời gian thực.
 
@@ -6,7 +6,7 @@
 
 ## CDC vs Outbox — khi nào dùng cái nào
 
-| | Outbox (doc 21) | CDC (doc này) |
+| | Outbox (xem [17](./17-masstransit-messaging.md)) | CDC (doc này) |
 |---|---|---|
 | **Bắt sự kiện gì** | Domain event do code chủ động raise | Mọi thay đổi DB row, kể cả migration/script |
 | **Granularity** | Business intent (`OrderCreated`) | Data change (`dbo.Orders row updated`) |
@@ -15,7 +15,7 @@
 
 ---
 
-## Kiến trúc trong Hdos
+## Kiến trúc CDC trong Hdos
 
 ```
 SQL Server (OrderDb)
@@ -85,6 +85,7 @@ docker compose -f docker-compose.yml -f docker-compose.kafka.yml up -d
 ```
 
 Các container mới:
+
 | Container | Port | Mục đích |
 |---|---|---|
 | `hdos-zookeeper` | — | Kafka coordination |
@@ -124,8 +125,6 @@ Sau khi register, Debezium thực hiện **initial snapshot** — đọc toàn b
 **Topic name**: `hdos.OrderDb.dbo.Orders`
 (pattern: `{prefix}.{database}.{schema}.{table}`)
 
-**Message key**: primary key của row (dạng JSON)
-
 **Message value** — Debezium envelope:
 
 ```json
@@ -139,12 +138,7 @@ Sau khi register, Debezium thực hiện **initial snapshot** — đọc toàn b
       "Status": 0
     },
     "op": "c",
-    "source": {
-      "db": "OrderDb",
-      "schema": "dbo",
-      "table": "Orders",
-      "ts_ms": 1716624000000
-    },
+    "source": { "db": "OrderDb", "schema": "dbo", "table": "Orders", "ts_ms": 1716624000000 },
     "ts_ms": 1716624000001
   }
 }
@@ -168,7 +162,6 @@ Sau khi register, Debezium thực hiện **initial snapshot** — đọc toàn b
 - Subscribe topic, poll theo vòng lặp
 - Deserialize Debezium envelope → gọi `HandleAsync`
 - **Manual commit**: chỉ commit offset sau khi `HandleAsync` thành công → at-least-once delivery
-- Lỗi handler: không commit, retry từ offset cũ sau restart
 
 ### Concrete consumer (NotificationService)
 
@@ -209,7 +202,6 @@ public sealed class OrderCdcConsumer(
 
 ```csharp
 // NotificationService.Infrastructure/DependencyInjection.cs
-
 var kafkaSection = configuration.GetSection(KafkaConsumerOptions.SectionName);
 if (!string.IsNullOrEmpty(kafkaSection["Topic"]))
 {
@@ -228,14 +220,6 @@ if (!string.IsNullOrEmpty(kafkaSection["Topic"]))
     "Topic": "hdos.OrderDb.dbo.Orders"
   }
 }
-```
-
-Hoặc qua environment variable trong docker-compose:
-```yaml
-environment:
-  Kafka__BootstrapServers: "kafka:29092"
-  Kafka__GroupId: "notification-cdc-consumer"
-  Kafka__Topic: "hdos.OrderDb.dbo.Orders"
 ```
 
 ---
@@ -257,23 +241,19 @@ EXEC sys.sp_cdc_enable_table
 ```bash
 curl -X PUT http://localhost:8083/connectors/hdos-orders-connector/config \
   -H "Content-Type: application/json" \
-  -d '{
-    ...existing config...,
-    "table.include.list": "dbo.Orders,dbo.OrderItems,dbo.Products"
-  }'
+  -d '{ ...existing config..., "table.include.list": "dbo.Orders,dbo.OrderItems,dbo.Products" }'
 ```
 
 ### 3. Tạo consumer mới kế thừa `CdcConsumerService<TEntity>`
 
 ---
 
-## Troubleshooting
+## Troubleshooting CDC
 
 ### Connector ở trạng thái FAILED
 
 ```bash
 curl -s http://localhost:8083/connectors/hdos-orders-connector/status | jq .
-# Xem task errors
 
 # Restart task
 curl -X POST http://localhost:8083/connectors/hdos-orders-connector/tasks/0/restart
@@ -287,8 +267,6 @@ Nguyên nhân phổ biến:
 ### Consumer không nhận được message
 
 ```bash
-# Xem messages trong topic (Kafka UI: http://localhost:8090)
-# Hoặc dùng CLI:
 docker exec -it hdos-kafka \
   kafka-console-consumer \
   --bootstrap-server kafka:29092 \
@@ -297,7 +275,7 @@ docker exec -it hdos-kafka \
   --max-messages 5
 ```
 
-### Consumer lag (bị trễ)
+### Consumer lag
 
 ```bash
 docker exec -it hdos-kafka \
@@ -328,3 +306,90 @@ src/Services/NotificationService/
     NotificationService.Infrastructure/Cdc/
         OrderCdcConsumer.cs                  ← concrete consumer demo
 ```
+
+---
+
+## Adapter Ingest Gateway
+
+> **Status:** Draft — thiết kế ban đầu, một số quyết định còn đang xác định.
+
+External Project bắn data vào **Adapter API** của hệ thống. API publish event lên **RabbitMQ**. Các **Service** subscribe RabbitMQ, mỗi service xử lý nghiệp vụ riêng — bên trong service đó mới publish sang Lakehouse hoặc push lên Frontend.
+
+### Sequence Diagram
+
+```
+External System
+    │  POST /api/ingest/data (payload)
+    ▼
+Adapter API
+    │  Validate & Transform payload
+    │  → 202 Accepted
+    │  → Publish DataReceivedIntegrationEvent lên RabbitMQ
+    ▼
+RabbitMQ
+    ▼
+Business module (Service A)
+    │  Consume DataReceivedIntegrationEvent
+    │  → Publish LakehouseIntegrationEvent
+    ▼
+Lakehouse
+    │  Aggregate & map reduce
+    │  → Lakehouse changed event → Service A
+    ▼
+Service A → SSE push realtime lên Frontend
+```
+
+### API Contract
+
+```
+POST /api/ingest/data
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+**Request:**
+```json
+{
+  "source": "external-project-name",
+  "timestamp": "2026-05-20T10:00:00Z",
+  "payload": { }
+}
+```
+
+**Response 202:**
+```json
+{
+  "eventId": "uuid",
+  "receivedAt": "2026-05-20T10:00:00Z",
+  "status": "queued"
+}
+```
+
+### Integration Event
+
+```csharp
+public record DataReceivedIntegrationEvent(
+    Guid EventId,
+    string Source,
+    DateTime ReceivedAt,
+    object NormalizedPayload
+) : IntegrationEvent;
+```
+
+### Quan hệ với CDC
+
+CDC và Adapter Ingest Gateway giải quyết cùng bài toán "nhận data từ bên ngoài" nhưng ở góc độ khác:
+
+| | Adapter Ingest Gateway | CDC |
+|---|---|---|
+| **Data source** | External project gọi API chủ động | SQL Server DB thay đổi |
+| **Transport** | HTTP → RabbitMQ | SQL Server CDC → Debezium → Kafka |
+| **Use case** | Nhận data theo event từ third-party | Sync toàn bộ thay đổi DB, kể cả ngoài code |
+| **Status** | Draft, cần xác định payload format | Implemented |
+
+### TODO (Adapter Ingest Gateway)
+
+- [ ] Xác định format payload từ External Project
+- [ ] Xác định loại realtime transport cho Frontend: SignalR hay SSE
+- [ ] Định nghĩa authentication cho endpoint ingest (API Key hay JWT)
+- [ ] Thêm dead-letter queue cho consumer fail liên tục

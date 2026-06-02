@@ -12,8 +12,8 @@ Bộ tài liệu này mô tả toàn bộ hệ thống **Hdos** — một nền 
 | [02 — Cấu trúc dự án](./02-cau-truc-du-an.md) | Folder layout, conventions đặt tên |
 | [03 — Building Blocks](./03-building-blocks.md) | Thư viện dùng chung: SharedKernel, Common, Contracts |
 | [04 — Các Services](./04-cac-services.md) | AuthService, OrderService, NotificationService, M01Service |
-| [05 — Nginx Gateway](./05-nginx-gateway.md) | Reverse proxy: TLS, CORS, routing theo prefix (nginx không verify JWT) |
-| [06 — Xác thực & Phân quyền](./06-xac-thuc.md) | Custom JWT HS256 với permission claims, Register/Login, RBAC, seed admin/testuser |
+| [05 — Nginx Gateway & HTTPS/TLS](./05-nginx-gateway.md) | Reverse proxy, routing theo prefix, CORS, self-signed cert dev, production cert |
+| [06 — Xác thực, Phân quyền & License](./06-xac-thuc.md) | Custom JWT HS256, RBAC, permission claims, license embed vào JWT, admin API gán/revoke |
 | [07 — Giao tiếp nội bộ](./07-giao-tiep-noi-bo.md) | gRPC (sync) + RabbitMQ (async) |
 | [08 — Quan sát hệ thống](./08-quan-sat-he-thong.md) | Prometheus, Loki, Tempo, Grafana, W3C distributed tracing |
 | [10 — CI/CD Pipeline](./10-cicd-pipeline.md) | GitHub Actions build → test → push → deploy |
@@ -22,20 +22,14 @@ Bộ tài liệu này mô tả toàn bộ hệ thống **Hdos** — một nền 
 | [13 — Thêm tính năng](./13-them-tinh-nang.md) | Checklist thêm endpoint, event, service mới |
 | [14 — SignalR Realtime](./14-signalr-realtime.md) | Hub, envelope chuẩn, cách test từ frontend |
 | [15 — Async Gateway](./15-async-gateway.md) | HTTP→Queue→Service, endpoints, test guide, Grafana observability |
-| [16 — HTTPS & TLS](./16-https-ssl.md) | Self-signed cert cho nginx, HTTPS termination tại 8443, hướng dẫn production thay cert thật |
-| [17 — MassTransit Messaging](./17-masstransit-messaging.md) | MassTransit + RabbitMQ: topology, naming, cách thêm event nội bộ, test E2E, tất cả events hiện tại, retry/dead-letter |
-| [20 — Adapter Ingest Gateway](./20-adapter-ingest-gateway.md) | External Project bắn data vào → song song ghi Lakehouse + push realtime Frontend |
-| [21 — Transactional Outbox Pattern](./21-outbox-pattern.md) | Giải quyết Dual Write: đảm bảo integration event không bị mất khi DB commit thành công nhưng RabbitMQ chưa nhận |
-| [22 — CDC với Debezium + Kafka](./22-cdc-debezium-kafka.md) | Change Data Capture: bắt mọi thay đổi DB row qua SQL Server CDC → Debezium → Kafka → .NET CdcConsumerService |
+| [17 — MassTransit Messaging](./17-masstransit-messaging.md) | MassTransit + RabbitMQ: topology, naming, cách thêm event, Transactional Outbox Pattern, External Consumer Pattern |
+| [22 — CDC với Debezium + Kafka](./22-cdc-debezium-kafka.md) | Change Data Capture: SQL Server CDC → Debezium → Kafka → .NET consumer; Adapter Ingest Gateway (nhận data từ external) |
 | [23 — DataMatchingService](./23-data-matching-service.md) | Ingest, deduplication, matching records từ nhiều source system |
-| [24 — Dashboard Data Matching](./24-dashboard-data-matching.md) | Dashboard engine: config-driven, SDUI sections, REST API |
+| [24 — Dashboard & SSE Push](./24-dashboard-data-matching.md) | Dashboard engine: config-driven, SDUI sections, REST API; SSE push realtime (MatchingWorker → Frontend) |
 | [25 — Server-Driven UI](./25-sdui-server-driven-ui.md) | SDUI engine: server quyết định layout, client chỉ render |
-| [26 — Dashboard SSE Push](./26-dashboard-sse-push.md) | MatchingWorker publish event → consumer chuẩn → SSE broadcast frontend; JavaScript EventSource integration |
-| [27 — External Consumer Pattern](./27-external-consumer-pattern.md) | Nhận messages từ hệ thống bên ngoài không dùng MassTransit envelope: `[ExternalConsumer]` attribute + `UseRawJsonDeserializer`, auto-scan assembly, mỗi consumer độc lập |
-| [28 — Message Payload Standard](./28-message-payload-standard.md) | Quy chuẩn cấu trúc message theo CloudEvents (CNCF): `IntegrationEvent` cho internal, `ExternalMessage` cho external, field mapping, versioning, auto-enrichment |
-| [31 — License Management](./31-license-management.md) | Gán/revoke license per-user, embed claims vào JWT, bảo vệ endpoint theo module, hướng dẫn admin API |
-| [32 — DynamicFormService Technical Spec](./32-dynamic-form-spec.md) | Spec kỹ thuật đầy đủ: tất cả enum (giá trị int + mô tả), value objects, entity state machine, API request/response schema, business rules, validation rules |
-| [00 — Hướng dẫn viết Spec cho AI](./00-spec-format.md) | Format chuẩn để viết technical spec đủ rõ cho AI implement: template enum, value object, entity, endpoint, integration event |
+| [28 — Message Payload Standard](./28-message-payload-standard.md) | Quy chuẩn cấu trúc message theo CloudEvents (CNCF): `IntegrationEvent` cho internal, `ExternalMessage` cho external |
+| [32 — DynamicFormService](./32-dynamic-form-spec.md) | Spec kỹ thuật đầy đủ (enums, entities, state machines, business rules) + API Reference walkthrough |
+| [00 — Hướng dẫn viết Spec cho AI](./00-spec-format.md) | Format chuẩn để viết technical spec đủ rõ cho AI implement |
 
 ---
 
