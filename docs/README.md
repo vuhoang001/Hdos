@@ -34,6 +34,8 @@ Bộ tài liệu này mô tả toàn bộ hệ thống **Hdos** — một nền 
 | [27 — External Consumer Pattern](./27-external-consumer-pattern.md) | Nhận messages từ hệ thống bên ngoài không dùng MassTransit envelope: `[ExternalConsumer]` attribute + `UseRawJsonDeserializer`, auto-scan assembly, mỗi consumer độc lập |
 | [28 — Message Payload Standard](./28-message-payload-standard.md) | Quy chuẩn cấu trúc message theo CloudEvents (CNCF): `IntegrationEvent` cho internal, `ExternalMessage` cho external, field mapping, versioning, auto-enrichment |
 | [31 — License Management](./31-license-management.md) | Gán/revoke license per-user, embed claims vào JWT, bảo vệ endpoint theo module, hướng dẫn admin API |
+| [32 — DynamicFormService Technical Spec](./32-dynamic-form-spec.md) | Spec kỹ thuật đầy đủ: tất cả enum (giá trị int + mô tả), value objects, entity state machine, API request/response schema, business rules, validation rules |
+| [00 — Hướng dẫn viết Spec cho AI](./00-spec-format.md) | Format chuẩn để viết technical spec đủ rõ cho AI implement: template enum, value object, entity, endpoint, integration event |
 
 ---
 
