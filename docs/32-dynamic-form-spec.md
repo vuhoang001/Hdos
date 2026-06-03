@@ -36,15 +36,19 @@
 
 ---
 
-### Enum: `FormPageStatus`
+### Enum: `WidgetType` ⭐ Screen Designer
 
-> Trạng thái vòng đời của `FormPage`. Cùng semantic với `FormStatus`.
+> Loại widget trong `FormScreenWidget`. Quyết định cách frontend render widget trên canvas.
 
-| Int | Name | Mô tả | Transition hợp lệ từ |
-|-----|------|-------|----------------------|
-| 0 | `Draft` | Đang soạn, chỉ admin thấy | — |
-| 1 | `Published` | Public có thể render | `Draft` |
-| 2 | `Archived` | Không cập nhật được | `Published` |
+| Name | Mô tả | `configJson` fields | `referenceId` |
+|------|-------|---------------------|---------------|
+| `FormSection` | Nhúng một `FormTemplate` vào canvas | — | `FormTemplate.Id` (MUST) |
+| `TextBlock` | Khối văn bản / markdown | `content: string`, `align: "left"\|"center"\|"right"` | null |
+| `Divider` | Đường ngang phân cách | `label?: string` | null |
+| `ImageBlock` | Hình ảnh tĩnh | `url: string`, `alt?: string` | null |
+| `ConditionalSection` | Container ẩn/hiện theo điều kiện | `condition: {fieldKey, operator, value}` | null |
+
+**Serialize JSON:** tên enum nguyên gốc PascalCase (vd: `"FormSection"`)
 
 ---
 
@@ -188,20 +192,6 @@
 
 ---
 
-### Value Object: `FormPageLayout`
-
-> Layout của `FormPage`. Lưu dạng `[JSONB]` trong `FormPage.LayoutJson`. Default khi tạo: `{"rows":[]}`.
-
-**FormPageComponent** — polymorphic, phân biệt bằng discriminator field `"type"`:
-
-| `"type"` | C# Type | Fields bắt buộc | Mô tả |
-|----------|---------|----------------|-------|
-| `"FormSection"` | `FormSectionPageComponent` | `FormKey: string` | Nhúng form; `FormKey` MUST là key form đã Published |
-| `"TextBlock"` | `TextBlockPageComponent` | `Content: string` | Khối văn bản; `Align` ∈ `"left"`, `"center"`, `"right"` |
-| `"Divider"` | `DividerPageComponent` | — | Đường phân cách |
-
-`Span` là số cột (1–12) trong grid. `null` = full width.
-
 ---
 
 ## 3. Entities
@@ -284,15 +274,16 @@
 
 ---
 
-### Entity: `FormPage`
+### Entity: `FormScreen` ⭐ Screen Designer
 
-> Aggregate root. DB table: `FormPages`. Kết hợp nhiều form vào một màn hình layout.
+> Aggregate root. DB table: `FormScreens`. Màn hình SDUI thiết kế bằng drag-and-drop. Chứa danh sách `FormScreenTab`.
 
 | Field | Type | Constraint | Ghi chú |
 |-------|------|-----------|---------|
-| `Code` | `string` | MUST unique trong module; max 100; `^[a-z0-9\-]+$` | [R] |
-| `Status` | `FormPageStatus` | — | Default: `Draft` |
-| `LayoutJson` | `string` | [JSONB] — `FormPageLayout` | Default: `{"rows":[]}` |
+| `Code` | `string` | MUST unique trong module; max 100; `^[a-z0-9\-]+$` | [R] sau khi tạo |
+| `Title` | `string` | MUST NotEmpty; max 200 | — |
+| `Status` | `FormStatus` | — | Default: `Draft` |
+| `SortOrder` | `int` | ≥ 0 | Thứ tự hiển thị trong sidebar |
 
 **State Machine:**
 
@@ -300,10 +291,48 @@
 ──Create()──→ Draft ──Publish()──→ Published ──Archive()──→ Archived
 ```
 
-| Method | Precondition |
-|--------|-------------|
-| `UpdateLayout(layoutJson)` | MUST NOT `Archived` |
-| `Publish()` | MUST NOT `Archived` |
+| Method | Precondition | Side Effect |
+|--------|-------------|------------|
+| `AddTab(label, slug, sortOrder, isDefault)` | MUST NOT `Archived`; slug MUST unique trong screen | Thêm tab vào `_tabs` |
+| `RemoveTab(tabId)` | Tab MUST tồn tại | Xóa tab khỏi `_tabs` (cascade xóa widgets) |
+| `Publish()` | MUST NOT `Archived` | Raise `FormScreenPublishedDomainEvent` |
+
+---
+
+### Entity: `FormScreenTab` ⭐ Screen Designer
+
+> Child entity của `FormScreen` (BaseEntity). DB table: `FormScreenTabs`.
+
+| Field | Type | Constraint | Ghi chú |
+|-------|------|-----------|---------|
+| `ScreenId` | `Guid` | FK → `FormScreens.Id` | — |
+| `Label` | `string` | MUST NotEmpty; max 200 | — |
+| `Slug` | `string` | MUST unique trong screen; max 100; `^[a-z0-9\-]+$` | [R] |
+| `SortOrder` | `int` | ≥ 0 | Thứ tự hiển thị |
+| `IsDefault` | `bool` | — | Tab được chọn khi mở screen |
+
+| Method | Ghi chú |
+|--------|---------|
+| `Update(label, sortOrder, isDefault)` | Cập nhật metadata |
+| `ReplaceWidgets(widgets)` | Full replacement — xóa cũ, thêm mới. Gọi bởi `SaveTabWidgetsCommand` |
+
+---
+
+### Entity: `FormScreenWidget` ⭐ Screen Designer
+
+> Child entity của `FormScreenTab` (BaseEntity). DB table: `FormScreenWidgets`.
+
+| Field | Type | Constraint | Ghi chú |
+|-------|------|-----------|---------|
+| `TabId` | `Guid` | FK → `FormScreenTabs.Id` | — |
+| `WidgetKey` | `string` | MUST unique trong tab; max 100 | Định danh widget trên canvas |
+| `WidgetType` | `WidgetType` | — | Loại widget |
+| `GridX` | `int` | ≥ 0 | Cột trên grid (react-grid-layout) |
+| `GridY` | `int` | ≥ 0 | Hàng trên grid |
+| `GridW` | `int` | ≥ 1; default 6 | Chiều rộng (số cột) |
+| `GridH` | `int` | ≥ 1; default 4 | Chiều cao (số hàng) |
+| `ConfigJson` | `string` | [JSONB]; default `{}` | Cấu hình hiển thị tuỳ `WidgetType` |
+| `ReferenceId` | `Guid?` | MAY null | `FormTemplate.Id` khi `WidgetType = FormSection` |
 
 ---
 
@@ -337,14 +366,19 @@
 | `CountByFormTemplateAsync(formTemplateId, ct)` | `int` | Tổng số submission cho pagination |
 | `AddAsync(submission, ct)` | `void` | Chưa commit |
 
-### `IFormPageRepository`
+### `IFormScreenRepository` ⭐
 
 | Method | Trả về | Ghi chú |
 |--------|--------|---------|
-| `GetByCodeAsync(moduleCode, pageCode, ct)` | `FormPage?` | Key = `(moduleCode, pageCode)` |
-| `GetByModuleAsync(moduleCode, ct)` | `List<FormPage>` | — |
-| `ExistsByCodeAsync(moduleCode, pageCode, ct)` | `bool` | — |
-| `Add(page)` | `void` | Sync, chưa commit |
+| `GetByIdAsync(id, ct)` | `FormScreen?` | — |
+| `GetByCodeAsync(moduleCode, screenCode, ct)` | `FormScreen?` | Không include tabs |
+| `GetByCodeWithTabsAsync(moduleCode, screenCode, ct)` | `FormScreen?` | Include tabs + widgets — dùng khi cần AddTab/RemoveTab |
+| `GetWithTabsAndWidgetsAsync(moduleCode, screenCode, ct)` | `FormScreen?` | Chỉ trả `Published`; dùng cho SDUI layout |
+| `GetByModuleAsync(moduleCode, ct)` | `List<FormScreen>` | Ordered by `SortOrder` |
+| `ExistsByCodeAsync(moduleCode, screenCode, ct)` | `bool` | — |
+| `GetTabWithWidgetsAsync(screenId, tabId, ct)` | `FormScreenTab?` | Include widgets; dùng cho `SaveTabWidgetsCommand` |
+| `Add(screen)` | `void` | Sync, chưa commit |
+| `Remove(screen)` | `void` | Cascade xóa tabs + widgets |
 
 ---
 
@@ -493,27 +527,173 @@ Danh sách submission có phân trang.
 
 ---
 
-### `POST /forms/admin/modules/{moduleCode}/pages` — `[Authorize(Roles="admin")]`
+### `GET /forms/admin/widget-catalog` — `[Authorize(Roles="admin")]` ⭐
 
-Tạo page layout mới. `code` MUST unique trong module, `^[a-z0-9\-]+$`, max 100.
+Lấy danh sách widget types hỗ trợ. Dùng để populate palette trong designer.
 
----
-
-### `PUT /forms/admin/pages/{pageId}/layout` — `[Authorize(Roles="admin")]`
-
-Cập nhật layout JSON của page. MUST NOT page `Archived`.
+**Response 200:** `List<WidgetCatalogItemDto>` — `{ widgetType, label, description, defaultW, defaultH }`
 
 ---
 
-### `POST /forms/admin/pages/{pageId}/publish` — `[Authorize(Roles="admin")]`
+### `GET /forms/admin/screens/{moduleCode}` — `[Authorize(Roles="admin")]` ⭐
 
-Publish page.
+Danh sách tất cả screens (mọi status) của module, sắp xếp theo `SortOrder`.
 
 ---
 
-### `GET /forms/pages/{moduleCode}/{pageCode}` — `[AllowAnonymous]`
+### `POST /forms/admin/screens` — `[Authorize(Roles="admin")]` ⭐
 
-Lấy page schema đã hydrate — mỗi `FormSectionPageComponent` được resolve thành schema đầy đủ của form. Chỉ trả về page `Published`. Nếu form trong component chưa `Published` — component vẫn trả về nhưng `Schema = null`.
+Tạo screen mới. Module MUST tồn tại.
+
+**Validation:**
+
+| Field | Rule |
+|-------|------|
+| `moduleCode` | MUST là module tồn tại |
+| `code` | NotEmpty, max 100, `^[a-z0-9\-]+$`, MUST unique trong module |
+| `title` | NotEmpty, max 200 |
+
+| Code | Khi nào |
+|------|---------|
+| 201 | Tạo thành công |
+| 400 | Module không tồn tại |
+| 409 | `code` đã tồn tại trong module |
+
+---
+
+### `PUT /forms/admin/screens/{moduleCode}/{screenCode}` — `[Authorize(Roles="admin")]` ⭐
+
+Cập nhật `title`, `description`, `sortOrder`. MUST NOT screen `Archived`.
+
+---
+
+### `DELETE /forms/admin/screens/{moduleCode}/{screenCode}` — `[Authorize(Roles="admin")]` ⭐
+
+Xóa screen. Cascade xóa tất cả tabs và widgets.
+
+**Response `204 No Content`**
+
+---
+
+### `POST /forms/admin/screens/{moduleCode}/{screenCode}/publish` — `[Authorize(Roles="admin")]` ⭐
+
+Publish screen. MUST NOT `Archived`. Raise `FormScreenPublishedDomainEvent`.
+
+---
+
+### `POST /forms/admin/screens/{moduleCode}/{screenCode}/tabs` — `[Authorize(Roles="admin")]` ⭐
+
+Thêm tab vào screen.
+
+**Validation:**
+
+| Field | Rule |
+|-------|------|
+| `label` | NotEmpty, max 200 |
+| `slug` | NotEmpty, max 100, `^[a-z0-9\-]+$`, MUST unique trong screen |
+
+---
+
+### `PUT /forms/admin/screens/{moduleCode}/{screenCode}/tabs/{tabId}` — `[Authorize(Roles="admin")]` ⭐
+
+Cập nhật tab. Tab MUST thuộc screen này.
+
+---
+
+### `DELETE /forms/admin/screens/{moduleCode}/{screenCode}/tabs/{tabId}` — `[Authorize(Roles="admin")]` ⭐
+
+Xóa tab. Cascade xóa tất cả widgets trong tab.
+
+---
+
+### `PUT /forms/admin/screens/{moduleCode}/{screenCode}/tabs/{tabId}/widgets` — `[Authorize(Roles="admin")]` ⭐
+
+**Drag-and-drop save — endpoint chính của designer.** Lưu toàn bộ canvas cho một tab (full replacement — xóa cũ, insert mới trong một transaction).
+
+**Body:** `List<WidgetInput>`
+
+```json
+[
+  {
+    "widgetKey": "patient-form",
+    "widgetType": "FormSection",
+    "gridX": 0, "gridY": 0, "gridW": 8, "gridH": 10,
+    "configJson": "{}",
+    "referenceId": "uuid-of-form-template"
+  },
+  {
+    "widgetKey": "intro-text",
+    "widgetType": "TextBlock",
+    "gridX": 8, "gridY": 0, "gridW": 4, "gridH": 3,
+    "configJson": "{\"content\": \"Chào mừng!\", \"align\": \"center\"}",
+    "referenceId": null
+  }
+]
+```
+
+**Validation:**
+
+| Rule | Chi tiết |
+|------|---------|
+| `widgetKey` | NotEmpty, max 100; MUST unique trong request |
+| `widgetType` | MUST là `WidgetType` enum hợp lệ |
+| `gridW`, `gridH` | `> 0` |
+
+**Response 200:** `{ "saved": <số widget> }`
+
+| Code | Khi nào |
+|------|---------|
+| 200 | Lưu thành công |
+| 400 | Validation fail (widgetKey trùng, widgetType không hợp lệ...) |
+| 404 | Screen hoặc Tab không tồn tại |
+
+---
+
+### `GET /forms/screens/{moduleCode}` — `[AllowAnonymous]` ⭐
+
+Danh sách screens của module. Trả tất cả status (frontend tự filter nếu cần).
+
+---
+
+### `GET /forms/screens/{moduleCode}/{screenCode}/layout` — `[AllowAnonymous]` ⭐
+
+**SDUI endpoint chính.** Lấy toàn bộ layout của screen (tabs + widgets). Chỉ trả về screen `Published`. Với mỗi widget `FormSection`, tự động hydrate `formSchema` từ `FormTemplate` tương ứng.
+
+**Response 200:**
+
+```json
+{
+  "id": "uuid",
+  "moduleCode": "tiep-nhan",
+  "code": "man-hinh-tiep-nhan",
+  "title": "Màn hình tiếp nhận",
+  "tabs": [
+    {
+      "id": "uuid",
+      "label": "Thông tin BN",
+      "slug": "thong-tin-bn",
+      "isDefault": true,
+      "sortOrder": 0,
+      "widgets": [
+        {
+          "widgetKey": "patient-form",
+          "widgetType": "FormSection",
+          "gridX": 0, "gridY": 0, "gridW": 8, "gridH": 10,
+          "config": null,
+          "referenceId": "uuid",
+          "formSchema": { "formKey": "...", "fields": [...], "settings": {...} }
+        }
+      ]
+    }
+  ],
+  "generatedAt": "2026-06-03T..."
+}
+```
+
+| Code | Khi nào |
+|------|---------|
+| 200 | Screen tồn tại và `Published` |
+| 404 | Screen không tồn tại hoặc chưa `Published` |
 
 ---
 
@@ -543,14 +723,17 @@ Lấy page schema đã hydrate — mỗi `FormSectionPageComponent` được res
 | **BR-01** | `FormModule.Code` MUST unique global | `ExistsByCodeAsync` trong handler |
 | **BR-02** | `FormTemplate.Key` MUST unique trong module | `ExistsByKeyInModuleAsync` |
 | **BR-03** | `FormField.Key` MUST unique trong form | Guard trong `FormTemplate.AddField()` |
-| **BR-04** | `FormPage.Code` MUST unique trong module | `ExistsByCodeAsync` |
+| **BR-04** | `FormScreen.Code` MUST unique trong module | `ExistsByCodeAsync` trong handler |
 | **BR-05** | Không được thêm/sửa field vào form `Published` hoặc `Archived` | Guard trong `FormTemplate.AddField()` |
 | **BR-06** | Không được `Update` form `Published` hoặc `Archived` | Guard trong `FormTemplate.Update()` |
 | **BR-07** | `Publish()` form MUST có ≥ 1 field | Guard trong `FormTemplate.Publish()` |
 | **BR-08** | Chỉ nhận submission khi form `Published` | Check trong `SubmitFormCommandHandler` |
-| **BR-09** | `FormPage.UpdateLayout()` và `Publish()` MUST NOT khi `Archived` | Guard trong `FormPage` |
-| **BR-10** | `FormSubmission` immutable sau khi tạo — chỉ `Status` thay đổi | Không có method sửa answers |
-| **BR-11** | `FormVersion` capture tại thời điểm submit — không thay đổi dù form publish lại | Set trong `FormSubmission.Create()` |
+| **BR-09** | `FormScreen.AddTab()` và `Publish()` MUST NOT khi `Archived` | Guard trong `FormScreen` |
+| **BR-10** | `FormScreenTab.Slug` MUST unique trong screen | Guard trong `FormScreen.AddTab()` |
+| **BR-11** | `WidgetKey` MUST unique trong tab | Validation trong `SaveTabWidgetsCommandValidator` |
+| **BR-12** | `FormSubmission` immutable sau khi tạo — chỉ `Status` thay đổi | Không có method sửa answers |
+| **BR-13** | `FormVersion` capture tại thời điểm submit — không thay đổi dù form publish lại | Set trong `FormSubmission.Create()` |
+| **BR-14** | `SaveTabWidgets` là full replacement — không patch từng widget | Gọi `tab.ReplaceWidgets(newWidgets)` |
 
 ---
 
@@ -561,7 +744,11 @@ Lấy page schema đã hydrate — mỗi `FormSectionPageComponent` được res
 | `Module.Code` | `CreateModuleCommand` | NotEmpty, max 50, `^[a-z0-9\-]+$` |
 | `Form.Key` | `CreateFormCommand` | NotEmpty, max 100, `^[a-z0-9\-]+$` |
 | `Field.Key` | `AddFieldCommand` | NotEmpty, max 100, `^[a-z0-9_]+$` ← dùng `_` không phải `-` |
-| `Page.Code` | `CreatePageCommand` | NotEmpty, max 100, `^[a-z0-9\-]+$` |
+| `Screen.Code` | `CreateScreenCommand` | NotEmpty, max 100, `^[a-z0-9\-]+$` |
+| `Tab.Slug` | `CreateTabCommand` | NotEmpty, max 100, `^[a-z0-9\-]+$` |
+| `Widget.WidgetKey` | `SaveTabWidgetsCommand` | NotEmpty, max 100; unique trong request |
+| `Widget.WidgetType` | `SaveTabWidgetsCommand` | MUST là `WidgetType` enum hợp lệ (PascalCase) |
+| `Widget.GridW/H` | `SaveTabWidgetsCommand` | `> 0` |
 | `Module.Name` | `CreateModuleCommand` | NotEmpty, max 200 |
 | `Form.Name` | `CreateFormCommand` | NotEmpty, max 200 |
 | `Field.Label` | `AddFieldCommand` | NotEmpty, max 200 |
@@ -672,44 +859,65 @@ POST /forms/admin/forms/{formB-id}/fields
 POST /forms/admin/forms/{formB-id}/publish
 ```
 
-**Bước 6 — Tạo Page**
+**Bước 6 — Tạo Screen** ⭐ Screen Designer
 
 ```http
-POST /forms/admin/modules/tiep-nhan/pages
-{ "code": "man-hinh-tiep-nhan", "title": "Màn hình Tiếp nhận" }
-→ {pageId}
+POST /forms/admin/screens
+{ "moduleCode": "tiep-nhan", "code": "man-hinh-tiep-nhan", "title": "Màn hình Tiếp nhận", "sortOrder": 0 }
+→ { "id": "{screenId}", "code": "man-hinh-tiep-nhan", ... }
 ```
 
-**Bước 7 — Cài layout**
+**Bước 7 — Thêm Tab**
 
 ```http
-PUT /forms/admin/pages/{pageId}/layout
-{
-  "rows": [
-    { "components": [
-        { "type": "FormSection", "span": 8, "formKey": "phieu-tiep-nhan", "title": "Thông tin bệnh nhân" },
-        { "type": "FormSection", "span": 4, "formKey": "phieu-bao-hiem" }
-    ]},
-    { "components": [
-        { "type": "TextBlock", "span": 12, "content": "Kiểm tra kỹ trước khi lưu", "align": "center" }
-    ]}
-  ]
-}
+POST /forms/admin/screens/tiep-nhan/man-hinh-tiep-nhan/tabs
+{ "label": "Tiếp nhận", "slug": "tiep-nhan-tab", "sortOrder": 0, "isDefault": true }
+→ { "id": "{tabId}", ... }
 ```
 
-**Bước 8 — Publish Page**
+**Bước 8 — Lưu canvas (drag-and-drop)**
 
 ```http
-POST /forms/admin/pages/{pageId}/publish
+PUT /forms/admin/screens/tiep-nhan/man-hinh-tiep-nhan/tabs/{tabId}/widgets
+[
+  {
+    "widgetKey": "patient-form",
+    "widgetType": "FormSection",
+    "gridX": 0, "gridY": 0, "gridW": 8, "gridH": 10,
+    "configJson": "{}",
+    "referenceId": "{formA-id}"
+  },
+  {
+    "widgetKey": "insurance-form",
+    "widgetType": "FormSection",
+    "gridX": 8, "gridY": 0, "gridW": 4, "gridH": 10,
+    "configJson": "{}",
+    "referenceId": "{formB-id}"
+  },
+  {
+    "widgetKey": "note-text",
+    "widgetType": "TextBlock",
+    "gridX": 0, "gridY": 10, "gridW": 12, "gridH": 2,
+    "configJson": "{\"content\": \"Kiểm tra kỹ trước khi lưu\", \"align\": \"center\"}",
+    "referenceId": null
+  }
+]
+→ { "saved": 3 }
 ```
 
-**Bước 9 — Frontend gọi 1 request để lấy toàn bộ layout**
+**Bước 9 — Publish Screen**
 
 ```http
-GET /forms/pages/tiep-nhan/man-hinh-tiep-nhan
+POST /forms/admin/screens/tiep-nhan/man-hinh-tiep-nhan/publish
 ```
 
-→ Nhận toàn bộ layout + schema của mỗi form → render màn hình → submit từng form riêng:
+**Bước 10 — Frontend gọi 1 request để lấy toàn bộ layout**
+
+```http
+GET /forms/screens/tiep-nhan/man-hinh-tiep-nhan/layout
+```
+
+→ Nhận toàn bộ layout (tabs + widgets + formSchema hydrated) → render màn hình → submit từng form riêng:
 
 ```http
 POST /forms/tiep-nhan/phieu-tiep-nhan/submit
@@ -753,11 +961,18 @@ POST /forms/tiep-nhan/phieu-bao-hiem/submit
 | `GET` | `/forms/{moduleCode}/{formKey}/schema` | Schema BDUI | Public |
 | `POST` | `/forms/{moduleCode}/{formKey}/submit` | Submit form | Public |
 | `GET` | `/forms/admin/forms/{id}/submissions` | Danh sách submission | Admin |
-| `POST` | `/forms/admin/modules/{code}/pages` | Tạo page | Admin |
-| `PUT` | `/forms/admin/pages/{id}/layout` | Cài layout | Admin |
-| `POST` | `/forms/admin/pages/{id}/publish` | Publish page | Admin |
-| `GET` | `/forms/pages/{moduleCode}` | Danh sách page | Public |
-| `GET` | `/forms/pages/{moduleCode}/{pageCode}` | Schema page BDUI | Public |
+| `GET` | `/forms/admin/widget-catalog` | Danh sách widget types | Admin |
+| `GET` | `/forms/admin/screens/{moduleCode}` | Danh sách screens | Admin |
+| `POST` | `/forms/admin/screens` | Tạo screen | Admin |
+| `PUT` | `/forms/admin/screens/{m}/{s}` | Cập nhật screen | Admin |
+| `DELETE` | `/forms/admin/screens/{m}/{s}` | Xóa screen | Admin |
+| `POST` | `/forms/admin/screens/{m}/{s}/publish` | Publish screen | Admin |
+| `POST` | `/forms/admin/screens/{m}/{s}/tabs` | Thêm tab | Admin |
+| `PUT` | `/forms/admin/screens/{m}/{s}/tabs/{id}` | Cập nhật tab | Admin |
+| `DELETE` | `/forms/admin/screens/{m}/{s}/tabs/{id}` | Xóa tab | Admin |
+| `PUT` | `/forms/admin/screens/{m}/{s}/tabs/{id}/widgets` | ⭐ Lưu canvas drag-drop | Admin |
+| `GET` | `/forms/screens/{moduleCode}` | Danh sách screens public | Public |
+| `GET` | `/forms/screens/{moduleCode}/{screenCode}/layout` | ⭐ SDUI layout | Public |
 | `GET` | `/forms/health` | Health check | Public |
 
 ### Ràng buộc quan trọng
@@ -767,7 +982,9 @@ POST /forms/tiep-nhan/phieu-bao-hiem/submit
 | Thêm field | Chỉ khi form đang `Draft` |
 | Publish form | Phải có ít nhất 1 field |
 | Đọc schema / submit | Form phải `Published` |
-| Đọc page schema | Page phải `Published` + mỗi form trong layout phải `Published` |
-| FormSection trong Page | `formKey` phải là form cùng module, đã Published |
-| Span tổng mỗi row | Nên ≤ 12 (vượt quá frontend tự xuống dòng theo CSS) |
+| Đọc screen layout | Screen phải `Published`; `FormSection` widget tự hydrate formSchema |
+| `FormSection` widget | `referenceId` MUST là `FormTemplate.Id` hợp lệ |
+| `SaveTabWidgets` | Full replacement — không patch; gửi toàn bộ canvas mỗi lần lưu |
+| `WidgetKey` | MUST unique trong tab (validated client + server) |
 | Field key | Dùng `_` (gạch dưới), không phải `-` (gạch ngang) |
+| Screen code / Tab slug | Dùng `-` (gạch ngang), không phải `_` |

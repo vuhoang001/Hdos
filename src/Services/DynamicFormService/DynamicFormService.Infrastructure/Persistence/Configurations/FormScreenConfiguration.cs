@@ -4,11 +4,11 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Hdos.DynamicFormService.Infrastructure.Persistence.Configurations;
 
-public sealed class FormPageConfiguration : IEntityTypeConfiguration<FormPage>
+public sealed class FormScreenConfiguration : IEntityTypeConfiguration<FormScreen>
 {
-    public void Configure(EntityTypeBuilder<FormPage> b)
+    public void Configure(EntityTypeBuilder<FormScreen> b)
     {
-        b.ToTable("FormPages");
+        b.ToTable("FormScreens");
         b.HasKey(x => x.Id);
         b.Property(x => x.Id).ValueGeneratedNever();
 
@@ -18,9 +18,16 @@ public sealed class FormPageConfiguration : IEntityTypeConfiguration<FormPage>
         b.Property(x => x.Title).HasMaxLength(200).IsRequired();
         b.Property(x => x.Description).HasMaxLength(500);
         b.Property(x => x.Status).HasMaxLength(20).HasConversion<string>().IsRequired();
-        b.Property(x => x.LayoutJson).HasColumnType("jsonb").IsRequired();
+        b.Property(x => x.SortOrder).IsRequired();
         b.Property(x => x.CreatedAtUtc).IsRequired();
         b.Property(x => x.UpdatedAtUtc);
+
+        b.HasMany(s => s.Tabs)
+         .WithOne()
+         .HasForeignKey(t => t.ScreenId)
+         .OnDelete(DeleteBehavior.Cascade);
+
+        b.Navigation(s => s.Tabs).UsePropertyAccessMode(PropertyAccessMode.Field);
 
         b.HasIndex(x => new { x.ModuleCode, x.Code }).IsUnique();
         b.HasIndex(x => x.ModuleCode);

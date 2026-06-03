@@ -5,9 +5,6 @@ using Hdos.DynamicFormService.Application.Features.Forms.ArchiveForm;
 using Hdos.DynamicFormService.Application.Features.Forms.CreateForm;
 using Hdos.DynamicFormService.Application.Features.Forms.PublishForm;
 using Hdos.DynamicFormService.Application.Features.Modules.CreateModule;
-using Hdos.DynamicFormService.Application.Features.Pages.CreatePage;
-using Hdos.DynamicFormService.Application.Features.Pages.PublishPage;
-using Hdos.DynamicFormService.Application.Features.Pages.UpdatePageLayout;
 using Hdos.DynamicFormService.Application.Features.Submissions.GetSubmissions;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -35,9 +32,9 @@ public sealed class AdminFormsController(ISender sender) : ControllerBase
 
     [HttpPost("modules/{moduleCode}/forms")]
     public async Task<IActionResult> CreateForm(
-        string                 moduleCode,
+        string            moduleCode,
         [FromBody] CreateFormBody body,
-        CancellationToken      ct)
+        CancellationToken ct)
     {
         var cmd = new CreateFormCommand(
             moduleCode, body.Key, body.Name, body.Description,
@@ -50,9 +47,9 @@ public sealed class AdminFormsController(ISender sender) : ControllerBase
 
     [HttpPost("forms/{formTemplateId:guid}/fields")]
     public async Task<IActionResult> AddField(
-        Guid                  formTemplateId,
+        Guid              formTemplateId,
         [FromBody] AddFieldCommand cmd,
-        CancellationToken     ct)
+        CancellationToken ct)
     {
         var result = await sender.Send(cmd with { FormTemplateId = formTemplateId }, ct);
         if (result.IsFailure)
@@ -78,42 +75,6 @@ public sealed class AdminFormsController(ISender sender) : ControllerBase
         return Ok(ApiResponse.Ok());
     }
 
-    // ── Pages ─────────────────────────────────────────────────────────────────
-
-    [HttpPost("modules/{moduleCode}/pages")]
-    public async Task<IActionResult> CreatePage(
-        string                    moduleCode,
-        [FromBody] CreatePageBody body,
-        CancellationToken         ct)
-    {
-        var cmd = new CreatePageCommand(moduleCode, body.Code, body.Title, body.Description);
-        var result = await sender.Send(cmd, ct);
-        if (result.IsFailure)
-            return BadRequest(ApiResponse<FormPageDto>.Fail(result.Error.Code, result.Error.Message));
-        return CreatedAtAction(null, ApiResponse<FormPageDto>.Ok(result.Value));
-    }
-
-    [HttpPut("pages/{pageId:guid}/layout")]
-    public async Task<IActionResult> UpdatePageLayout(
-        Guid                         pageId,
-        [FromBody] FormPageLayout     layout,
-        CancellationToken            ct)
-    {
-        var result = await sender.Send(new UpdatePageLayoutCommand(pageId, layout), ct);
-        if (result.IsFailure)
-            return BadRequest(ApiResponse.Fail(result.Error.Code, result.Error.Message));
-        return Ok(ApiResponse.Ok());
-    }
-
-    [HttpPost("pages/{pageId:guid}/publish")]
-    public async Task<IActionResult> PublishPage(Guid pageId, CancellationToken ct)
-    {
-        var result = await sender.Send(new PublishPageCommand(pageId), ct);
-        if (result.IsFailure)
-            return BadRequest(ApiResponse.Fail(result.Error.Code, result.Error.Message));
-        return Ok(ApiResponse.Ok());
-    }
-
     // ── Submissions ───────────────────────────────────────────────────────────
 
     [HttpGet("forms/{formTemplateId:guid}/submissions")]
@@ -121,7 +82,7 @@ public sealed class AdminFormsController(ISender sender) : ControllerBase
         Guid formTemplateId,
         [FromQuery] int page     = 1,
         [FromQuery] int pageSize = 20,
-        CancellationToken ct = default)
+        CancellationToken ct     = default)
     {
         var result = await sender.Send(new GetSubmissionsQuery(formTemplateId, page, pageSize), ct);
         if (result.IsFailure)
@@ -134,11 +95,6 @@ public sealed record CreateFormBody(
     string  Key,
     string  Name,
     string? Description,
-    string  SubmitButtonLabel        = "Gửi",
-    string  SuccessMessage           = "Đã gửi form thành công",
-    bool    AllowMultipleSubmissions  = true);
-
-public sealed record CreatePageBody(
-    string  Code,
-    string  Title,
-    string? Description);
+    string  SubmitButtonLabel       = "Gửi",
+    string  SuccessMessage          = "Đã gửi form thành công",
+    bool    AllowMultipleSubmissions = true);

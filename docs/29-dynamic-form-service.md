@@ -47,13 +47,17 @@ src/Services/DynamicFormService/
 │   │   ├── FormModule.cs          ← AggregateRoot<Guid>
 │   │   ├── FormTemplate.cs        ← AggregateRoot<Guid> (chứa Fields)
 │   │   ├── FormField.cs           ← BaseEntity<Guid>
-│   │   └── FormSubmission.cs      ← AggregateRoot<Guid>
+│   │   ├── FormSubmission.cs      ← AggregateRoot<Guid>
+│   │   ├── FormScreen.cs          ← AggregateRoot<Guid> ⭐ Screen Designer
+│   │   ├── FormScreenTab.cs       ← BaseEntity<Guid>    ⭐ Screen Designer
+│   │   └── FormScreenWidget.cs    ← BaseEntity<Guid>    ⭐ Screen Designer
 │   ├── Enums/
 │   │   ├── ModuleStatus.cs        ← Active | Inactive
-│   │   ├── FormStatus.cs          ← Draft | Published | Archived
+│   │   ├── FormStatus.cs          ← Draft | Published | Archived (dùng chung cho Form và Screen)
 │   │   ├── FieldType.cs           ← Text | Textarea | Number | Date | Select | ...
 │   │   ├── FieldWidth.cs          ← Full | Half | Third
-│   │   └── SubmissionStatus.cs    ← Submitted | Reviewed
+│   │   ├── SubmissionStatus.cs    ← Submitted | Reviewed
+│   │   └── WidgetType.cs          ← FormSection | TextBlock | Divider | ImageBlock | ConditionalSection ⭐
 │   ├── ValueObjects/
 │   │   ├── FormSettings.cs        ← SubmitButtonLabel, SuccessMessage, AllowMultiple
 │   │   ├── FieldOption.cs         ← Label, Value (cho Select/Radio/Checkbox)
@@ -63,11 +67,13 @@ src/Services/DynamicFormService/
 │   ├── Events/
 │   │   ├── FormModuleCreatedDomainEvent.cs
 │   │   ├── FormPublishedDomainEvent.cs
-│   │   └── FormSubmittedDomainEvent.cs
+│   │   ├── FormSubmittedDomainEvent.cs
+│   │   └── FormScreenPublishedDomainEvent.cs ⭐
 │   └── Repositories/
 │       ├── IFormModuleRepository.cs
 │       ├── IFormTemplateRepository.cs
 │       ├── IFormSubmissionRepository.cs
+│       ├── IFormScreenRepository.cs          ⭐
 │       └── IDynamicFormUnitOfWork.cs
 ├── DynamicFormService.Application/
 │   ├── Features/
@@ -79,11 +85,25 @@ src/Services/DynamicFormService/
 │   │   │   ├── AddField/AddFieldCommand.cs
 │   │   │   ├── PublishForm/PublishFormCommand.cs
 │   │   │   ├── ArchiveForm/ArchiveFormCommand.cs
-│   │   │   ├── GetSchema/GetFormSchemaQuery.cs  ← ⭐ BDUI endpoint
+│   │   │   ├── GetSchema/GetFormSchemaQuery.cs  ← ⭐ BDUI form endpoint
 │   │   │   └── GetForms/GetFormsByModuleQuery.cs
-│   │   └── Submissions/
-│   │       ├── SubmitForm/SubmitFormCommand.cs
-│   │       └── GetSubmissions/GetSubmissionsQuery.cs
+│   │   ├── Submissions/
+│   │   │   ├── SubmitForm/SubmitFormCommand.cs
+│   │   │   └── GetSubmissions/GetSubmissionsQuery.cs
+│   │   ├── Screens/                             ← ⭐ Screen Designer
+│   │   │   ├── CreateScreen/CreateScreenCommand.cs
+│   │   │   ├── UpdateScreen/UpdateScreenCommand.cs
+│   │   │   ├── DeleteScreen/DeleteScreenCommand.cs
+│   │   │   ├── PublishScreen/PublishScreenCommand.cs
+│   │   │   ├── GetScreens/GetScreensQuery.cs
+│   │   │   └── GetScreenLayout/GetScreenLayoutQuery.cs  ← ⭐ SDUI endpoint chính
+│   │   ├── Tabs/                                ← ⭐ Screen Designer
+│   │   │   ├── CreateTab/CreateTabCommand.cs
+│   │   │   ├── UpdateTab/UpdateTabCommand.cs
+│   │   │   ├── DeleteTab/DeleteTabCommand.cs
+│   │   │   └── SaveTabWidgets/SaveTabWidgetsCommand.cs  ← ⭐ Drag-and-drop save
+│   │   └── WidgetCatalog/
+│   │       └── GetWidgetCatalog/GetWidgetCatalogQuery.cs
 │   ├── DTOs/DynamicFormDtos.cs
 │   └── DependencyInjection.cs
 ├── DynamicFormService.Infrastructure/
@@ -93,12 +113,15 @@ src/Services/DynamicFormService/
 │   │   ├── FormModuleRepository.cs
 │   │   ├── FormTemplateRepository.cs
 │   │   ├── FormSubmissionRepository.cs
+│   │   ├── FormScreenRepository.cs   ⭐
 │   │   └── DynamicFormUnitOfWork.cs
 │   └── DependencyInjection.cs
 └── DynamicFormService.API/
     ├── Controllers/
-    │   ├── FormsController.cs         ← public (anonymous)
-    │   └── AdminFormsController.cs    ← admin only
+    │   ├── FormsController.cs         ← public (form submit/schema)
+    │   ├── AdminFormsController.cs    ← admin (form/module CRUD)
+    │   ├── AdminScreensController.cs  ← admin (screen designer) ⭐
+    │   └── ScreensController.cs       ← public (SDUI layout) ⭐
     ├── Program.cs
     ├── Dockerfile
     └── DynamicFormService.API.csproj
@@ -116,8 +139,11 @@ src/Services/DynamicFormService/
 | `FormTemplates` | Định nghĩa form | `SettingsJson` (FormSettings) |
 | `FormFields` | Fields của form | `OptionsJson`, `ValidationRulesJson`, `ConditionalLogicJson` |
 | `FormSubmissions` | Câu trả lời | `AnswersJson` (List\<FieldAnswer\>) |
+| `FormScreens` | Màn hình SDUI | — |
+| `FormScreenTabs` | Tab trong màn hình | — |
+| `FormScreenWidgets` | Widget trên canvas | `ConfigJson` (cấu hình hiển thị) |
 
-**Lý do dùng JSONB cho Options/ValidationRules/ConditionalLogic**: cấu trúc thay đổi theo từng field type, không cần query bên trong, load cùng field. JSONB vẫn indexable khi cần.
+**Lý do dùng JSONB cho Options/ValidationRules/ConditionalLogic/Config**: cấu trúc thay đổi theo từng field/widget type, không cần query bên trong. JSONB vẫn indexable khi cần.
 
 ### Migration
 
@@ -140,11 +166,13 @@ dotnet ef database update
 |--------|-------|-------|
 | `GET` | `/forms/modules` | Danh sách modules active |
 | `GET` | `/forms/{moduleCode}` | Danh sách forms trong module |
-| `GET` | `/forms/{moduleCode}/{formKey}/schema` | ⭐ BDUI schema — frontend dùng để render |
+| `GET` | `/forms/{moduleCode}/{formKey}/schema` | ⭐ BDUI schema form — frontend dùng để render |
 | `POST` | `/forms/{moduleCode}/{formKey}/submit` | Submit form |
+| `GET` | `/forms/screens/{moduleCode}` | Danh sách screens đã published ⭐ |
+| `GET` | `/forms/screens/{moduleCode}/{screenCode}/layout` | ⭐ SDUI layout — toàn bộ tabs + widgets + form schemas |
 | `GET` | `/forms/health` | Health check |
 
-### Admin
+### Admin — Form & Module
 
 | Method | Route | Mô tả |
 |--------|-------|-------|
@@ -154,6 +182,21 @@ dotnet ef database update
 | `POST` | `/forms/admin/forms/{id}/publish` | Publish form |
 | `POST` | `/forms/admin/forms/{id}/archive` | Archive form |
 | `GET` | `/forms/admin/forms/{id}/submissions` | Xem submissions (có phân trang) |
+
+### Admin — Screen Designer ⭐
+
+| Method | Route | Mô tả |
+|--------|-------|-------|
+| `GET` | `/forms/admin/widget-catalog` | Danh sách widget types hỗ trợ |
+| `GET` | `/forms/admin/screens/{moduleCode}` | Danh sách screens của module |
+| `POST` | `/forms/admin/screens` | Tạo screen mới |
+| `PUT` | `/forms/admin/screens/{moduleCode}/{screenCode}` | Cập nhật screen |
+| `DELETE` | `/forms/admin/screens/{moduleCode}/{screenCode}` | Xóa screen |
+| `POST` | `/forms/admin/screens/{moduleCode}/{screenCode}/publish` | Publish screen |
+| `POST` | `/forms/admin/screens/{moduleCode}/{screenCode}/tabs` | Thêm tab |
+| `PUT` | `/forms/admin/screens/{moduleCode}/{screenCode}/tabs/{tabId}` | Cập nhật tab |
+| `DELETE` | `/forms/admin/screens/{moduleCode}/{screenCode}/tabs/{tabId}` | Xóa tab |
+| `PUT` | `/forms/admin/screens/{moduleCode}/{screenCode}/tabs/{tabId}/widgets` | ⭐ Lưu canvas (drag-and-drop full replace) |
 
 ---
 
