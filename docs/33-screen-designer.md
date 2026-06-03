@@ -84,7 +84,7 @@ FormModule (code, name)
 | Method | Endpoint | Mô tả |
 |---|---|---|
 | `PUT` | `/forms/admin/screens/{moduleCode}/{screenCode}/tabs/{tabId}/widgets` | **Lưu toàn bộ canvas** — full replacement |
-| `GET` | `/forms/admin/widget-catalog` | Danh sách widget types được hỗ trợ |
+| `GET` | `/forms/admin/widget-catalog` | Danh sách 31 widget templates từ DB (xem doc 34) |
 
 ### Public — SDUI Rendering
 
@@ -253,8 +253,11 @@ User mở màn hình
 | Domain Event | `DynamicFormService.Domain/Events/FormScreenPublishedDomainEvent.cs` |
 | SDUI Query | `DynamicFormService.Application/Features/Screens/GetScreenLayout/GetScreenLayoutQuery.cs` |
 | Drag-drop Save | `DynamicFormService.Application/Features/Tabs/SaveTabWidgets/SaveTabWidgetsCommand.cs` |
-| Widget Catalog | `DynamicFormService.Application/Features/WidgetCatalog/GetWidgetCatalog/GetWidgetCatalogQuery.cs` |
+| Widget Catalog Query | `DynamicFormService.Application/Features/WidgetCatalog/GetWidgetCatalog/GetWidgetCatalogQuery.cs` |
+| Widget Catalog Entity | `DynamicFormService.Domain/Entities/WidgetCatalog.cs` |
+| Widget Catalog Repo | `DynamicFormService.Infrastructure/Persistence/WidgetCatalogRepository.cs` |
 | EF Configuration | `DynamicFormService.Infrastructure/Persistence/Configurations/FormScreen*.cs` |
+| EF Configuration | `DynamicFormService.Infrastructure/Persistence/Configurations/WidgetCatalogConfiguration.cs` |
 | Repository Impl | `DynamicFormService.Infrastructure/Persistence/FormScreenRepository.cs` |
 | Admin API | `DynamicFormService.API/Controllers/AdminScreensController.cs` |
 | Public SDUI API | `DynamicFormService.API/Controllers/ScreensController.cs` |

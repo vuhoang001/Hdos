@@ -74,6 +74,7 @@ src/Services/DynamicFormService/
 │       ├── IFormTemplateRepository.cs
 │       ├── IFormSubmissionRepository.cs
 │       ├── IFormScreenRepository.cs          ⭐
+│       ├── IWidgetCatalogRepository.cs       ⭐ Widget Catalog
 │       └── IDynamicFormUnitOfWork.cs
 ├── DynamicFormService.Application/
 │   ├── Features/
@@ -114,6 +115,7 @@ src/Services/DynamicFormService/
 │   │   ├── FormTemplateRepository.cs
 │   │   ├── FormSubmissionRepository.cs
 │   │   ├── FormScreenRepository.cs   ⭐
+│   │   ├── WidgetCatalogRepository.cs ⭐ Widget Catalog
 │   │   └── DynamicFormUnitOfWork.cs
 │   └── DependencyInjection.cs
 └── DynamicFormService.API/
@@ -142,6 +144,7 @@ src/Services/DynamicFormService/
 | `FormScreens` | Màn hình SDUI | — |
 | `FormScreenTabs` | Tab trong màn hình | — |
 | `FormScreenWidgets` | Widget trên canvas | `ConfigJson` (cấu hình hiển thị) |
+| `WidgetCatalogs` | Danh mục 31 widget templates | `RequiredColumnsJson`, `OptionalColumnsJson`, `CompatibleWithJson` |
 
 **Lý do dùng JSONB cho Options/ValidationRules/ConditionalLogic/Config**: cấu trúc thay đổi theo từng field/widget type, không cần query bên trong. JSONB vẫn indexable khi cần.
 
