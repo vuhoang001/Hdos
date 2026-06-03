@@ -82,14 +82,14 @@ FormTemplate / FormScreen:
 | `POST` | `/forms/admin/forms/{id}/archive` | Archive form |
 | `GET` | `/forms/admin/forms/{id}/submissions` | Xem submissions |
 
-### Admin — Screen Designer
+### Admin — Screen Designer (URL "screens")
 
 | Method | Route | Mô tả |
 |--------|-------|-------|
 | `GET` | `/forms/admin/widget-catalog` | Danh mục 31 widget templates từ DB |
 | `GET` | `/forms/admin/widget-catalog?category=healthcare` | Lọc theo category |
 | `GET` | `/forms/admin/screens/{moduleCode}` | Danh sách screens (admin, all status) |
-| `POST` | `/forms/admin/screens` | Tạo screen |
+| `POST` | `/forms/admin/screens` | Tạo screen (body gồm moduleCode) |
 | `PUT` | `/forms/admin/screens/{moduleCode}/{screenCode}` | Cập nhật screen |
 | `DELETE` | `/forms/admin/screens/{moduleCode}/{screenCode}` | Xóa screen |
 | `POST` | `/forms/admin/screens/{moduleCode}/{screenCode}/publish` | Publish screen |
@@ -97,6 +97,22 @@ FormTemplate / FormScreen:
 | `PUT` | `/forms/admin/screens/{moduleCode}/{screenCode}/tabs/{tabId}` | Cập nhật tab |
 | `DELETE` | `/forms/admin/screens/{moduleCode}/{screenCode}/tabs/{tabId}` | Xóa tab |
 | `PUT` | `/forms/admin/screens/{moduleCode}/{screenCode}/tabs/{tabId}/widgets` | **Lưu canvas** (full replacement) |
+
+### Admin — Pages (URL "pages" — nhất quán với public `/forms/{moduleCode}/pages`)
+
+> Cùng data với `admin/screens` nhưng `moduleCode` nằm trong URL; dành cho frontend khi đã biết module.
+
+| Method | Route | Mô tả |
+|--------|-------|-------|
+| `GET` | `/forms/admin/{moduleCode}/pages` | Danh sách pages của module (all status) |
+| `POST` | `/forms/admin/{moduleCode}/pages` | **Tạo page** (body: code, title, description, sortOrder) |
+| `PUT` | `/forms/admin/{moduleCode}/pages/{pageCode}` | Cập nhật page |
+| `DELETE` | `/forms/admin/{moduleCode}/pages/{pageCode}` | Xóa page |
+| `POST` | `/forms/admin/{moduleCode}/pages/{pageCode}/publish` | Publish page |
+| `POST` | `/forms/admin/{moduleCode}/pages/{pageCode}/tabs` | Thêm tab |
+| `PUT` | `/forms/admin/{moduleCode}/pages/{pageCode}/tabs/{tabId}` | Cập nhật tab |
+| `DELETE` | `/forms/admin/{moduleCode}/pages/{pageCode}/tabs/{tabId}` | Xóa tab |
+| `PUT` | `/forms/admin/{moduleCode}/pages/{pageCode}/tabs/{tabId}/widgets` | Lưu canvas (full replacement) |
 
 ---
 
