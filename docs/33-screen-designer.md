@@ -27,13 +27,16 @@
 
 ### Widget Types
 
+`widgetType` là **string tự do** — không bị ràng buộc bởi enum. Có thể truyền bất kỳ `chartType` nào từ WidgetCatalog (ví dụ `line_chart`, `bar_chart`, `bed_grid`...) hoặc các structural type sau:
+
 | widgetType | Default W×H | Ghi chú |
 |---|---|---|
-| `FormSection` | 6×8 | `referenceId` = FormTemplate.Id |
+| `FormSection` | 6×8 | `referenceId` = FormTemplate.Id; SDUI sẽ hydrate `formSchema` |
 | `TextBlock` | 6×2 | `configJson.content` là markdown |
 | `Divider` | 12×1 | Không cần config |
 | `ImageBlock` | 4×4 | `configJson.url` là URL ảnh |
 | `ConditionalSection` | 6×6 | `configJson.condition` định nghĩa điều kiện ẩn/hiện |
+| *(bất kỳ chartType nào)* | 6×4 | Ví dụ: `line_chart`, `bar_chart`, `bed_grid`... từ WidgetCatalog |
 
 ---
 

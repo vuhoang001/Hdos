@@ -14,7 +14,7 @@ public sealed class FormScreenWidgetConfiguration : IEntityTypeConfiguration<For
 
         b.Property(x => x.TabId).IsRequired();
         b.Property(x => x.WidgetKey).HasMaxLength(100).IsRequired();
-        b.Property(x => x.WidgetType).HasMaxLength(30).HasConversion<string>().IsRequired();
+        b.Property(x => x.WidgetType).HasMaxLength(100).IsRequired();
         b.Property(x => x.GridX).IsRequired();
         b.Property(x => x.GridY).IsRequired();
         b.Property(x => x.GridW).IsRequired();

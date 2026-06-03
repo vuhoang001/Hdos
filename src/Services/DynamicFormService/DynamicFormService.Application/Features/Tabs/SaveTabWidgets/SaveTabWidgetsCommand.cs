@@ -1,6 +1,5 @@
 using FluentValidation;
 using Hdos.DynamicFormService.Domain.Entities;
-using Hdos.DynamicFormService.Domain.Enums;
 using Hdos.DynamicFormService.Domain.Repositories;
 using Hdos.SharedKernel;
 using MediatR;
@@ -31,9 +30,7 @@ public sealed class SaveTabWidgetsCommandValidator : AbstractValidator<SaveTabWi
         RuleForEach(x => x.Widgets).ChildRules(w =>
         {
             w.RuleFor(x => x.WidgetKey).NotEmpty().MaximumLength(100);
-            w.RuleFor(x => x.WidgetType).NotEmpty()
-             .Must(t => Enum.TryParse<WidgetType>(t, ignoreCase: true, out _))
-             .WithMessage("WidgetType không hợp lệ.");
+            w.RuleFor(x => x.WidgetType).NotEmpty().MaximumLength(100);
             w.RuleFor(x => x.GridW).GreaterThan(0);
             w.RuleFor(x => x.GridH).GreaterThan(0);
         });
@@ -59,13 +56,11 @@ public sealed class SaveTabWidgetsCommandHandler(
             return Result.Failure<int>(Error.NotFound($"Tab '{request.TabId}'"));
 
         var newWidgets = request.Widgets.Select(w =>
-        {
-            Enum.TryParse<WidgetType>(w.WidgetType, ignoreCase: true, out var type);
-            return FormScreenWidget.Create(
-                tab.Id, w.WidgetKey, type,
+            FormScreenWidget.Create(
+                tab.Id, w.WidgetKey, w.WidgetType,
                 w.GridX, w.GridY, w.GridW, w.GridH,
-                w.ConfigJson ?? "{}", w.ReferenceId);
-        }).ToList();
+                w.ConfigJson ?? "{}", w.ReferenceId)
+        ).ToList();
 
         tab.ReplaceWidgets(newWidgets);
         await uow.SaveChangesAsync(ct);

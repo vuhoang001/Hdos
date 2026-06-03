@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Hdos.DynamicFormService.Application.DTOs;
-using Hdos.DynamicFormService.Domain.Enums;
 using Hdos.DynamicFormService.Domain.Repositories;
 using Hdos.SharedKernel;
 using MediatR;
@@ -31,7 +30,7 @@ public sealed class GetScreenLayoutQueryHandler(
             {
                 FormSchemaDto? formSchema = null;
 
-                if (w.WidgetType == WidgetType.FormSection && w.ReferenceId.HasValue)
+                if (w.WidgetType.Equals("FormSection", StringComparison.OrdinalIgnoreCase) && w.ReferenceId.HasValue)
                 {
                     var template = await templates.GetByIdAsync(w.ReferenceId.Value, includeFields: true, ct);
                     if (template is not null)
@@ -46,7 +45,7 @@ public sealed class GetScreenLayoutQueryHandler(
                 }
 
                 widgets.Add(new ScreenLayoutWidgetDto(
-                    w.WidgetKey, w.WidgetType.ToString(),
+                    w.WidgetKey, w.WidgetType,
                     w.GridX, w.GridY, w.GridW, w.GridH,
                     config, w.ReferenceId, formSchema));
             }

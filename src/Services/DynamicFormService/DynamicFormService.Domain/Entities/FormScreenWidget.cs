@@ -1,4 +1,3 @@
-using Hdos.DynamicFormService.Domain.Enums;
 using Hdos.SharedKernel;
 
 namespace Hdos.DynamicFormService.Domain.Entities;
@@ -7,7 +6,7 @@ public sealed class FormScreenWidget : BaseEntity<Guid>
 {
     public Guid       TabId      { get; private set; }
     public string     WidgetKey  { get; private set; } = null!;
-    public WidgetType WidgetType { get; private set; }
+    public string     WidgetType { get; private set; } = null!;
 
     // Grid position (react-grid-layout)
     public int GridX { get; private set; }
@@ -24,15 +23,15 @@ public sealed class FormScreenWidget : BaseEntity<Guid>
     private FormScreenWidget() { }
 
     public static FormScreenWidget Create(
-        Guid       tabId,
-        string     widgetKey,
-        WidgetType widgetType,
-        int        gridX,
-        int        gridY,
-        int        gridW,
-        int        gridH,
-        string     configJson,
-        Guid?      referenceId = null)
+        Guid    tabId,
+        string  widgetKey,
+        string  widgetType,
+        int     gridX,
+        int     gridY,
+        int     gridW,
+        int     gridH,
+        string  configJson,
+        Guid?   referenceId = null)
     {
         if (string.IsNullOrWhiteSpace(widgetKey))
             throw new ArgumentException("Widget key is required.", nameof(widgetKey));

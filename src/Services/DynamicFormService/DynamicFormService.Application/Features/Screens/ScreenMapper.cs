@@ -13,6 +13,6 @@ internal static class ScreenMapper
         t.Id, t.Label, t.Slug, t.SortOrder, t.IsDefault, t.Widgets.Count);
 
     internal static FormScreenWidgetDto ToWidgetDto(FormScreenWidget w) => new(
-        w.Id, w.WidgetKey, w.WidgetType.ToString(), w.GridX, w.GridY, w.GridW, w.GridH,
+        w.Id, w.WidgetKey, w.WidgetType, w.GridX, w.GridY, w.GridW, w.GridH,
         w.ConfigJson, w.ReferenceId);
 }
