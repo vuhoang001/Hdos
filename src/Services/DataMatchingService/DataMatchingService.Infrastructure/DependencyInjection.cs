@@ -16,13 +16,13 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         services.AddDbContext<DataMatchingDbContext>((sp, opts) =>
-            opts.UseNpgsql(
-                configuration.GetConnectionString("DataMatchingDb"),
-                pg => pg.MigrationsAssembly(typeof(DataMatchingDbContext).Assembly.FullName)));
+                                                         opts.UseNpgsql(
+                                                             configuration.GetConnectionString("DataMatchingDb"),
+                                                             pg => pg.MigrationsAssembly(
+                                                                 typeof(DataMatchingDbContext).Assembly.FullName)));
 
         services.AddScoped<IStagingRecordRepository, StagingRecordRepository>();
         services.AddScoped<ISourceProfileRepository, SourceProfileRepository>();
-        services.AddScoped<IWidgetCatalogRepository, WidgetCatalogRepository>();
         services.AddScoped<IDataMatchingUnitOfWork, DataMatchingUnitOfWork>();
 
         services.AddMassTransitMessaging(configuration, x =>

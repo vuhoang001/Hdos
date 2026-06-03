@@ -8,8 +8,6 @@ public sealed class DataMatchingDbContext(DbContextOptions<DataMatchingDbContext
 {
     public DbSet<StagingRecord> StagingRecords => Set<StagingRecord>();
     public DbSet<SourceProfile> SourceProfiles => Set<SourceProfile>();
-    public DbSet<WidgetCatalog> WidgetCatalogs => Set<WidgetCatalog>();
-
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(DataMatchingDbContext).Assembly);
