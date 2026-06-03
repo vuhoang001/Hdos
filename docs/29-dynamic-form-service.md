@@ -132,6 +132,19 @@ FormTemplate / FormScreen:
       "status": "Active",
       "formCount": 3,
       "screenCount": 2,
+      "pages": [
+        {
+          "id": "uuid",
+          "moduleCode": "tiep-nhan",
+          "code": "dashboard",
+          "title": "Dashboard tiếp nhận",
+          "description": null,
+          "status": "Published",
+          "sortOrder": 0,
+          "tabCount": 0,
+          "createdAtUtc": "2026-06-03T..."
+        }
+      ],
       "createdAtUtc": "2026-06-01T..."
     }
   ]

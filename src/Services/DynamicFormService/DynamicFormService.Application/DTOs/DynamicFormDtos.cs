@@ -3,14 +3,15 @@ namespace Hdos.DynamicFormService.Application.DTOs;
 // ── Module ────────────────────────────────────────────────────────────────────
 
 public sealed record FormModuleDto(
-    Guid   Id,
-    string Code,
-    string Name,
-    string? Description,
-    string Status,
-    int    FormCount,
-    int    ScreenCount,
-    DateTime CreatedAtUtc);
+    Guid                Id,
+    string              Code,
+    string              Name,
+    string?             Description,
+    string              Status,
+    int                 FormCount,
+    int                 ScreenCount,
+    List<FormScreenDto> Pages,
+    DateTime            CreatedAtUtc);
 
 // ── Form Template ─────────────────────────────────────────────────────────────
 
