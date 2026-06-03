@@ -1,10 +1,10 @@
-using Hdos.DataMatchingService.Domain.Entities;
-using Hdos.DataMatchingService.Domain.Repositories;
+using Hdos.DynamicFormService.Domain.Entities;
+using Hdos.DynamicFormService.Domain.Repositories;
 using Microsoft.EntityFrameworkCore;
 
-namespace Hdos.DataMatchingService.Infrastructure.Persistence;
+namespace Hdos.DynamicFormService.Infrastructure.Persistence;
 
-public sealed class WidgetCatalogRepository(DataMatchingDbContext db) : IWidgetCatalogRepository
+public sealed class WidgetCatalogRepository(DynamicFormDbContext db) : IWidgetCatalogRepository
 {
     public Task<List<WidgetCatalog>> GetAllAsync(string? category, CancellationToken ct)
     {

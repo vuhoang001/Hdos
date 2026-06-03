@@ -1,8 +1,8 @@
-using Hdos.DataMatchingService.Domain.Entities;
+using Hdos.DynamicFormService.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Hdos.DataMatchingService.Infrastructure.Persistence.Configurations;
+namespace Hdos.DynamicFormService.Infrastructure.Persistence.Configurations;
 
 public sealed class WidgetCatalogConfiguration : IEntityTypeConfiguration<WidgetCatalog>
 {

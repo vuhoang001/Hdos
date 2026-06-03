@@ -23,6 +23,7 @@ public static class DependencyInjection
         services.AddScoped<IFormTemplateRepository,   FormTemplateRepository>();
         services.AddScoped<IFormSubmissionRepository, FormSubmissionRepository>();
         services.AddScoped<IFormScreenRepository,     FormScreenRepository>();
+        services.AddScoped<IWidgetCatalogRepository,  WidgetCatalogRepository>();
         services.AddScoped<IDynamicFormUnitOfWork,    DynamicFormUnitOfWork>();
 
         services.AddMassTransitMessaging(configuration, x =>

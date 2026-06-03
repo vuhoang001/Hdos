@@ -1,142 +1,84 @@
-# 34 — Widget Catalog (DataMatchingService)
+# 34 — Widget Catalog (DynamicFormService)
 
 ## Mục đích
 
-Widget Catalog là danh mục các loại widget có thể dùng trong dashboard builder. Được seed sẵn 31 widget types khi chạy migration — không cần admin tạo thủ công.
-
----
-
-## Entity
+Widget Catalog là danh mục các loại widget có thể kéo thả vào Screen Designer. Dữ liệu được seed sẵn trong migration và phục vụ qua API:
 
 ```
-DataMatchingService.Domain/Entities/WidgetCatalog.cs
+GET /forms/admin/widget-catalog?category={category}
 ```
 
-| Field | Type | Mô tả |
-|-------|------|-------|
-| `Id` | Guid | Primary key (deterministic, fixed) |
-| `ChartType` | string (100) | Định danh duy nhất, VD: `line_chart` |
-| `Category` | string (50) | Nhóm: `visualization`, `filter`, `layout`, `healthcare`, `ai` |
-| `Label` | string (200) | Tên hiển thị tiếng Việt |
-| `Description` | string (1000) | Mô tả ngắn |
-| `Icon` | string (100) | Tên icon (lucide-react) |
-| `RowSchema` | jsonb | Schema mặc định `{}` |
-| `RequiredColumnsJson` | jsonb | Các column bắt buộc |
-| `OptionalColumnsJson` | jsonb | Các column tùy chọn |
-| `CompatibleWithJson` | jsonb | Các chartType có thể chuyển đổi qua lại |
-| `SortOrder` | int | Thứ tự hiển thị |
+## Cấu trúc dữ liệu
 
----
+| Field | Kiểu | Mô tả |
+|-------|------|--------|
+| `chartType` | string | Unique key của widget (VD: `bar_chart`, `kpi_card`) |
+| `category` | string | Nhóm: `visualization`, `filter`, `layout`, `healthcare`, `ai` |
+| `label` | string | Tên hiển thị |
+| `description` | string | Mô tả ngắn |
+| `icon` | string | Icon name (Ant Design Icons) |
+| `requiredColumns` | string[] | Các cột dữ liệu bắt buộc |
+| `optionalColumns` | string[] | Các cột dữ liệu tùy chọn |
+| `compatibleWith` | string[] | Các nguồn dữ liệu tương thích |
+| `sortOrder` | int | Thứ tự hiển thị |
 
-## Widget Types (31 total)
+## Danh mục widget (31 widget)
 
-### visualization (13)
-| chartType | Label |
-|-----------|-------|
-| `line_chart` | Biểu đồ đường |
-| `bar_chart` | Biểu đồ cột |
-| `area_chart` | Biểu đồ vùng |
-| `pie_chart` | Biểu đồ tròn |
-| `donut_chart` | Biểu đồ vòng |
-| `kpi` | KPI đơn |
-| `gauge` | Đồng hồ đo |
-| `heatmap` | Bản đồ nhiệt |
-| `scatter` | Biểu đồ phân tán |
-| `advanced_table` | Bảng nâng cao |
-| `simple_table` | Bảng đơn giản |
-| `pivot_table` | Bảng pivot |
-| `funnel` | Biểu đồ phễu |
+### Visualization (13)
+`bar_chart`, `line_chart`, `pie_chart`, `donut_chart`, `area_chart`, `scatter_plot`, `radar_chart`, `heatmap`, `treemap`, `funnel_chart`, `kpi_card`, `data_table`, `metric_card`
 
-### filter (4)
-| chartType | Label |
-|-----------|-------|
-| `filter_dropdown` | Bộ lọc danh sách |
-| `filter_date_range` | Bộ lọc ngày |
-| `filter_slider` | Bộ lọc số |
-| `filter_search` | Ô tìm kiếm |
+### Filter (4)
+`date_range_filter`, `dropdown_filter`, `search_filter`, `multi_select_filter`
 
-### layout (2)
-| chartType | Label |
-|-----------|-------|
-| `text_widget` | Văn bản / Markdown |
-| `tab_container` | Tab container |
+### Layout (2)
+`divider`, `text_block`
 
-### healthcare (11)
-| chartType | Label |
-|-----------|-------|
-| `kpi_grid` | Lưới KPI |
-| `progress_rows` | Thanh tiến trình |
-| `flow_steps` | Luồng bước |
-| `timeline_vertical` | Timeline dọc |
-| `alert_list` | Danh sách cảnh báo |
-| `bed_grid` | Lưới giường bệnh |
-| `room_status_grid` | Trạng thái phòng |
-| `map_pins` | Bản đồ ghim vị trí |
-| `patient_flow_stages` | Luồng bệnh nhân |
-| `risk_tiers` | Phân tầng nguy cơ |
-| `news2_bars` | NEWS2 Score |
+### Healthcare (11)
+`patient_flow`, `bed_occupancy`, `vital_signs_chart`, `medication_tracker`, `appointment_calendar`, `lab_results_table`, `diagnosis_chart`, `staff_schedule`, `icu_monitor`, `er_queue`, `ward_map`
 
-### ai (1)
-| chartType | Label |
-|-----------|-------|
-| `chat_panel` | AI Chatbot |
+### AI (1)
+`ai_insight`
 
----
+## Files
+
+| File | Layer | Vai trò |
+|------|-------|---------|
+| `DynamicFormService.Domain/Entities/WidgetCatalog.cs` | Domain | Entity + JSON deserialization helpers |
+| `DynamicFormService.Domain/Repositories/IWidgetCatalogRepository.cs` | Domain | Repository interface |
+| `DynamicFormService.Infrastructure/Persistence/Configurations/WidgetCatalogConfiguration.cs` | Infrastructure | EF Core mapping, JSONB columns |
+| `DynamicFormService.Infrastructure/Persistence/WidgetCatalogRepository.cs` | Infrastructure | Repository implementation |
+| `DynamicFormService.Infrastructure/Persistence/Migrations/20260603130000_AddWidgetCatalog.cs` | Infrastructure | Tạo bảng + seed 31 widget |
+| `DynamicFormService.Application/Features/WidgetCatalog/GetWidgetCatalog/GetWidgetCatalogQuery.cs` | Application | CQRS Query handler |
+
+## Database
+
+- Table: `WidgetCatalogs` (PostgreSQL — `postgres-df`)
+- Array fields (`RequiredColumnsJson`, `OptionalColumnsJson`, `CompatibleWithJson`) dùng kiểu `jsonb`
+- Index unique trên `ChartType`, index thường trên `Category`
 
 ## API
 
-| Method | Route | Mô tả |
-|--------|-------|-------|
-| `GET` | `/dm/widget-catalog` | Toàn bộ catalog, sắp xếp theo sortOrder |
-| `GET` | `/dm/widget-catalog?category=healthcare` | Lọc theo category |
+```
+GET /forms/admin/widget-catalog
+GET /forms/admin/widget-catalog?category=visualization
+```
 
-### Response mẫu
-
+Response:
 ```json
 {
   "success": true,
   "data": [
     {
-      "chartType": "line_chart",
+      "chartType": "bar_chart",
       "category": "visualization",
-      "label": "Biểu đồ đường",
-      "description": "Xu hướng theo thời gian hoặc danh mục. Hỗ trợ nhiều series.",
-      "icon": "TrendingUp",
-      "requiredColumns": ["x", "y"],
-      "optionalColumns": ["series", "color", "annotations"],
-      "compatibleWith": ["bar_chart", "area_chart"],
-      "sortOrder": 10
+      "label": "Bar Chart",
+      "description": "Biểu đồ cột so sánh dữ liệu theo danh mục",
+      "icon": "BarChartOutlined",
+      "requiredColumns": ["category", "value"],
+      "optionalColumns": ["series", "color"],
+      "compatibleWith": ["sql", "api", "csv"],
+      "sortOrder": 1
     }
   ]
 }
 ```
-
----
-
-## Migration
-
-File: `20260603120000_AddWidgetCatalog.cs`
-
-- Tạo bảng `WidgetCatalogs`
-- Insert 31 widget rows với GUIDs cố định (`00000000-0000-0000-0000-000000000001` → `...0031`)
-- Index unique trên `ChartType`, index thường trên `Category`
-
-```bash
-dotnet ef database update \
-  --project DataMatchingService.Infrastructure \
-  --startup-project DataMatchingService.API
-```
-
----
-
-## Vị trí code
-
-| Layer | File |
-|-------|------|
-| Domain | `DataMatchingService.Domain/Entities/WidgetCatalog.cs` |
-| Domain | `DataMatchingService.Domain/Repositories/IWidgetCatalogRepository.cs` |
-| Application | `DataMatchingService.Application/Features/WidgetCatalog/GetWidgetCatalogQuery.cs` |
-| Infrastructure | `DataMatchingService.Infrastructure/Persistence/WidgetCatalogRepository.cs` |
-| Infrastructure | `DataMatchingService.Infrastructure/Persistence/Configurations/WidgetCatalogConfiguration.cs` |
-| Infrastructure | `DataMatchingService.Infrastructure/Persistence/Migrations/20260603120000_AddWidgetCatalog.cs` |
-| API | `DataMatchingService.API/Controllers/WidgetCatalogController.cs` |

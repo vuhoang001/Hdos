@@ -24,9 +24,9 @@ public sealed class AdminScreensController(ISender sender) : ControllerBase
     // ── Widget Catalog ────────────────────────────────────────────────────────
 
     [HttpGet("/forms/admin/widget-catalog")]
-    public async Task<IActionResult> GetWidgetCatalog(CancellationToken ct)
+    public async Task<IActionResult> GetWidgetCatalog([FromQuery] string? category, CancellationToken ct)
     {
-        var result = await sender.Send(new GetWidgetCatalogQuery(), ct);
+        var result = await sender.Send(new GetWidgetCatalogQuery(category), ct);
         return Ok(ApiResponse<List<WidgetCatalogItemDto>>.Ok(result.Value));
     }
 

@@ -144,8 +144,12 @@ public sealed record ScreenLayoutWidgetDto(
 
 // Widget catalog
 public sealed record WidgetCatalogItemDto(
-    string  WidgetType,
-    string  Label,
-    string  Description,
-    int     DefaultW,
-    int     DefaultH);
+    string       ChartType,
+    string       Category,
+    string       Label,
+    string       Description,
+    string       Icon,
+    List<string> RequiredColumns,
+    List<string> OptionalColumns,
+    List<string> CompatibleWith,
+    int          SortOrder);

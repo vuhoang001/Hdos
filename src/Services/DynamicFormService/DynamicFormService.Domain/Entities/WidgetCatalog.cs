@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace Hdos.DataMatchingService.Domain.Entities;
+namespace Hdos.DynamicFormService.Domain.Entities;
 
 public sealed class WidgetCatalog
 {

@@ -1,6 +1,6 @@
-using Hdos.DataMatchingService.Domain.Entities;
+using Hdos.DynamicFormService.Domain.Entities;
 
-namespace Hdos.DataMatchingService.Domain.Repositories;
+namespace Hdos.DynamicFormService.Domain.Repositories;
 
 public interface IWidgetCatalogRepository
 {
