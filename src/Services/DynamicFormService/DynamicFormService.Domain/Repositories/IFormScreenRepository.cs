@@ -1,4 +1,5 @@
 using Hdos.DynamicFormService.Domain.Entities;
+using Hdos.DynamicFormService.Domain.Enums;
 
 namespace Hdos.DynamicFormService.Domain.Repositories;
 
@@ -13,6 +14,7 @@ public interface IFormScreenRepository
     Task<FormScreenTab?> GetTabWithWidgetsAsync(Guid screenId, Guid tabId, CancellationToken ct = default);
     Task<List<FormScreen>> GetPublishedByModuleAsync(string moduleCode, CancellationToken ct = default);
     Task<List<FormScreen>> GetPublishedByModuleCodesAsync(IEnumerable<string> moduleCodes, CancellationToken ct);
+    Task<List<FormScreen>> GetByModuleCodesAsync(IEnumerable<string> moduleCodes, FormStatus? status, CancellationToken ct);
     Task<Dictionary<string, int>> GetPublishedCountsAsync(IEnumerable<string> moduleCodes, CancellationToken ct);
     void Add(FormScreen screen);
     void Remove(FormScreen screen);

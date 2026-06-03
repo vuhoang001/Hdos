@@ -17,9 +17,9 @@ public sealed class FormsController(ISender sender) : ControllerBase
 {
     [AllowAnonymous]
     [HttpGet("modules")]
-    public async Task<IActionResult> GetModules(CancellationToken ct)
+    public async Task<IActionResult> GetModules([FromQuery] string? pageStatus, CancellationToken ct)
     {
-        var result = await sender.Send(new GetModulesQuery(), ct);
+        var result = await sender.Send(new GetModulesQuery(pageStatus), ct);
         if (result.IsFailure)
             return BadRequest(ApiResponse<List<FormModuleDto>>.Fail(result.Error.Code, result.Error.Message));
         return Ok(ApiResponse<List<FormModuleDto>>.Ok(result.Value));

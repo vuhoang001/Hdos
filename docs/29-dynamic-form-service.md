@@ -57,7 +57,9 @@ FormTemplate / FormScreen:
 
 | Method | Route | Mô tả |
 |--------|-------|-------|
-| `GET` | `/forms/modules` | Danh sách modules active với `formCount` và `screenCount` thực tế |
+| `GET` | `/forms/modules` | Danh sách modules active — mỗi module kèm `pages` (mặc định chỉ Published) |
+| `GET` | `/forms/modules?pageStatus=all` | Như trên nhưng `pages` gồm mọi status (Draft, Published, Archived) |
+| `GET` | `/forms/modules?pageStatus=draft` | `pages` chỉ gồm Draft screens |
 | `GET` | `/forms/{moduleCode}` | Danh sách FormTemplate trong module |
 | `GET` | `/forms/{moduleCode}/pages` | **Danh sách published screens (pages) trong module** ⭐ |
 | `GET` | `/forms/{moduleCode}/{formKey}/schema` | BDUI schema — frontend dùng để render form |

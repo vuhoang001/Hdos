@@ -52,6 +52,15 @@ public sealed class FormScreenRepository(DynamicFormDbContext db) : IFormScreenR
                  .ToListAsync(ct);
     }
 
+    public Task<List<FormScreen>> GetByModuleCodesAsync(IEnumerable<string> moduleCodes, FormStatus? status, CancellationToken ct)
+    {
+        var codes = moduleCodes.ToList();
+        var query = db.FormScreens.Where(s => codes.Contains(s.ModuleCode));
+        if (status.HasValue)
+            query = query.Where(s => s.Status == status.Value);
+        return query.OrderBy(s => s.ModuleCode).ThenBy(s => s.SortOrder).ToListAsync(ct);
+    }
+
     public async Task<Dictionary<string, int>> GetPublishedCountsAsync(IEnumerable<string> moduleCodes, CancellationToken ct)
     {
         var codes = moduleCodes.ToList();

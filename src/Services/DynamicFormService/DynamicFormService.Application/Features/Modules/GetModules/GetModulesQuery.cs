@@ -1,12 +1,14 @@
 using Hdos.DynamicFormService.Application.DTOs;
 using Hdos.DynamicFormService.Application.Features.Screens;
+using Hdos.DynamicFormService.Domain.Enums;
 using Hdos.DynamicFormService.Domain.Repositories;
 using Hdos.SharedKernel;
 using MediatR;
 
 namespace Hdos.DynamicFormService.Application.Features.Modules.GetModules;
 
-public sealed record GetModulesQuery : IRequest<Result<List<FormModuleDto>>>;
+/// <param name="PageStatus">null = Published only; "all" = mọi status; "draft"/"archived" = filter theo status đó</param>
+public sealed record GetModulesQuery(string? PageStatus = null) : IRequest<Result<List<FormModuleDto>>>;
 
 public sealed class GetModulesQueryHandler(
     IFormModuleRepository   modules,
@@ -20,7 +22,17 @@ public sealed class GetModulesQueryHandler(
         var codes = list.Select(m => m.Code).ToList();
 
         var formCounts = await templates.GetPublishedCountsAsync(codes, ct);
-        var allPages   = await screens.GetPublishedByModuleCodesAsync(codes, ct);
+
+        FormStatus? statusFilter = request.PageStatus?.ToLowerInvariant() switch
+        {
+            null or "published" => FormStatus.Published,
+            "draft"             => FormStatus.Draft,
+            "archived"          => FormStatus.Archived,
+            "all"               => null,
+            _                   => FormStatus.Published
+        };
+
+        var allPages = await screens.GetByModuleCodesAsync(codes, statusFilter, ct);
 
         var pagesByModule = allPages
             .GroupBy(s => s.ModuleCode)
