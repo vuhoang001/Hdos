@@ -1,7 +1,9 @@
-# 32 — DynamicFormService: Technical Specification & API Reference
+# 32 — DynamicFormService: Technical Specification
 
-> **Loại doc:** Technical Spec + API Walkthrough — viết theo format [00-spec-format.md](./00-spec-format.md).  
-> **Dùng để:** AI implement feature mới, onboard dev, review PR, frontend integration.
+> **Loại doc:** Technical Spec chi tiết — enums, value objects, entities, business rules, validation rules.  
+> **Xem tổng quan, API endpoints, luồng hoạt động tại:** [29-dynamic-form-service.md](29-dynamic-form-service.md)  
+> **Screen Designer business rules:** [33-screen-designer.md](33-screen-designer.md)  
+> **Widget Catalog:** [34-widget-catalog.md](34-widget-catalog.md)
 
 ---
 

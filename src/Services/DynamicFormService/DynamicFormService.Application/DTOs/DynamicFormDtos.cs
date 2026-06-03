@@ -9,6 +9,7 @@ public sealed record FormModuleDto(
     string? Description,
     string Status,
     int    FormCount,
+    int    ScreenCount,
     DateTime CreatedAtUtc);
 
 // ── Form Template ─────────────────────────────────────────────────────────────

@@ -28,7 +28,10 @@ Bộ tài liệu này mô tả toàn bộ hệ thống **Hdos** — một nền 
 | [24 — Dashboard & SSE Push](./24-dashboard-data-matching.md) | Dashboard engine: config-driven, SDUI sections, REST API; SSE push realtime (MatchingWorker → Frontend) |
 | [25 — Server-Driven UI](./25-sdui-server-driven-ui.md) | SDUI engine: server quyết định layout, client chỉ render |
 | [28 — Message Payload Standard](./28-message-payload-standard.md) | Quy chuẩn cấu trúc message theo CloudEvents (CNCF): `IntegrationEvent` cho internal, `ExternalMessage` cho external |
-| [32 — DynamicFormService](./32-dynamic-form-spec.md) | Spec kỹ thuật đầy đủ (enums, entities, state machines, business rules) + API Reference walkthrough |
+| [29 — DynamicFormService](./29-dynamic-form-service.md) | Tổng quan, domain model, API đầy đủ (BDUI forms + SDUI screens), pages, widget catalog, luồng hoạt động |
+| [32 — DynamicFormService Spec](./32-dynamic-form-spec.md) | Technical spec: enums, value objects, entities, business rules, validation rules chi tiết |
+| [33 — Screen Designer](./33-screen-designer.md) | Business rules, validation, state machine riêng cho Screen Designer / Canvas |
+| [34 — Widget Catalog](./34-widget-catalog.md) | Danh mục 31 widget templates (visualization, healthcare, filter, layout, ai) |
 | [00 — Hướng dẫn viết Spec cho AI](./00-spec-format.md) | Format chuẩn để viết technical spec đủ rõ cho AI implement |
 
 ---

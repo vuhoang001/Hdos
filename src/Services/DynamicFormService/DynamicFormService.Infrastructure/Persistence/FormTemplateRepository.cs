@@ -1,4 +1,5 @@
 using Hdos.DynamicFormService.Domain.Entities;
+using Hdos.DynamicFormService.Domain.Enums;
 using Hdos.DynamicFormService.Domain.Repositories;
 using Microsoft.EntityFrameworkCore;
 
@@ -32,4 +33,14 @@ public sealed class FormTemplateRepository(DynamicFormDbContext db) : IFormTempl
 
     public async Task AddAsync(FormTemplate template, CancellationToken ct)
         => await db.FormTemplates.AddAsync(template, ct);
+
+    public async Task<Dictionary<string, int>> GetPublishedCountsAsync(IEnumerable<string> moduleCodes, CancellationToken ct)
+    {
+        var codes = moduleCodes.ToList();
+        return await db.FormTemplates
+            .Where(t => codes.Contains(t.ModuleCode) && t.Status == FormStatus.Published)
+            .GroupBy(t => t.ModuleCode)
+            .Select(g => new { g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Key, x => x.Count, ct);
+    }
 }

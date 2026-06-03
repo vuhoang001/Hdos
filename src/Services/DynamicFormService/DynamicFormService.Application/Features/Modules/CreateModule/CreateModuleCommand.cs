@@ -44,5 +44,5 @@ public sealed class CreateModuleCommandHandler(
     }
 
     private static FormModuleDto Map(FormModule m) => new(
-        m.Id, m.Code, m.Name, m.Description, m.Status.ToString(), 0, m.CreatedAtUtc);
+        m.Id, m.Code, m.Name, m.Description, m.Status.ToString(), 0, 0, m.CreatedAtUtc);
 }

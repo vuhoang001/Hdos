@@ -9,4 +9,5 @@ public interface IFormTemplateRepository
     Task<List<FormTemplate>> GetByModuleCodeAsync(string moduleCode, CancellationToken ct);
     Task<bool> ExistsByKeyInModuleAsync(Guid moduleId, string key, CancellationToken ct);
     Task AddAsync(FormTemplate template, CancellationToken ct);
+    Task<Dictionary<string, int>> GetPublishedCountsAsync(IEnumerable<string> moduleCodes, CancellationToken ct);
 }

@@ -37,6 +37,22 @@ public sealed class FormScreenRepository(DynamicFormDbContext db) : IFormScreenR
                    .Include(t => t.Widgets)
                    .FirstOrDefaultAsync(t => t.Id == tabId && t.ScreenId == screenId, ct);
 
+    public Task<List<FormScreen>> GetPublishedByModuleAsync(string moduleCode, CancellationToken ct)
+        => db.FormScreens
+             .Where(s => s.ModuleCode == moduleCode && s.Status == FormStatus.Published)
+             .OrderBy(s => s.SortOrder)
+             .ToListAsync(ct);
+
+    public async Task<Dictionary<string, int>> GetPublishedCountsAsync(IEnumerable<string> moduleCodes, CancellationToken ct)
+    {
+        var codes = moduleCodes.ToList();
+        return await db.FormScreens
+            .Where(s => codes.Contains(s.ModuleCode) && s.Status == FormStatus.Published)
+            .GroupBy(s => s.ModuleCode)
+            .Select(g => new { g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Key, x => x.Count, ct);
+    }
+
     public void Add(FormScreen screen)    => db.FormScreens.Add(screen);
     public void Remove(FormScreen screen) => db.FormScreens.Remove(screen);
 }

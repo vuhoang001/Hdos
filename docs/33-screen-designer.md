@@ -1,242 +1,61 @@
-# 33 — Screen Designer (SDUI + Drag-and-Drop)
+# 33 — Screen Designer
 
-## Tổng quan
-
-**Screen Designer** là tính năng trong `DynamicFormService` cho phép admin thiết kế màn hình động (SDUI — Server-Driven UI) bằng cách kéo-thả widget lên một canvas grid. Frontend nhận layout từ server và render giao diện mà không cần biết cấu trúc trước.
-
-Tính năng này **thay thế hoàn toàn** hệ thống `FormPage` cũ (blob JSON không có cấu trúc).
+> Xem tổng quan và API đầy đủ tại **[29-dynamic-form-service.md](29-dynamic-form-service.md)**.
+> Tài liệu này ghi chi tiết business rules và quy tắc validation riêng của Screen Designer.
 
 ---
 
-## Kiến trúc dữ liệu
-
-```
-FormModule (code, name)
-  └── FormScreen (code, title, status, sortOrder)
-        └── FormScreenTab (label, slug, sortOrder, isDefault)
-              └── FormScreenWidget (widgetKey, widgetType, gridX, gridY, gridW, gridH,
-                                    configJson, referenceId?)
-```
+## Business Rules
 
 ### FormScreen
-
-| Field | Mô tả |
-|---|---|
-| `code` | Slug định danh, unique trong module |
-| `status` | `Draft` → `Published` → `Archived` |
-| `sortOrder` | Thứ tự hiển thị trong sidebar |
+- `code` unique trong cùng `moduleCode`
+- Chỉ xóa được screen ở trạng thái `Draft`; đã `Published` phải archive trước
+- Publish cascade: screen → status `Published`; không ảnh hưởng tabs/widgets
+- Xóa screen cascade xóa toàn bộ tabs và widgets bên trong
 
 ### FormScreenTab
+- `slug` unique trong cùng screen
+- Mỗi screen có đúng **một** tab `isDefault = true`; set tab mới làm default tự động unset tab cũ
+- Xóa tab cascade xóa toàn bộ widgets bên trong
 
-| Field | Mô tả |
-|---|---|
-| `slug` | Slug định danh, unique trong screen |
-| `isDefault` | Tab được chọn mặc định khi mở screen |
-| `sortOrder` | Thứ tự hiển thị |
+### FormScreenWidget — Canvas Save
+- Endpoint `PUT .../tabs/{tabId}/widgets` là **full replacement**: xóa toàn bộ widgets cũ, insert danh sách mới
+- `widgetKey` unique trong cùng tab
+- `widgetType` phải là giá trị hợp lệ của enum `WidgetType`
+- `gridW` và `gridH` tối thiểu = 1; nếu truyền < 1 thì default về 6×4
+- Nếu `widgetType = FormSection` thì `referenceId` nên trỏ tới `FormTemplate.Id` đang ở trạng thái `Published`
 
-### FormScreenWidget
+### Widget Types
 
-| Field | Mô tả |
-|---|---|
-| `widgetKey` | Định danh widget trong tab (unique per tab) |
-| `widgetType` | Loại widget (xem bảng dưới) |
-| `gridX`, `gridY` | Vị trí trên grid (cột, hàng) — dùng cho react-grid-layout |
-| `gridW`, `gridH` | Kích thước widget (default 6×4) |
-| `configJson` | JSON cấu hình hiển thị (màu, nội dung, URL ảnh...) |
-| `referenceId` | Trỏ tới `FormTemplate.Id` nếu `widgetType = FormSection` |
+| widgetType | Default W×H | Ghi chú |
+|---|---|---|
+| `FormSection` | 6×8 | `referenceId` = FormTemplate.Id |
+| `TextBlock` | 6×2 | `configJson.content` là markdown |
+| `Divider` | 12×1 | Không cần config |
+| `ImageBlock` | 4×4 | `configJson.url` là URL ảnh |
+| `ConditionalSection` | 6×6 | `configJson.condition` định nghĩa điều kiện ẩn/hiện |
 
 ---
 
-## Widget Types
-
-| widgetType | Mô tả | Default W×H |
-|---|---|---|
-| `FormSection` | Nhúng một FormTemplate (form động) vào vị trí này | 6×8 |
-| `TextBlock` | Tiêu đề hoặc đoạn văn bản hướng dẫn (markdown) | 6×2 |
-| `Divider` | Đường ngang phân cách các section | 12×1 |
-| `ImageBlock` | Hình ảnh tĩnh (URL trong configJson) | 4×4 |
-| `ConditionalSection` | Container ẩn/hiện theo giá trị của một form field | 6×6 |
-
----
-
-## API Endpoints
-
-### Admin — Quản lý Screen
-
-| Method | Endpoint | Mô tả |
-|---|---|---|
-| `GET` | `/forms/admin/screens/{moduleCode}` | Danh sách screens của module |
-| `POST` | `/forms/admin/screens` | Tạo screen mới |
-| `PUT` | `/forms/admin/screens/{moduleCode}/{screenCode}` | Cập nhật screen |
-| `DELETE` | `/forms/admin/screens/{moduleCode}/{screenCode}` | Xóa screen (cascade tabs + widgets) |
-| `POST` | `/forms/admin/screens/{moduleCode}/{screenCode}/publish` | Publish screen |
-
-### Admin — Quản lý Tab
-
-| Method | Endpoint | Mô tả |
-|---|---|---|
-| `POST` | `/forms/admin/screens/{moduleCode}/{screenCode}/tabs` | Thêm tab |
-| `PUT` | `/forms/admin/screens/{moduleCode}/{screenCode}/tabs/{tabId}` | Cập nhật tab |
-| `DELETE` | `/forms/admin/screens/{moduleCode}/{screenCode}/tabs/{tabId}` | Xóa tab (cascade widgets) |
-
-### Admin — Widget Canvas (Drag-and-Drop Save)
-
-| Method | Endpoint | Mô tả |
-|---|---|---|
-| `PUT` | `/forms/admin/screens/{moduleCode}/{screenCode}/tabs/{tabId}/widgets` | **Lưu toàn bộ canvas** — full replacement |
-| `GET` | `/forms/admin/widget-catalog` | Danh sách 31 widget templates từ DB (xem doc 34) |
-
-### Public — SDUI Rendering
-
-| Method | Endpoint | Mô tả |
-|---|---|---|
-| `GET` | `/forms/screens/{moduleCode}` | Danh sách screens (đã published) |
-| `GET` | `/forms/screens/{moduleCode}/{screenCode}/layout` | **SDUI endpoint chính** — toàn bộ layout |
-
----
-
-## Request / Response mẫu
-
-### Tạo Screen
+## Validation Rules
 
 ```
-POST /forms/admin/screens
-{
-  "moduleCode": "hr",
-  "code": "onboarding",
-  "title": "Onboarding nhân viên mới",
-  "description": "Màn hình tiếp nhận nhân viên",
-  "sortOrder": 0
-}
-
-→ 201
-{
-  "id": "uuid",
-  "code": "onboarding",
-  "title": "Onboarding nhân viên mới",
-  "status": "Draft",
-  ...
-}
-```
-
-### Thêm Tab
-
-```
-POST /forms/admin/screens/hr/onboarding/tabs
-{
-  "label": "Thông tin cá nhân",
-  "slug": "personal-info",
-  "sortOrder": 0,
-  "isDefault": true
-}
-```
-
-### Lưu Widget Canvas (drag-and-drop save)
-
-```
-PUT /forms/admin/screens/hr/onboarding/tabs/{tabId}/widgets
-[
-  {
-    "widgetKey": "personal-form",
-    "widgetType": "FormSection",
-    "gridX": 0, "gridY": 0, "gridW": 8, "gridH": 10,
-    "configJson": "{}",
-    "referenceId": "uuid-of-form-template"
-  },
-  {
-    "widgetKey": "welcome-text",
-    "widgetType": "TextBlock",
-    "gridX": 8, "gridY": 0, "gridW": 4, "gridH": 3,
-    "configJson": "{\"content\": \"Chào mừng bạn đến với công ty!\", \"align\": \"center\"}",
-    "referenceId": null
-  }
-]
-
-→ 200
-{ "saved": 2 }
-```
-
-### SDUI Layout (frontend gọi khi render màn hình)
-
-```
-GET /forms/screens/hr/onboarding/layout
-
-→ 200
-{
-  "id": "uuid",
-  "moduleCode": "hr",
-  "code": "onboarding",
-  "title": "Onboarding nhân viên mới",
-  "tabs": [
-    {
-      "id": "uuid",
-      "label": "Thông tin cá nhân",
-      "slug": "personal-info",
-      "isDefault": true,
-      "widgets": [
-        {
-          "widgetKey": "personal-form",
-          "widgetType": "FormSection",
-          "gridX": 0, "gridY": 0, "gridW": 8, "gridH": 10,
-          "config": null,
-          "referenceId": "uuid",
-          "formSchema": {
-            "formKey": "personal-info-form",
-            "fields": [...],
-            "settings": {...}
-          }
-        },
-        {
-          "widgetKey": "welcome-text",
-          "widgetType": "TextBlock",
-          "gridX": 8, "gridY": 0, "gridW": 4, "gridH": 3,
-          "config": { "content": "Chào mừng...", "align": "center" },
-          "referenceId": null,
-          "formSchema": null
-        }
-      ]
-    }
-  ],
-  "generatedAt": "2026-06-03T..."
-}
+CreateScreen:  moduleCode NotEmpty, code NotEmpty MaxLength(100), title NotEmpty MaxLength(200)
+UpdateScreen:  title NotEmpty MaxLength(200)
+CreateTab:     label NotEmpty MaxLength(200), slug NotEmpty MaxLength(100) regex([a-z0-9-]+)
+UpdateTab:     label NotEmpty MaxLength(200)
+SaveWidgets:   widgets NotNull; mỗi widget: widgetKey NotEmpty, widgetType valid enum, gridW/H > 0; widgetKey unique trong list
 ```
 
 ---
 
-## Luồng hoạt động
-
-### Luồng 1: Admin thiết kế screen
+## State Machine
 
 ```
-Admin mở Screen Designer
-  │
-  ├─ GET /forms/admin/screens/{moduleCode}       — load danh sách screens
-  ├─ GET /forms/admin/widget-catalog             — load widget palette
-  │
-  ├─ POST .../screens                            — tạo screen mới
-  ├─ POST .../screens/{code}/tabs                — thêm tab
-  │
-  ├─ [Kéo thả widget vào canvas, chỉnh vị trí x/y/w/h]
-  │
-  ├─ PUT .../tabs/{tabId}/widgets                — lưu toàn bộ canvas (full replace)
-  │
-  └─ POST .../screens/{code}/publish             — publish để user xem được
-```
-
-### Luồng 2: Frontend render màn hình SDUI
-
-```
-User mở màn hình
-  │
-  ├─ GET /forms/screens/{moduleCode}/{code}/layout
-  │    → Nhận layout đầy đủ (tabs + widgets + formSchema nếu FormSection)
-  │
-  └─ [Frontend render từng widget theo widgetType và gridX/Y/W/H]
-       FormSection      → render form dynamic với fields từ formSchema
-       TextBlock        → render markdown content
-       Divider          → render hr
-       ImageBlock       → render img với src từ config.url
-       ConditionalSection → render/hide theo config.condition
+FormScreen:
+  [any] ──CreateScreen──► Draft
+  Draft ──PublishScreen──► Published
+  Published ──(manual)──► Archived   (chưa implement endpoint, dùng trực tiếp)
 ```
 
 ---
@@ -244,34 +63,14 @@ User mở màn hình
 ## Vị trí code
 
 | Layer | File |
-|---|---|
-| Domain Entities | `DynamicFormService.Domain/Entities/FormScreen.cs` |
-| Domain Entities | `DynamicFormService.Domain/Entities/FormScreenTab.cs` |
-| Domain Entities | `DynamicFormService.Domain/Entities/FormScreenWidget.cs` |
-| Domain Enum | `DynamicFormService.Domain/Enums/WidgetType.cs` |
-| Repository Interface | `DynamicFormService.Domain/Repositories/IFormScreenRepository.cs` |
-| Domain Event | `DynamicFormService.Domain/Events/FormScreenPublishedDomainEvent.cs` |
-| SDUI Query | `DynamicFormService.Application/Features/Screens/GetScreenLayout/GetScreenLayoutQuery.cs` |
-| Drag-drop Save | `DynamicFormService.Application/Features/Tabs/SaveTabWidgets/SaveTabWidgetsCommand.cs` |
-| Widget Catalog Query | `DynamicFormService.Application/Features/WidgetCatalog/GetWidgetCatalog/GetWidgetCatalogQuery.cs` |
-| Widget Catalog Entity | `DynamicFormService.Domain/Entities/WidgetCatalog.cs` |
-| Widget Catalog Repo | `DynamicFormService.Infrastructure/Persistence/WidgetCatalogRepository.cs` |
-| EF Configuration | `DynamicFormService.Infrastructure/Persistence/Configurations/FormScreen*.cs` |
-| EF Configuration | `DynamicFormService.Infrastructure/Persistence/Configurations/WidgetCatalogConfiguration.cs` |
-| Repository Impl | `DynamicFormService.Infrastructure/Persistence/FormScreenRepository.cs` |
-| Admin API | `DynamicFormService.API/Controllers/AdminScreensController.cs` |
-| Public SDUI API | `DynamicFormService.API/Controllers/ScreensController.cs` |
-| Migration | `DynamicFormService.Infrastructure/Persistence/Migrations/20260603021333_AddScreenDesigner.cs` |
-
----
-
-## Thay đổi so với FormPage cũ
-
-| FormPage (cũ) | Screen Designer (mới) |
-|---|---|
-| Layout là blob JSON opaque | Layout là entity có cấu trúc (Tab → Widget) |
-| Không hỗ trợ tab | Có tabs với `isDefault` |
-| Không có grid position | `gridX`, `gridY`, `gridW`, `gridH` cho react-grid-layout |
-| Chỉ có 3 loại component | 5 widget types, có thể mở rộng |
-| Không cascade xóa structured | Cascade xóa Tab → Widget |
-| 1 endpoint lưu layout (PUT) | 1 endpoint save canvas: `PUT .../tabs/{id}/widgets` |
+|-------|------|
+| Domain Entities | `Domain/Entities/FormScreen.cs`, `FormScreenTab.cs`, `FormScreenWidget.cs` |
+| Domain Enum | `Domain/Enums/WidgetType.cs` |
+| Repo Interface | `Domain/Repositories/IFormScreenRepository.cs` |
+| Commands | `Application/Features/Screens/CreateScreen/`, `UpdateScreen/`, `DeleteScreen/`, `PublishScreen/` |
+| Commands | `Application/Features/Tabs/CreateTab/`, `UpdateTab/`, `DeleteTab/`, `SaveTabWidgets/` |
+| EF Config | `Infrastructure/Persistence/Configurations/FormScreen*.cs` |
+| Repo Impl | `Infrastructure/Persistence/FormScreenRepository.cs` |
+| Admin API | `API/Controllers/AdminScreensController.cs` |
+| Public SDUI | `API/Controllers/ScreensController.cs` |
+| Migration | `Infrastructure/Persistence/Migrations/20260603021333_AddScreenDesigner.cs` |

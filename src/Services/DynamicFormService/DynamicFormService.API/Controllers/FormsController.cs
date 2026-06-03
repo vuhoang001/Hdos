@@ -3,6 +3,7 @@ using Hdos.DynamicFormService.Application.DTOs;
 using Hdos.DynamicFormService.Application.Features.Forms.GetForms;
 using Hdos.DynamicFormService.Application.Features.Forms.GetSchema;
 using Hdos.DynamicFormService.Application.Features.Modules.GetModules;
+using Hdos.DynamicFormService.Application.Features.Screens.GetPublishedScreensByModule;
 using Hdos.DynamicFormService.Application.Features.Submissions.SubmitForm;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -22,6 +23,14 @@ public sealed class FormsController(ISender sender) : ControllerBase
         if (result.IsFailure)
             return BadRequest(ApiResponse<List<FormModuleDto>>.Fail(result.Error.Code, result.Error.Message));
         return Ok(ApiResponse<List<FormModuleDto>>.Ok(result.Value));
+    }
+
+    [AllowAnonymous]
+    [HttpGet("{moduleCode}/pages")]
+    public async Task<IActionResult> GetPages(string moduleCode, CancellationToken ct)
+    {
+        var result = await sender.Send(new GetPublishedScreensByModuleQuery(moduleCode), ct);
+        return Ok(ApiResponse<List<FormScreenDto>>.Ok(result.Value));
     }
 
     [AllowAnonymous]
