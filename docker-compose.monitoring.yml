@@ -20,7 +20,7 @@ services:
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - hdos-prometheus-data:/prometheus
-    networks: [hdos-net]
+    networks: [hdos-shared-net]
     restart: unless-stopped
 
   # ── Loki: log aggregation (Serilog sends logs here) ───────────────────────
@@ -33,7 +33,7 @@ services:
     volumes:
       - ./monitoring/loki.yml:/etc/loki/loki.yml:ro
       - hdos-loki-data:/loki
-    networks: [hdos-net]
+    networks: [hdos-shared-net]
     restart: unless-stopped
 
   # ── Tempo: distributed tracing (receives OTLP from services) ──────────────
@@ -48,7 +48,7 @@ services:
     volumes:
       - ./monitoring/tempo.yml:/etc/tempo/tempo.yml:ro
       - hdos-tempo-data:/var/tempo
-    networks: [hdos-net]
+    networks: [hdos-shared-net]
     restart: unless-stopped
 
   # ── Grafana: unified UI for metrics + logs + traces ───────────────────────
@@ -66,7 +66,7 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_FEATURE_TOGGLES_ENABLE: traceqlEditor
     depends_on: [prometheus, loki, tempo]
-    networks: [hdos-net]
+    networks: [hdos-shared-net]
     restart: unless-stopped
 
   # ── Inject monitoring env vars into every application service ─────────────
@@ -105,7 +105,7 @@ services:
     container_name: hdos-nginx-exporter
     command: --nginx.scrape-uri=http://nginx:8081/nginx_status
     depends_on: [nginx]
-    networks: [hdos-net]
+    networks: [hdos-shared-net]
     restart: unless-stopped
 
   # ── Promtail: collects nginx container logs → Loki ────────────────────────
@@ -118,7 +118,7 @@ services:
       - ./monitoring/promtail.yml:/etc/promtail/promtail.yml:ro
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on: [loki, nginx]
-    networks: [hdos-net]
+    networks: [hdos-shared-net]
     restart: unless-stopped
 
 volumes:
@@ -126,3 +126,7 @@ volumes:
   hdos-loki-data:
   hdos-tempo-data:
   hdos-grafana-data:
+
+networks:
+  hdos-shared-net:
+    external: true

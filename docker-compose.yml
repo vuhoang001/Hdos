@@ -18,7 +18,7 @@ services:
       timeout: 10s
       retries: 15
       start_period: 90s
-    networks: [hdos-net]
+    networks: [hdos-shared-net]
 
   rabbitmq:
     image: rabbitmq:3.13-management
@@ -30,7 +30,7 @@ services:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 15s
       retries: 10
-    networks: [hdos-net]
+    networks: [hdos-shared-net]
 
   postgres-df:
     image: postgres:16-alpine
@@ -49,7 +49,7 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
-    networks: [hdos-net]
+    networks: [hdos-shared-net]
 
   postgres-dm:
     image: postgres:16-alpine
@@ -68,7 +68,7 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
-    networks: [hdos-net]
+    networks: [hdos-shared-net]
 
   # ── Services ──────────────────────────────────────────────────────────────────
   authservice:
@@ -92,7 +92,7 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-    networks: [hdos-net]
+    networks: [hdos-shared-net]
 
   orderservice:
     image: hdos/orderservice:latest
@@ -115,7 +115,7 @@ services:
         condition: service_healthy
       authservice:
         condition: service_started
-    networks: [hdos-net]
+    networks: [hdos-shared-net]
 
   notificationservice:
     image: hdos/notificationservice:latest
@@ -135,7 +135,7 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-    networks: [hdos-net]
+    networks: [hdos-shared-net]
 
   m01service:
     image: hdos/m01service:latest
@@ -155,7 +155,7 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-    networks: [hdos-net]
+    networks: [hdos-shared-net]
 
   dynamicformservice:
     image: hdos/dynamicformservice:latest
@@ -175,7 +175,7 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-    networks: [hdos-net]
+    networks: [hdos-shared-net]
 
   datamatchingservice:
     image: hdos/datamatchingservice:latest
@@ -196,7 +196,7 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-    networks: [hdos-net]
+    networks: [hdos-shared-net]
 
   asyncgateway:
     image: hdos/asyncgateway:latest
@@ -213,7 +213,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-    networks: [hdos-net]
+    networks: [hdos-shared-net]
 
   nginx:
     image: nginx:1.27-alpine
@@ -236,11 +236,11 @@ services:
     ports:
       - "5000:8080"
       - "8443:8443"
-    networks: [hdos-net]
+    networks: [hdos-shared-net]
 
 networks:
-  hdos-net:
-    driver: bridge
+  hdos-shared-net:
+    external: true
 
 volumes:
   hdos-sqldata:

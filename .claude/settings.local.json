@@ -266,7 +266,9 @@
       "Bash(PATH=/home/hoanggggf/.dotnet:__TRACKED_VAR__ DOTNET_ROOT=/home/hoanggggf/.dotnet dotnet ef migrations add InitialCreate --project /home/hoanggggf/Documents/Code/work/Hdos/src/Services/DynamicFormService/DynamicFormService.Infrastructure/DynamicFormService.Infrastructure.csproj --startup-project /home/hoanggggf/Documents/Code/work/Hdos/src/Services/DynamicFormService/DynamicFormService.API/DynamicFormService.API.csproj --output-dir Persistence/Migrations)",
       "Bash(PATH=\"/home/hoanggggf/.dotnet:$PATH\" DOTNET_ROOT=/home/hoanggggf/.dotnet ~/.dotnet/tools/dotnet-ef *)",
       "Bash(PATH=/home/hoanggggf/.dotnet:__TRACKED_VAR__/.dotnet/tools:__TRACKED_VAR__ DOTNET_ROOT=/home/hoanggggf/.dotnet dotnet-ef migrations add InitialCreate --project /home/hoanggggf/Documents/Code/work/Hdos/src/Services/DynamicFormService/DynamicFormService.Infrastructure/DynamicFormService.Infrastructure.csproj --startup-project /home/hoanggggf/Documents/Code/work/Hdos/src/Services/DynamicFormService/DynamicFormService.API/DynamicFormService.API.csproj --output-dir Persistence/Migrations)",
-      "Bash(export PATH=\"$HOME/.dotnet:$HOME/.dotnet/tools:$PATH\")"
+      "Bash(export PATH=\"$HOME/.dotnet:$HOME/.dotnet/tools:$PATH\")",
+      "Bash(lspci)",
+      "Bash(brew install *)"
     ]
   },
   "hooks": {
