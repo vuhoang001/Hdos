@@ -22,6 +22,7 @@ public static class DependencyInjection
 
         services.AddScoped<IStagingRecordRepository, StagingRecordRepository>();
         services.AddScoped<ISourceProfileRepository, SourceProfileRepository>();
+        services.AddScoped<IWidgetCatalogRepository, WidgetCatalogRepository>();
         services.AddScoped<IDataMatchingUnitOfWork, DataMatchingUnitOfWork>();
 
         services.AddMassTransitMessaging(configuration, x =>

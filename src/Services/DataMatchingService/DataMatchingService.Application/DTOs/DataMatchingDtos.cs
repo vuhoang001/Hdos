@@ -78,6 +78,17 @@ public sealed record M02BenhNhanDto(
     string? TrangThai,
     string? ChanDoan);
 
+public sealed record WidgetCatalogDto(
+    string ChartType,
+    string Category,
+    string Label,
+    string Description,
+    string Icon,
+    List<string> RequiredColumns,
+    List<string> OptionalColumns,
+    List<string> CompatibleWith,
+    int SortOrder);
+
 public sealed record M02ReportDto(
     DateOnly ReportDate,
     DateTime GeneratedAt,
