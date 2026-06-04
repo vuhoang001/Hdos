@@ -29,3 +29,7 @@ dynamicformservice:
   - "src/Services/DynamicFormService/**"
   - "src/BuildingBlocks/**"
 
+lakehouseservice:
+  - "src/Services/LakehouseService/**"
+  - "src/BuildingBlocks/**"
+

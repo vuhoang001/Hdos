@@ -48,6 +48,11 @@ jobs:
             echo "⚠️  POSTGRES_DF_PASSWORD not set — appending placeholder. Change on server!"
             echo "POSTGRES_DF_PASSWORD=changeme-set-real-password" >> "${ENV_DIR}/.env"
           fi
+          # Thêm POSTGRES_LH_PASSWORD vào .env nếu chưa có
+          if ! grep -q "POSTGRES_LH_PASSWORD" "${ENV_DIR}/.env" 2>/dev/null; then
+            echo "⚠️  POSTGRES_LH_PASSWORD not set — appending placeholder. Change on server!"
+            echo "POSTGRES_LH_PASSWORD=changeme-set-real-password" >> "${ENV_DIR}/.env"
+          fi
 
       - name: Deploy
         env:
@@ -142,6 +147,11 @@ jobs:
           if ! grep -q "POSTGRES_DF_PASSWORD" "${ENV_DIR}/.env" 2>/dev/null; then
             echo "⚠️  POSTGRES_DF_PASSWORD not set — appending placeholder. Change on server!"
             echo "POSTGRES_DF_PASSWORD=changeme-set-real-password" >> "${ENV_DIR}/.env"
+          fi
+          # Thêm POSTGRES_LH_PASSWORD vào .env nếu chưa có
+          if ! grep -q "POSTGRES_LH_PASSWORD" "${ENV_DIR}/.env" 2>/dev/null; then
+            echo "⚠️  POSTGRES_LH_PASSWORD not set — appending placeholder. Change on server!"
+            echo "POSTGRES_LH_PASSWORD=changeme-set-real-password" >> "${ENV_DIR}/.env"
           fi
 
       - name: Deploy
