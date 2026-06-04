@@ -113,29 +113,6 @@ services:
         condition: service_healthy
     networks: [hdos-shared-net]
 
-  orderservice:
-    image: hdos/orderservice:latest
-    build:
-      context: .
-      dockerfile: src/Services/OrderService/OrderService.API/Dockerfile
-    environment:
-      ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__OrderDb: "Server=sqlserver,1433;Database=OrderDb;User Id=sa;Password=${MSSQL_SA_PASSWORD:-Hdos!DevPass123};TrustServerCertificate=True;Encrypt=False"
-      RabbitMq__Host: rabbitmq
-      RabbitMq__Port: 5672
-      Services__Auth__GrpcUrl: "http://authservice:8081"
-      Jwt__Issuer: "hdos-auth"
-      Jwt__Audience: "hdos-api"
-      Jwt__Secret: "${JWT_SECRET:-DEV-INSECURE-SECRET-CHANGE-ME-AT-LEAST-32-CHARS}"
-    depends_on:
-      sqlserver:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-      authservice:
-        condition: service_started
-    networks: [hdos-shared-net]
-
   notificationservice:
     image: hdos/notificationservice:latest
     build:
@@ -144,26 +121,6 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__NotificationDb: "Server=sqlserver,1433;Database=NotificationDb;User Id=sa;Password=${MSSQL_SA_PASSWORD:-Hdos!DevPass123};TrustServerCertificate=True;Encrypt=False"
-      RabbitMq__Host: rabbitmq
-      RabbitMq__Port: 5672
-      Jwt__Issuer: "hdos-auth"
-      Jwt__Audience: "hdos-api"
-      Jwt__Secret: "${JWT_SECRET:-DEV-INSECURE-SECRET-CHANGE-ME-AT-LEAST-32-CHARS}"
-    depends_on:
-      sqlserver:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    networks: [hdos-shared-net]
-
-  m01service:
-    image: hdos/m01service:latest
-    build:
-      context: .
-      dockerfile: src/Services/M01Service/M01Service.API/Dockerfile
-    environment:
-      ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__M01Db: "Server=sqlserver,1433;Database=M01Db;User Id=sa;Password=${MSSQL_SA_PASSWORD:-Hdos!DevPass123};TrustServerCertificate=True;Encrypt=False"
       RabbitMq__Host: rabbitmq
       RabbitMq__Port: 5672
       Jwt__Issuer: "hdos-auth"
@@ -267,9 +224,7 @@ services:
       - hdos-nginx-ssl:/etc/nginx/ssl
     depends_on:
       - authservice
-      - orderservice
       - notificationservice
-      - m01service
       - datamatchingservice
       - dynamicformservice
       - lakehouseservice

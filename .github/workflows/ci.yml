@@ -44,7 +44,7 @@ jobs:
     steps:
       - id: resolve
         run: |
-          ALL='["authservice","orderservice","notificationservice","m01service","asyncgateway","datamatchingservice","dynamicformservice","lakehouseservice"]'
+          ALL='["authservice","notificationservice","asyncgateway","datamatchingservice","dynamicformservice","lakehouseservice"]'
           # main luôn build tất cả để đảm bảo image SHA luôn tồn tại trên GHCR
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.ref_name }}" = "main" ]; then
             echo "services=$ALL" >> $GITHUB_OUTPUT

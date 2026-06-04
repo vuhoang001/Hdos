@@ -3,16 +3,8 @@
     "dockerfile": "src/Services/AuthService/AuthService.API/Dockerfile",
     "context": "."
   },
-  "orderservice": {
-    "dockerfile": "src/Services/OrderService/OrderService.API/Dockerfile",
-    "context": "."
-  },
   "notificationservice": {
     "dockerfile": "src/Services/NotificationService/NotificationService.API/Dockerfile",
-    "context": "."
-  },
-  "m01service": {
-    "dockerfile": "src/Services/M01Service/M01Service.API/Dockerfile",
     "context": "."
   },
   "asyncgateway": {

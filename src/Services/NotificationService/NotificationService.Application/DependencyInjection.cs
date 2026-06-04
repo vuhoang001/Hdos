@@ -15,13 +15,8 @@ public static class DependencyInjection
 
         services.AddScoped<UserLoggedInEventHandler>();
         services.AddScoped<UserRegisteredEventHandler>();
-        services.AddScoped<OrderCreatedEventHandler>();
         services.AddScoped<NotificationSendRequestedEventHandler>();
-        services.AddScoped<ProductCreatedIntegrationEventHandler>();
-        services.AddScoped<ProductTotalUpdatedHandler>();
-        services.AddScoped<BaoCaoKhoaCreatedHandler>();
         services.AddScoped<DashboardFeReadyHandler>();
-        services.AddScoped<OrderConfirmedEventHandler>();
         services.AddScoped<ProcessedToFeHandler>();
         services.AddScoped<DebugFeReadyHandler>();
 

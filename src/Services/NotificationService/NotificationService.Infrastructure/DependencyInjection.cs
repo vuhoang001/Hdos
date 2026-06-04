@@ -1,8 +1,6 @@
 using Hdos.Common.Extensions;
-using Hdos.Common.Kafka;
 using Hdos.Common.Persistence;
 using Hdos.NotificationService.Domain.Repositories;
-using Hdos.NotificationService.Infrastructure.Cdc;
 using Hdos.NotificationService.Infrastructure.Consumers;
 using Hdos.NotificationService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -33,24 +31,10 @@ public static class DependencyInjection
         services.AddMassTransitMessaging(configuration, x =>
         {
             x.AddConsumer<UserLoggedInConsumer>();
-            x.AddConsumer<UserRegisteredConsumer>();
-            x.AddConsumer<OrderCreatedConsumer>();
-            x.AddConsumer<OrderConfirmedConsumer>();
             x.AddConsumer<NotificationSendRequestedConsumer>();
-            x.AddConsumer<ProductCreatedConsumer>();
-            x.AddConsumer<ProductTotalUpdatedConsumer>();
-            x.AddConsumer<BaoCaoKhoaCreatedConsumer>();
             x.AddConsumer<DashboardFeReadyConsumer>();
         }, servicePrefix: "notification",
            externalConsumersAssembly: typeof(DependencyInjection).Assembly);
-
-        // CDC consumer — chỉ active khi Kafka:Topic được cấu hình
-        var kafkaSection = configuration.GetSection(KafkaConsumerOptions.SectionName);
-        if (!string.IsNullOrEmpty(kafkaSection["Topic"]))
-        {
-            services.Configure<KafkaConsumerOptions>(kafkaSection);
-            services.AddHostedService<OrderCdcConsumer>();
-        }
 
         return services;
     }

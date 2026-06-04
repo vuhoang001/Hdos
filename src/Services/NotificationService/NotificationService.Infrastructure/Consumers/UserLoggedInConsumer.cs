@@ -18,9 +18,3 @@ public sealed class UserRegisteredConsumer(UserRegisteredEventHandler handler)
         => handler.HandleAsync(context.Message, context.CancellationToken);
 }
 
-public sealed class OrderCreatedConsumer(OrderCreatedEventHandler handler)
-    : IConsumer<OrderCreatedIntegrationEvent>
-{
-    public Task Consume(ConsumeContext<OrderCreatedIntegrationEvent> context)
-        => handler.HandleAsync(context.Message, context.CancellationToken);
-}

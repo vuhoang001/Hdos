@@ -43,32 +43,12 @@ services:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
       Jwt__Secret: "${JWT_SECRET}"
 
-  orderservice:
-    image: ${REGISTRY_IMAGE}/hdos-orderservice:${IMAGE_TAG}
-    build: !reset null
-    env_file:
-      - ${ENV_DIR}/common.env
-      - ${ENV_DIR}/orderservice.env
-    environment:
-      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
-      Jwt__Secret: "${JWT_SECRET}"
-
   notificationservice:
     image: ${REGISTRY_IMAGE}/hdos-notificationservice:${IMAGE_TAG}
     build: !reset null
     env_file:
       - ${ENV_DIR}/common.env
       - ${ENV_DIR}/notificationservice.env
-    environment:
-      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
-      Jwt__Secret: "${JWT_SECRET}"
-
-  m01service:
-    image: ${REGISTRY_IMAGE}/hdos-m01service:${IMAGE_TAG}
-    build: !reset null
-    env_file:
-      - ${ENV_DIR}/common.env
-      - ${ENV_DIR}/m01service.env
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
       Jwt__Secret: "${JWT_SECRET}"

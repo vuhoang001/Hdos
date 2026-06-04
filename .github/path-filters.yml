@@ -5,16 +5,8 @@ authservice:
   - "src/Services/AuthService/**"
   - "src/BuildingBlocks/**"
 
-orderservice:
-  - "src/Services/OrderService/**"
-  - "src/BuildingBlocks/**"
-
 notificationservice:
   - "src/Services/NotificationService/**"
-  - "src/BuildingBlocks/**"
-
-m01service:
-  - "src/Services/M01Service/**"
   - "src/BuildingBlocks/**"
 
 asyncgateway:
