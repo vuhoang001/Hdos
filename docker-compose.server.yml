@@ -2,7 +2,7 @@
 #
 # Biến cần có trong --env-file (compose substitution):
 #   IMAGE_TAG, GHCR_OWNER, ASPNETCORE_ENVIRONMENT, ENV_DIR,
-#   MSSQL_SA_PASSWORD, POSTGRES_DM_PASSWORD, JWT_SECRET
+#   MSSQL_SA_PASSWORD, POSTGRES_DM_PASSWORD, POSTGRES_DF_PASSWORD, POSTGRES_LH_PASSWORD, JWT_SECRET
 #
 # ENV_DIR trỏ tới thư mục chứa các file .env của từng service trên server:
 #   Staging : ENV_DIR=/opt/hdos-staging
@@ -17,7 +17,8 @@
 #   ├── notificationservice.env
 #   ├── m01service.env
 #   ├── asyncgateway.env          ← biến riêng AsyncGateway
-#   └── datamatchingservice.env   ← biến riêng DataMatchingService
+#   ├── datamatchingservice.env   ← biến riêng DataMatchingService
+#   └── lakehouseservice.env      ← biến riêng LakehouseService
 
 services:
 
@@ -99,6 +100,11 @@ services:
       POSTGRES_PASSWORD: "${POSTGRES_DF_PASSWORD:-changeme}"
     ports: !reset []
 
+  postgres-lh:
+    environment:
+      POSTGRES_PASSWORD: "${POSTGRES_LH_PASSWORD:-changeme}"
+    ports: !reset []
+
   dynamicformservice:
     image: ${REGISTRY_IMAGE}/hdos-dynamicformservice:${IMAGE_TAG}
     build: !reset null
@@ -106,6 +112,18 @@ services:
       - path: ${ENV_DIR}/common.env
         required: true
       - path: ${ENV_DIR}/dynamicformservice.env
+        required: false
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
+      Jwt__Secret: "${JWT_SECRET}"
+
+  lakehouseservice:
+    image: ${REGISTRY_IMAGE}/hdos-lakehouseservice:${IMAGE_TAG}
+    build: !reset null
+    env_file:
+      - path: ${ENV_DIR}/common.env
+        required: true
+      - path: ${ENV_DIR}/lakehouseservice.env
         required: false
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
