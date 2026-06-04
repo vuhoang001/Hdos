@@ -156,6 +156,14 @@ public sealed record ScreenLayoutWidgetDto(
     Guid?         ReferenceId,
     FormSchemaDto? FormSchema);   // hydrated nếu WidgetType = FormSection
 
+// Auto-generate screen+form from data source schema
+public sealed record GenerateFromSourceResultDto(
+    string ModuleCode,
+    string ScreenCode,
+    string FormKey,
+    Guid   FormTemplateId,
+    int    FieldsGenerated);
+
 // Widget catalog
 public sealed record WidgetCatalogItemDto(
     string       ChartType,

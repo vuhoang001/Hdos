@@ -11,6 +11,15 @@ namespace Hdos.DataMatchingService.API.Controllers;
 // [Authorize]
 public sealed class RecordsController(ISender sender) : ControllerBase
 {
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetRecord(Guid id, CancellationToken ct)
+    {
+        var result = await sender.Send(new GetRecordByIdQuery(id), ct);
+        if (result.IsFailure)
+            return NotFound(ApiResponse<StagingRecordDto>.Fail(result.Error.Code, result.Error.Message));
+        return Ok(ApiResponse<StagingRecordDto>.Ok(result.Value));
+    }
+
     // Endpoint search linh hoạt — lấy danh sách record theo bộ lọc bất kỳ.
     //
     // Ví dụ sử dụng:

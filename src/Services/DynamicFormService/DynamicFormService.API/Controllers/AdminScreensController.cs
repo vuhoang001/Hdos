@@ -7,6 +7,7 @@ using Hdos.DynamicFormService.Application.Features.Screens.PublishScreen;
 using Hdos.DynamicFormService.Application.Features.Screens.UpdateScreen;
 using Hdos.DynamicFormService.Application.Features.Tabs.CreateTab;
 using Hdos.DynamicFormService.Application.Features.Tabs.DeleteTab;
+using Hdos.DynamicFormService.Application.Features.Screens.GenerateFromSource;
 using Hdos.DynamicFormService.Application.Features.Screens.SetDataSources;
 using Hdos.DynamicFormService.Application.Features.Tabs.SaveTabWidgets;
 using Hdos.DynamicFormService.Application.Features.Tabs.UpdateTab;
@@ -80,6 +81,24 @@ public sealed class AdminScreensController(ISender sender) : ControllerBase
         if (result.IsFailure)
             return BadRequest(ApiResponse.Fail(result.Error.Code, result.Error.Message));
         return Ok(ApiResponse.Ok());
+    }
+
+    // ── Auto-generate (DataMatching → DynamicForm) ───────────────────────────
+
+    /// <summary>
+    /// Tự động tạo Module + Screen + DataSources + Form + Fields + Tab + Widget chỉ từ một lệnh duy nhất.
+    /// Fields có CanonicalKey sẽ được tự động bind expression {{sources.namespace.CanonicalKey}}.
+    /// Screen và Form đều được publish ngay, sẵn sàng render.
+    /// </summary>
+    [HttpPost("/forms/admin/generate-from-source")]
+    public async Task<IActionResult> GenerateFromSource(
+        [FromBody] GenerateFromSourceCommand cmd,
+        CancellationToken ct)
+    {
+        var result = await sender.Send(cmd, ct);
+        if (result.IsFailure)
+            return BadRequest(ApiResponse<GenerateFromSourceResultDto>.Fail(result.Error.Code, result.Error.Message));
+        return Ok(ApiResponse<GenerateFromSourceResultDto>.Ok(result.Value));
     }
 
     // ── Data Sources (Expression Binding) ────────────────────────────────────
