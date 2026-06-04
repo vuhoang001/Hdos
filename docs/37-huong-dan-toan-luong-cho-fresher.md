@@ -17,6 +17,9 @@
 >   3 widget (KpiCard + PieChart + Table) có **data thật** từ DataMatchingService, fetch
 >   layout + 2 DataSources + giả lập FE evaluate expression và render ASCII chart.
 >
+> **Hướng dẫn implement Frontend:** [docs/38-frontend-sdui-implementation-guide.md](./38-frontend-sdui-implementation-guide.md)
+> — code TypeScript đầy đủ (hooks, evaluator, 5 widget components) copy chạy được.
+>
 > Cả 2 script idempotent (re-run nhiều lần được), có color output, có thể đổi server
 > bằng `BASE_URL=https://other-server bash scripts/...`.
 
