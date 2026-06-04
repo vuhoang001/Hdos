@@ -224,6 +224,7 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/entrypoint.sh:/etc/nginx/entrypoint.sh:ro
+      - ./nginx/swagger-hub.html:/etc/nginx/swagger-hub.html:ro
       - hdos-nginx-ssl:/etc/nginx/ssl
     depends_on:
       - authservice

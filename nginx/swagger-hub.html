@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hdos API — Swagger Hub</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui.css" />
+  <style>
+    html, body { margin: 0; padding: 0; background: #fafafa; }
+    .topbar-wrapper .link span { display: none; }
+    .topbar-wrapper .link::before {
+      content: "Hdos API Hub";
+      color: #fff;
+      font-weight: 700;
+      font-size: 18px;
+    }
+    #swagger-ui .topbar { background: #1f2937; }
+    #swagger-ui .topbar .download-url-wrapper { display: flex; gap: 8px; }
+    #swagger-ui .topbar .download-url-wrapper .select-label > span {
+      color: #fff; font-weight: 500;
+    }
+    #swagger-ui .topbar .download-url-wrapper input[type="text"],
+    #swagger-ui .topbar .download-url-wrapper select {
+      border-radius: 4px; border: 1px solid #374151;
+    }
+  </style>
+</head>
+<body>
+  <div id="swagger-ui"></div>
+
+  <script src="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui-bundle.js" crossorigin></script>
+  <script src="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui-standalone-preset.js" crossorigin></script>
+  <script>
+    window.addEventListener('load', function () {
+      window.ui = SwaggerUIBundle({
+        urls: [
+          { name: 'AuthService v1',         url: '/auth/swagger/v1/swagger.json' },
+          { name: 'OrderService v1',        url: '/orders/swagger/v1/swagger.json' },
+          { name: 'NotificationService v1', url: '/notifications/swagger/v1/swagger.json' },
+          { name: 'M01Service v1',          url: '/m01/swagger/v1/swagger.json' },
+          { name: 'DataMatchingService v1', url: '/dm/swagger/v1/swagger.json' },
+          { name: 'DynamicFormService v1',  url: '/forms/swagger/v1/swagger.json' },
+          { name: 'AsyncGateway v1',        url: '/async/swagger/v1/swagger.json' }
+        ],
+        'urls.primaryName': 'DynamicFormService v1',
+        dom_id: '#swagger-ui',
+        layout: 'StandaloneLayout',
+        deepLinking: true,
+        displayRequestDuration: true,
+        filter: true,
+        persistAuthorization: true,
+        tryItOutEnabled: true,
+        presets: [
+          SwaggerUIBundle.presets.apis,
+          SwaggerUIStandalonePreset
+        ],
+        plugins: [
+          SwaggerUIBundle.plugins.DownloadUrl
+        ]
+      });
+    });
+  </script>
+</body>
+</html>
