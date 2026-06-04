@@ -51,6 +51,25 @@ services:
       start_period: 30s
     networks: [hdos-shared-net]
 
+  postgres-lh:
+    image: postgres:16-alpine
+    container_name: hdos-postgres-lh
+    environment:
+      POSTGRES_DB: LakehouseDb
+      POSTGRES_USER: lh_user
+      POSTGRES_PASSWORD: "${POSTGRES_LH_PASSWORD:-lh_pass}"
+    ports:
+      - "5435:5432"
+    volumes:
+      - hdos-pgdata-lh:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lh_user -d LakehouseDb"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks: [hdos-shared-net]
+
   postgres-dm:
     image: postgres:16-alpine
     container_name: hdos-postgres-dm
@@ -177,6 +196,26 @@ services:
         condition: service_healthy
     networks: [hdos-shared-net]
 
+  lakehouseservice:
+    image: hdos/lakehouseservice:latest
+    build:
+      context: .
+      dockerfile: src/Services/LakehouseService/LakehouseService.API/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__LakehouseDb: "Host=postgres-lh;Port=5432;Database=LakehouseDb;Username=lh_user;Password=${POSTGRES_LH_PASSWORD:-lh_pass}"
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: 5672
+      Jwt__Issuer: "hdos-auth"
+      Jwt__Audience: "hdos-api"
+      Jwt__Secret: "${JWT_SECRET:-DEV-INSECURE-SECRET-CHANGE-ME-AT-LEAST-32-CHARS}"
+    depends_on:
+      postgres-lh:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks: [hdos-shared-net]
+
   datamatchingservice:
     image: hdos/datamatchingservice:latest
     build:
@@ -233,6 +272,7 @@ services:
       - m01service
       - datamatchingservice
       - dynamicformservice
+      - lakehouseservice
       - asyncgateway
     ports:
       - "5000:8080"
@@ -247,4 +287,5 @@ volumes:
   hdos-sqldata:
   hdos-pgdata-dm:
   hdos-pgdata-df:
+  hdos-pgdata-lh:
   hdos-nginx-ssl:

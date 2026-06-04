@@ -26,5 +26,9 @@
   "dynamicformservice": {
     "dockerfile": "src/Services/DynamicFormService/DynamicFormService.API/Dockerfile",
     "context": "."
+  },
+  "lakehouseservice": {
+    "dockerfile": "src/Services/LakehouseService/LakehouseService.API/Dockerfile",
+    "context": "."
   }
 }
