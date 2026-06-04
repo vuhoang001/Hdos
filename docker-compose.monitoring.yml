@@ -75,17 +75,7 @@ services:
       OpenTelemetry__OtlpEndpoint: http://tempo:4317
       Loki__Uri: http://loki:3100
 
-  orderservice:
-    environment:
-      OpenTelemetry__OtlpEndpoint: http://tempo:4317
-      Loki__Uri: http://loki:3100
-
   notificationservice:
-    environment:
-      OpenTelemetry__OtlpEndpoint: http://tempo:4317
-      Loki__Uri: http://loki:3100
-
-  m01service:
     environment:
       OpenTelemetry__OtlpEndpoint: http://tempo:4317
       Loki__Uri: http://loki:3100
