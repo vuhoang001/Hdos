@@ -10,9 +10,15 @@
 > Toàn bộ ví dụ trong tài liệu này đều được **test thật trên live server** tại
 > `https://192.168.100.60:8443/` — bạn có thể copy curl và chạy lại sẽ ra đúng kết quả.
 >
-> **Script demo chạy hết 1 phát:** `bash scripts/demo-fresher-flow.sh` — tự động chạy
-> 9 bước (login → ingest → wait Worker → generate form → fetch layout → submit → verify),
-> in ra từng bước với màu sắc, dùng `BASE_URL=... bash ...` để đổi server.
+> **2 script demo chạy hết 1 phát:**
+> - `bash scripts/demo-fresher-flow.sh` — luồng **form input** (FormSection): 9 bước
+>   login → ingest → wait Worker → generate form → fetch layout → submit → verify.
+> - `bash scripts/demo-dashboard-flow.sh` — luồng **dashboard read-only**: tạo screen với
+>   3 widget (KpiCard + PieChart + Table) có **data thật** từ DataMatchingService, fetch
+>   layout + 2 DataSources + giả lập FE evaluate expression và render ASCII chart.
+>
+> Cả 2 script idempotent (re-run nhiều lần được), có color output, có thể đổi server
+> bằng `BASE_URL=https://other-server bash scripts/...`.
 
 ---
 
@@ -2142,6 +2148,156 @@ Frontend hiển thị: settings.successMessage = "Đã gửi form thành công"
 ---
 
 ## 7. Widget và Dashboard
+
+> Phần này hướng dẫn tạo MỘT MÀN HÌNH DASHBOARD (read-only, không có form input)
+> với widget hiển thị data thật từ DataMatchingService. Có script demo end-to-end
+> `bash scripts/demo-dashboard-flow.sh` chạy 1 phát.
+
+### 7.0 ⚠️ Pitfall quan trọng: ConfigJson phải gửi dạng STRING
+
+Endpoint `PUT /forms/admin/screens/{m}/{s}/tabs/{tabId}/widgets` nhận body có field
+`configJson` kiểu **string** (JSON string đã escape), KHÔNG PHẢI object.
+
+❌ **Sai** (gửi object → server bind null → config bị mất):
+```json
+{
+  "widgetKey": "kpi-total",
+  "widgetType": "KpiCard",
+  "config": { "title": "Tổng", "valueExpression": "..." }
+}
+```
+
+✅ **Đúng** (gửi string escape):
+```json
+{
+  "widgetKey": "kpi-total",
+  "widgetType": "KpiCard",
+  "configJson": "{\"title\":\"Tổng\",\"valueExpression\":\"{{sources.kpi_khoa.summary.TotalRecords}}\"}"
+}
+```
+
+**Mẹo:** dùng Python/Node để build string đúng cú pháp:
+```python
+import json
+configJson = json.dumps({"title":"Tổng","valueExpression":"{{...}}"}, ensure_ascii=False)
+```
+
+Khi đọc lại qua `GET /layout`, server tự deserialize `ConfigJson` → trả về field
+`config` (object) cho FE — phía read OK, chỉ phía write cần để ý.
+
+### 7.0.1 Quy trình tạo dashboard (6 bước qua API)
+
+Khác với form input dùng được `generate-from-source` (1 lệnh), dashboard phải tạo
+từng bước qua các endpoint riêng:
+
+```
+① POST /forms/admin/modules                          → tạo module
+② POST /forms/admin/screens                          → tạo screen (Draft)
+③ PUT  /forms/admin/screens/{m}/{s}/data-sources     → khai báo nguồn data
+④ POST /forms/admin/screens/{m}/{s}/tabs             → tạo tab
+⑤ PUT  /forms/admin/screens/{m}/{s}/tabs/{tabId}/widgets → save widget list
+⑥ POST /forms/admin/screens/{m}/{s}/publish          → Draft → Published
+```
+
+Test thật của script `demo-dashboard-flow.sh`:
+
+```bash
+Module          → hospital-dash-1780554701
+Screen          → overview (Published)
+DataSources     → 2 (patients + kpi_khoa)
+Widgets         → 3 (KpiCard + PieChart + Table)
+```
+
+Sau khi publish, fetch layout sẽ trả về toàn bộ config + expression:
+
+```bash
+GET /forms/screens/hospital-dash-1780554701/overview/layout
+```
+
+```json
+{
+  "dataSources": [
+    {"namespace":"patients","resourcePath":"/dm/records?sourceSystem=his-fresher&...","requiredParams":[]},
+    {"namespace":"kpi_khoa","resourcePath":"/dm/reports/benh-nhan-theo-khoa?...","requiredParams":[]}
+  ],
+  "tabs": [{
+    "widgets": [
+      {
+        "widgetKey":"kpi-total","widgetType":"KpiCard",
+        "gridX":0,"gridY":0,"gridW":8,"gridH":4,
+        "config": {
+          "title":"Tổng số bệnh nhân",
+          "valueExpression":"{{sources.kpi_khoa.summary.TotalRecords}}",
+          "unit":"người","color":"#6366f1"
+        }
+      },
+      {
+        "widgetKey":"chart-by-khoa","widgetType":"PieChart",
+        "gridX":8,"gridY":0,"gridW":16,"gridH":8,
+        "config": {
+          "title":"Bệnh nhân theo Khoa","chartType":"pie",
+          "dataExpression":"{{sources.kpi_khoa.rows}}",
+          "rowPath":"data","labelField":"TenKhoa","valueField":"SoBenhNhan"
+        }
+      },
+      {
+        "widgetKey":"table-patients","widgetType":"Table",
+        "gridX":0,"gridY":4,"gridW":24,"gridH":12,
+        "config": {
+          "title":"Danh sách bệnh nhân",
+          "dataExpression":"{{sources.patients}}",
+          "canonicalAtKey":"canonicalPayload",
+          "columns": [
+            {"field":"HoTen","header":"Họ tên","width":220},
+            {"field":"TenKhoa","header":"Khoa","width":160},
+            ...
+          ]
+        }
+      }
+    ]
+  }]
+}
+```
+
+Sau đó FE fetch thêm 2 DataSource thật và evaluate. Output ASCII trên terminal
+(từ script demo) chứng tỏ data thật chảy đúng tới widget:
+
+```
+📊 DASHBOARD: Tổng quan bệnh viện
+══════════════════════════════════════════════════════════════════════
+
+  Bệnh nhân theo Khoa  (pie chart)
+  ──────────────────────────────────────────────
+    ICU                ██████████                            3 (30.0%)
+    Khoa Nhi           ██████                                2 (20.0%)
+    Khoa Tim Mạch      ████████████████                      5 (50.0%)
+
+  ┌─────────────────────────────────────────┐
+  │ Tổng số bệnh nhân                       │
+  │                                         │
+  │ 10                   người              │
+  └─────────────────────────────────────────┘
+
+  Danh sách bệnh nhân  (10 rows)
+  Họ tên           │ Khoa           │ Giường          │ Chẩn đoán
+  ─────────────────────────────────────────────────────────────────
+  Trần Bé 2        │ Khoa Nhi       │ NHI-02          │ Sốt cao co giật
+  Lê Văn ICU 3     │ ICU            │ ICU-03          │ Suy hô hấp nặng
+  Phạm Quỳnh Như   │ Khoa Tim Mạch  │ TM-12           │ Rối loạn nhịp tim
+  ... còn 7 row khác
+```
+
+### 7.0.2 Cú pháp `canonicalAtKey` (chỉ Table widget)
+
+Vấn đề: `GET /dm/records?...` trả về `StagingRecordDto[]`, mỗi item có field
+`canonicalPayload` là **JSON string** (chưa parse). Frontend cần parse mới
+truy cập `HoTen`, `TenKhoa`...
+
+Quy ước Hdos: Table widget có thêm field config `canonicalAtKey` chỉ tới property
+chứa JSON string. FE thấy có `canonicalAtKey="canonicalPayload"` thì biết
+`row[canonicalAtKey]` cần JSON.parse trước khi áp dụng columns.
+
+Nếu DataSource trả về data đã flat (không có nested JSON string), bỏ field này.
 
 ### 7.1 Nguyên lý chung
 
