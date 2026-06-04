@@ -9,6 +9,10 @@
 >
 > Toàn bộ ví dụ trong tài liệu này đều được **test thật trên live server** tại
 > `https://192.168.100.60:8443/` — bạn có thể copy curl và chạy lại sẽ ra đúng kết quả.
+>
+> **Script demo chạy hết 1 phát:** `bash scripts/demo-fresher-flow.sh` — tự động chạy
+> 9 bước (login → ingest → wait Worker → generate form → fetch layout → submit → verify),
+> in ra từng bước với màu sắc, dùng `BASE_URL=... bash ...` để đổi server.
 
 ---
 
