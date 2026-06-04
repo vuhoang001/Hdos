@@ -64,7 +64,10 @@ public sealed class GetFormSchemaQueryHandler(IFormTemplateRepository templates)
                 f.ValidationRulesJson is not null
                     ? JsonSerializer.Deserialize<List<ValidationRuleDto>>(f.ValidationRulesJson) : null,
                 f.ConditionalLogicJson is not null
-                    ? JsonSerializer.Deserialize<ConditionalLogicDto>(f.ConditionalLogicJson) : null))
+                    ? JsonSerializer.Deserialize<ConditionalLogicDto>(f.ConditionalLogicJson) : null,
+                f.DataBindingJson is not null
+                    ? JsonSerializer.Deserialize<DataBindingDto>(f.DataBindingJson) : null,
+                f.IsReadOnly))
             .ToList();
 
         var settingsDto = new FormSettingsDto(

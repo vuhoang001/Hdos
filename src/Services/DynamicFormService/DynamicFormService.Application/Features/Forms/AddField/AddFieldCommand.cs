@@ -22,7 +22,10 @@ public sealed record AddFieldCommand(
     string? HelpText,
     List<FieldOptionDto>? Options,
     List<ValidationRuleDto>? ValidationRules,
-    ConditionalLogicDto? ConditionalLogic) : IRequest<Result<FormFieldDto>>;
+    ConditionalLogicDto? ConditionalLogic,
+    string? DataBindingExpression = null,
+    string? DisplayFormat = null,
+    bool IsReadOnly = false) : IRequest<Result<FormFieldDto>>;
 
 public sealed class AddFieldCommandValidator : AbstractValidator<AddFieldCommand>
 {
@@ -54,6 +57,9 @@ public sealed class AddFieldCommandHandler(
         var conditional = request.ConditionalLogic is { } cl
             ? new ConditionalLogic(cl.SourceFieldKey, cl.Operator, cl.Value, cl.Action)
             : null;
+        var dataBinding = request.DataBindingExpression is not null
+            ? new DataBinding(request.DataBindingExpression, request.DisplayFormat)
+            : null;
 
         FormField field;
         try
@@ -61,7 +67,7 @@ public sealed class AddFieldCommandHandler(
             field = template.AddField(
                 request.Key, request.Label, request.FieldType, request.Order,
                 request.Required, request.Width, request.Placeholder, request.HelpText,
-                options, rules, conditional);
+                options, rules, conditional, dataBinding, request.IsReadOnly);
         }
         catch (InvalidOperationException ex)
         {
@@ -86,5 +92,9 @@ public sealed class AddFieldCommandHandler(
             : null,
         f.ConditionalLogicJson is not null
             ? JsonSerializer.Deserialize<ConditionalLogicDto>(f.ConditionalLogicJson)
-            : null);
+            : null,
+        f.DataBindingJson is not null
+            ? JsonSerializer.Deserialize<DataBindingDto>(f.DataBindingJson)
+            : null,
+        f.IsReadOnly);
 }

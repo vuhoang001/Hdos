@@ -1,5 +1,7 @@
+using System.Text.Json;
 using Hdos.DynamicFormService.Domain.Enums;
 using Hdos.DynamicFormService.Domain.Events;
+using Hdos.DynamicFormService.Domain.ValueObjects;
 using Hdos.SharedKernel;
 
 namespace Hdos.DynamicFormService.Domain.Entities;
@@ -13,8 +15,9 @@ public sealed class FormScreen : AggregateRoot<Guid>
     public string     Code        { get; private set; } = null!;
     public string     Title       { get; private set; } = null!;
     public string?    Description { get; private set; }
-    public FormStatus Status      { get; private set; }
-    public int        SortOrder   { get; private set; }
+    public FormStatus Status          { get; private set; }
+    public int        SortOrder       { get; private set; }
+    public string?    DataSourcesJson { get; private set; } // jsonb: List<DataSource>
 
     public IReadOnlyCollection<FormScreenTab> Tabs => _tabs.AsReadOnly();
 
@@ -84,6 +87,15 @@ public sealed class FormScreen : AggregateRoot<Guid>
                   ?? throw new InvalidOperationException($"Tab '{tabId}' not found.");
         _tabs.Remove(tab);
         UpdatedAtUtc = DateTime.UtcNow;
+    }
+
+    public void SetDataSources(List<DataSource> sources)
+    {
+        if (Status == FormStatus.Archived)
+            throw new InvalidOperationException("Cannot modify an archived screen.");
+
+        DataSourcesJson = sources.Count > 0 ? JsonSerializer.Serialize(sources) : null;
+        UpdatedAtUtc    = DateTime.UtcNow;
     }
 
     public void Archive()

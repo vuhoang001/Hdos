@@ -53,9 +53,13 @@ public sealed class GetScreenLayoutQueryHandler(
             tabs.Add(new ScreenLayoutTabDto(tab.Id, tab.Label, tab.Slug, tab.SortOrder, tab.IsDefault, widgets));
         }
 
+        var dataSources = DeserializeOrNull<List<Domain.ValueObjects.DataSource>>(screen.DataSourcesJson)
+            ?.Select(d => new DataSourceDto(d.Namespace, d.ServiceId, d.ResourcePath, d.RequiredParams))
+            .ToList() ?? [];
+
         return Result.Success(new ScreenLayoutDto(
             screen.Id, screen.ModuleCode, screen.Code, screen.Title, screen.Description,
-            tabs, DateTime.UtcNow));
+            dataSources, tabs, DateTime.UtcNow));
     }
 
     private static FormSchemaDto HydrateFormSchema(Domain.Entities.FormTemplate t)
@@ -72,7 +76,9 @@ public sealed class GetScreenLayoutQueryHandler(
                 ?.Select(r => new ValidationRuleDto(r.Type, r.Value, r.ErrorMessage)).ToList(),
             DeserializeOrNull<Domain.ValueObjects.ConditionalLogic>(f.ConditionalLogicJson) is { } cl
                 ? new ConditionalLogicDto(cl.SourceFieldKey, cl.Operator.ToString(), cl.Value, cl.Action.ToString())
-                : null)).ToList();
+                : null,
+            DeserializeOrNull<DataBindingDto>(f.DataBindingJson),
+            f.IsReadOnly)).ToList();
 
         return new FormSchemaDto(t.Id, t.ModuleCode, t.Key, t.Name, t.Description, t.Version, fields,
             new FormSettingsDto(settings.SubmitButtonLabel, settings.SuccessMessage, settings.AllowMultipleSubmissions));

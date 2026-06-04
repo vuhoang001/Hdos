@@ -19,6 +19,8 @@ public sealed class FormField : BaseEntity<Guid>
     public string? OptionsJson { get; private set; }          // jsonb: List<FieldOption>
     public string? ValidationRulesJson { get; private set; }  // jsonb: List<ValidationRule>
     public string? ConditionalLogicJson { get; private set; } // jsonb: ConditionalLogic
+    public string? DataBindingJson { get; private set; }      // jsonb: DataBinding
+    public bool    IsReadOnly      { get; private set; }
 
     private FormField()
     {
@@ -36,7 +38,9 @@ public sealed class FormField : BaseEntity<Guid>
         string? helpText,
         List<FieldOption>? options,
         List<ValidationRule>? rules,
-        ConditionalLogic? conditional)
+        ConditionalLogic? conditional,
+        DataBinding? dataBinding = null,
+        bool isReadOnly = false)
     {
         return new FormField
         {
@@ -52,7 +56,9 @@ public sealed class FormField : BaseEntity<Guid>
             HelpText             = helpText?.Trim(),
             OptionsJson          = options is { Count: > 0 } ? JsonSerializer.Serialize(options) : null,
             ValidationRulesJson  = rules is { Count  : > 0 } ? JsonSerializer.Serialize(rules) : null,
-            ConditionalLogicJson = conditional is not null ? JsonSerializer.Serialize(conditional) : null
+            ConditionalLogicJson = conditional is not null ? JsonSerializer.Serialize(conditional) : null,
+            DataBindingJson      = dataBinding is not null ? JsonSerializer.Serialize(dataBinding) : null,
+            IsReadOnly           = isReadOnly
         };
     }
 
@@ -65,7 +71,9 @@ public sealed class FormField : BaseEntity<Guid>
         string? helpText,
         List<FieldOption>? options,
         List<ValidationRule>? rules,
-        ConditionalLogic? conditional)
+        ConditionalLogic? conditional,
+        DataBinding? dataBinding = null,
+        bool isReadOnly = false)
     {
         Label                = label.Trim();
         Order                = order;
@@ -76,6 +84,8 @@ public sealed class FormField : BaseEntity<Guid>
         OptionsJson          = options is { Count: > 0 } ? JsonSerializer.Serialize(options) : null;
         ValidationRulesJson  = rules is { Count  : > 0 } ? JsonSerializer.Serialize(rules) : null;
         ConditionalLogicJson = conditional is not null ? JsonSerializer.Serialize(conditional) : null;
+        DataBindingJson      = dataBinding is not null ? JsonSerializer.Serialize(dataBinding) : null;
+        IsReadOnly           = isReadOnly;
         UpdatedAtUtc         = DateTime.UtcNow;
     }
 }

@@ -50,7 +50,9 @@ public sealed record FormFieldDto(
     string?                   HelpText,
     List<FieldOptionDto>?     Options,
     List<ValidationRuleDto>?  ValidationRules,
-    ConditionalLogicDto?      ConditionalLogic);
+    ConditionalLogicDto?      ConditionalLogic,
+    DataBindingDto?           DataBinding,
+    bool                      IsReadOnly);
 
 public sealed record FormSettingsDto(
     string SubmitButtonLabel,
@@ -66,6 +68,15 @@ public sealed record ConditionalLogicDto(
     string Operator,
     string Value,
     string Action);
+
+// Expression binding — Approach 2 (Expression Language Engine)
+public sealed record DataBindingDto(string Expression, string? DisplayFormat);
+
+public sealed record DataSourceDto(
+    string       Namespace,
+    string       ServiceId,
+    string       ResourcePath,
+    List<string> RequiredParams);
 
 // ── Submission ────────────────────────────────────────────────────────────────
 
@@ -122,6 +133,7 @@ public sealed record ScreenLayoutDto(
     string                   Code,
     string                   Title,
     string?                  Description,
+    List<DataSourceDto>      DataSources,
     List<ScreenLayoutTabDto> Tabs,
     DateTime                 GeneratedAt);
 

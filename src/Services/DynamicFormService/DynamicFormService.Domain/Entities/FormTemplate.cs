@@ -61,7 +61,9 @@ public sealed class FormTemplate : AggregateRoot<Guid>
         string? helpText,
         List<FieldOption>? options,
         List<ValidationRule>? rules,
-        ConditionalLogic? conditional)
+        ConditionalLogic? conditional,
+        DataBinding? dataBinding = null,
+        bool isReadOnly = false)
     {
         if (Status == FormStatus.Published)
             throw new InvalidOperationException("Cannot modify a published form. Archive it first.");
@@ -69,7 +71,8 @@ public sealed class FormTemplate : AggregateRoot<Guid>
             throw new InvalidOperationException($"Field '{key}' already exists in this form.");
 
         var field = FormField.Create(Id, key, label, fieldType, order, required, width,
-                                     placeholder, helpText, options, rules, conditional);
+                                     placeholder, helpText, options, rules, conditional,
+                                     dataBinding, isReadOnly);
         _fields.Add(field);
         UpdatedAtUtc = DateTime.UtcNow;
         return field;

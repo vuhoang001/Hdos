@@ -7,6 +7,7 @@ using Hdos.DynamicFormService.Application.Features.Screens.PublishScreen;
 using Hdos.DynamicFormService.Application.Features.Screens.UpdateScreen;
 using Hdos.DynamicFormService.Application.Features.Tabs.CreateTab;
 using Hdos.DynamicFormService.Application.Features.Tabs.DeleteTab;
+using Hdos.DynamicFormService.Application.Features.Screens.SetDataSources;
 using Hdos.DynamicFormService.Application.Features.Tabs.SaveTabWidgets;
 using Hdos.DynamicFormService.Application.Features.Tabs.UpdateTab;
 using Hdos.DynamicFormService.Application.Features.WidgetCatalog.GetWidgetCatalog;
@@ -76,6 +77,26 @@ public sealed class AdminScreensController(ISender sender) : ControllerBase
     public async Task<IActionResult> PublishScreen(string moduleCode, string screenCode, CancellationToken ct)
     {
         var result = await sender.Send(new PublishScreenCommand(moduleCode, screenCode), ct);
+        if (result.IsFailure)
+            return BadRequest(ApiResponse.Fail(result.Error.Code, result.Error.Message));
+        return Ok(ApiResponse.Ok());
+    }
+
+    // ── Data Sources (Expression Binding) ────────────────────────────────────
+
+    /// <summary>
+    /// Khai báo danh sách data sources cho screen — frontend dùng để biết fetch data từ đâu.
+    /// Gọi lại để thay thế toàn bộ danh sách. Gửi mảng rỗng để xóa hết.
+    /// </summary>
+    [HttpPut("{moduleCode}/{screenCode}/data-sources")]
+    public async Task<IActionResult> SetDataSources(
+        string                       moduleCode,
+        string                       screenCode,
+        [FromBody] List<DataSourceInput> body,
+        CancellationToken            ct)
+    {
+        var cmd    = new SetScreenDataSourcesCommand(moduleCode, screenCode, body);
+        var result = await sender.Send(cmd, ct);
         if (result.IsFailure)
             return BadRequest(ApiResponse.Fail(result.Error.Code, result.Error.Message));
         return Ok(ApiResponse.Ok());

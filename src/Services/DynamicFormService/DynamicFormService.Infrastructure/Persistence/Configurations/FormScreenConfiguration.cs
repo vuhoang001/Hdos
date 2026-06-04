@@ -19,6 +19,7 @@ public sealed class FormScreenConfiguration : IEntityTypeConfiguration<FormScree
         b.Property(x => x.Description).HasMaxLength(500);
         b.Property(x => x.Status).HasMaxLength(20).HasConversion<string>().IsRequired();
         b.Property(x => x.SortOrder).IsRequired();
+        b.Property(x => x.DataSourcesJson).HasColumnType("jsonb");
         b.Property(x => x.CreatedAtUtc).IsRequired();
         b.Property(x => x.UpdatedAtUtc);
 

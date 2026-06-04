@@ -24,6 +24,8 @@ public sealed class FormFieldConfiguration : IEntityTypeConfiguration<FormField>
         b.Property(x => x.OptionsJson).HasColumnType("jsonb");
         b.Property(x => x.ValidationRulesJson).HasColumnType("jsonb");
         b.Property(x => x.ConditionalLogicJson).HasColumnType("jsonb");
+        b.Property(x => x.DataBindingJson).HasColumnType("jsonb");
+        b.Property(x => x.IsReadOnly).IsRequired().HasDefaultValue(false);
         b.Property(x => x.CreatedAtUtc).IsRequired();
         b.Property(x => x.UpdatedAtUtc);
 
