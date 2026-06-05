@@ -33,8 +33,8 @@ public sealed class SetScreenDataSourcesCommandValidator : AbstractValidator<Set
         {
             d.RuleFor(x => x.Namespace)
                 .NotEmpty().MaximumLength(50)
-                .Matches(@"^[a-z][a-z0-9_]*$")
-                .WithMessage("Namespace chỉ được chứa chữ thường, số và dấu gạch dưới, bắt đầu bằng chữ.");
+                .Matches(@"^[a-z][a-z0-9_\-]*$")
+                .WithMessage("Namespace chỉ được chứa chữ thường, số, dấu gạch dưới hoặc gạch ngang, bắt đầu bằng chữ.");
 
             d.RuleFor(x => x.OperationId)
                 .MaximumLength(200)

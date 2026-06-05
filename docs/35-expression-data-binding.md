@@ -237,8 +237,10 @@ await fetch(`/forms/${moduleCode}/${formKey}/submit`, {
 | Convention | Ví dụ |
 |---|---|
 | Lowercase, bắt đầu bằng chữ | `patient`, `visit`, `order` |
-| Chỉ chứa `[a-z0-9_]` | `lab_result`, `admission2` |
+| Chỉ chứa `[a-z0-9_-]` | `lab_result`, `admission2`, `benh-nhan-noi-tru` |
 | Unique trong cùng một screen | Không có 2 source cùng namespace |
+
+**Lưu ý FE:** khi parse expression `{{sources.<ns>.<field>}}`, regex của evaluator phải cho phép `-` trong namespace — `\w` mặc định **không** match dấu gạch ngang. Update regex thành `[\w-]` hoặc `[a-z0-9_-]`.
 
 ---
 

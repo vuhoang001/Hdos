@@ -434,7 +434,7 @@ Giai đoạn 3 — DEPRECATE LEGACY
 | `BaseUrl` | path/URL không có trailing `/` (auto strip) | `/dm`, `https://datamatch.local` |
 | `Pattern` | bắt đầu bằng `/`, có `{param}` | `/records?value={maBN}` |
 | `RequiredParams` | tên param trong `Pattern` (không `{}`), auto-deduplicated | `["maBN"]` |
-| `Namespace` (DataSource) | `[a-z][a-z0-9_]*`, unique trong screen | `benhnhan`, `lab_result` |
+| `Namespace` (DataSource) | `[a-z][a-z0-9_-]*`, unique trong screen | `benhnhan`, `lab_result`, `benh-nhan-noi-tru` |
 
 ---
 

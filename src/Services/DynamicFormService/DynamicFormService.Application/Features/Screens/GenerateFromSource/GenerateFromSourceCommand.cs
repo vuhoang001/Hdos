@@ -57,7 +57,7 @@ public sealed class GenerateFromSourceCommandValidator : AbstractValidator<Gener
         RuleFor(x => x.FormTitle).NotEmpty().MaximumLength(200);
         RuleFor(x => x.DataSource.Namespace)
             .NotEmpty().MaximumLength(50)
-            .Matches(@"^[a-z][a-z0-9_]*$").WithMessage("Namespace chỉ được chứa chữ thường, số và dấu gạch dưới.");
+            .Matches(@"^[a-z][a-z0-9_\-]*$").WithMessage("Namespace chỉ được chứa chữ thường, số, dấu gạch dưới hoặc gạch ngang.");
         RuleFor(x => x.DataSource.ServiceId).NotEmpty().MaximumLength(50);
         RuleFor(x => x.DataSource.ResourcePath).NotEmpty().MaximumLength(300);
         RuleFor(x => x.Fields).NotEmpty().WithMessage("Phải có ít nhất 1 field.");
