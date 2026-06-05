@@ -2,6 +2,9 @@ namespace Hdos.LakehouseService.Infrastructure.Sync;
 
 public interface IWarehouseViewSyncer
 {
+    /// <summary>Danh sách tên VIEW mà syncer hỗ trợ.</summary>
+    IReadOnlyCollection<string> SupportedViewNames { get; }
+
     /// <summary>
     /// Full-pull 1 VIEW từ warehouse external, publish mỗi row thành
     /// <c>LakehouseDataReadyIntegrationEvent</c>. Đồng thời cập nhật

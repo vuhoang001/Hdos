@@ -25,6 +25,7 @@ public static class DependencyInjection
         services.AddMassTransitMessaging(configuration, x =>
         {
             x.AddConsumer<LakehouseDataReadyConsumer>();
+            x.AddConsumer<WarehouseRefreshedConsumer>();
         }, servicePrefix: "lh",
            externalConsumersAssembly: typeof(DependencyInjection).Assembly);
 

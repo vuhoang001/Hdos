@@ -35,14 +35,107 @@ public sealed class WarehouseViewSyncer(
                            insured_encounter_count
                     FROM api.encounter_activity_daily
                     """,
-                BuildKey: r =>
-                {
-                    var date = r.GetFieldValue<DateTime>(0).ToString("yyyy-MM-dd");
-                    var dept = r.IsDBNull(1) ? "_" : r.GetValue(1).ToString();
-                    var room = r.IsDBNull(2) ? "_" : r.GetValue(2).ToString();
-                    return $"{date}|{dept}|{room}";
-                }),
+                BuildKey: r => Key(
+                    Date(r, 0),
+                    Str(r, 1),
+                    Str(r, 2))),
+
+            ["finance_daily"] = new(
+                Sql: """
+                    SELECT date,
+                           department_id,
+                           room_id,
+                           finance_bucket,
+                           invoice_type_id,
+                           invoice_form_id,
+                           invoice_type_detail_id,
+                           payment_group_id,
+                           payment_source_id,
+                           invoice_count,
+                           distinct_encounter_count,
+                           total_invoice_amount,
+                           total_discount_amount
+                    FROM api.finance_daily
+                    """,
+                BuildKey: r => Key(
+                    Date(r, 0),
+                    Str(r, 1),  Str(r, 2),  Str(r, 3),
+                    Str(r, 4),  Str(r, 5),  Str(r, 6),
+                    Str(r, 7),  Str(r, 8))),
+
+            ["inpatient_summary_daily"] = new(
+                Sql: """
+                    SELECT date,
+                           department_id,
+                           record_type_id,
+                           record_status_id,
+                           medical_record_status_out_id,
+                           encounter_count,
+                           distinct_patient_count,
+                           inpatient_encounter_count,
+                           discharged_encounter_count
+                    FROM api.inpatient_summary_daily
+                    """,
+                BuildKey: r => Key(
+                    Date(r, 0),
+                    Str(r, 1), Str(r, 2), Str(r, 3), Str(r, 4))),
+
+            ["bed_occupancy"] = new(
+                Sql: """
+                    SELECT date,
+                           department_id,
+                           department_code,
+                           department_name,
+                           planned_bed_count,
+                           actual_bed_count,
+                           configured_bed_count,
+                           disabled_bed_count,
+                           available_bed_count,
+                           occupied_bed_count,
+                           occupancy_ratio
+                    FROM api.bed_occupancy
+                    """,
+                BuildKey: r => Key(
+                    Date(r, 0),
+                    Str(r, 1))),
+
+            ["clinical_pathway"] = new(
+                Sql: """
+                    SELECT pathway_id,
+                           pathway_code,
+                           pathway_name,
+                           icd10_codes,
+                           pathway_group_id,
+                           configured_treatment_days,
+                           pathway_sheet_count,
+                           distinct_protocol_day_count
+                    FROM api.clinical_pathway
+                    """,
+                BuildKey: r => Str(r, 0)),
+
+            ["medicine_stock"] = new(
+                Sql: """
+                    SELECT medicine_store_id,
+                           latest_log_date,
+                           stock_on_hand,
+                           opening_qty,
+                           log_count,
+                           total_approved_export
+                    FROM api.medicine_stock
+                    """,
+                BuildKey: r => Str(r, 0)),
         };
+
+    public IReadOnlyCollection<string> SupportedViewNames => SupportedViews.Keys.ToArray();
+
+    // ── Key builder helpers ──────────────────────────────────────────────────
+    private static string Str(NpgsqlDataReader r, int i) =>
+        r.IsDBNull(i) ? "_" : (r.GetValue(i)?.ToString() ?? "_");
+
+    private static string Date(NpgsqlDataReader r, int i) =>
+        r.IsDBNull(i) ? "_" : r.GetFieldValue<DateTime>(i).ToString("yyyy-MM-dd");
+
+    private static string Key(params string[] parts) => string.Join("|", parts);
 
     public async Task<SyncResult> SyncAsync(string viewName, CancellationToken ct)
     {
