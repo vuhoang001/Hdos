@@ -35,14 +35,14 @@
       window.ui = SwaggerUIBundle({
         urls: [
           { name: 'AuthService v1',         url: '/auth/swagger/v1/swagger.json' },
-          { name: 'OrderService v1',        url: '/orders/swagger/v1/swagger.json' },
           { name: 'NotificationService v1', url: '/notifications/swagger/v1/swagger.json' },
-          { name: 'M01Service v1',          url: '/m01/swagger/v1/swagger.json' },
           { name: 'DataMatchingService v1', url: '/dm/swagger/v1/swagger.json' },
           { name: 'DynamicFormService v1',  url: '/forms/swagger/v1/swagger.json' },
-          { name: 'AsyncGateway v1',        url: '/async/swagger/v1/swagger.json' }
+          { name: 'LakehouseService v1',    url: '/lakehouse/swagger/v1/swagger.json' },
+          { name: 'AsyncGateway v1',        url: '/async/swagger/v1/swagger.json' },
+          { name: 'OcrService v1',          url: '/ocr/swagger/v1/swagger.json' }
         ],
-        'urls.primaryName': 'DynamicFormService v1',
+        'urls.primaryName': 'AuthService v1',
         dom_id: '#swagger-ui',
         layout: 'StandaloneLayout',
         deepLinking: true,
