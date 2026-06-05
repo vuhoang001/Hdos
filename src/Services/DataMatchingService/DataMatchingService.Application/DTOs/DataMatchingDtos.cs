@@ -8,6 +8,19 @@ public sealed record SourceProfileDto(
     string BusinessKeyField,
     Dictionary<string, string> Mappings);
 
+// Schema Discovery — trả danh sách field FE có thể bind vào DataBinding expression.
+// Chung contract với LakehouseService.SnapshotSchemaDto để FE xử lý cùng cách.
+public sealed record DataSourceFieldDto(
+    string  Key,
+    string  Type,           // "string" | "number" | "date" | "boolean"
+    string? Label,
+    string? SourceField);   // tên field gốc trước khi rename qua mapping
+
+public sealed record DataSourceSchemaDto(
+    string                     Namespace,
+    string                     BusinessKeyField,
+    List<DataSourceFieldDto>   Fields);
+
 public sealed record IngestResultDto(
     Guid Id,
     string SourceSystem,

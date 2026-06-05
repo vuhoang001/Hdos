@@ -1,6 +1,7 @@
 using Hdos.Common.Responses;
 using Hdos.DataMatchingService.Application.DTOs;
 using Hdos.DataMatchingService.Application.Features.Sources;
+using Hdos.DataMatchingService.Application.Features.Sources.GetSchema;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
@@ -31,5 +32,19 @@ public sealed class SourcesController(ISender sender) : ControllerBase
     {
         var result = await sender.Send(new GetSourcesQuery(sourceSystem), ct);
         return Ok(ApiResponse<List<SourceProfileDto>>.Ok(result.Value));
+    }
+
+    // Schema Discovery — FE dùng để hiển thị dropdown field khi config DataBinding.
+    // Trả danh sách canonical field có sẵn cho cặp (sourceSystem, recordType).
+    [HttpGet("{sourceSystem}/{recordType}/schema")]
+    public async Task<IActionResult> GetSchema(
+        string sourceSystem,
+        string recordType,
+        CancellationToken ct)
+    {
+        var result = await sender.Send(new GetSourceSchemaQuery(sourceSystem, recordType), ct);
+        return result.IsSuccess
+            ? Ok(ApiResponse<DataSourceSchemaDto>.Ok(result.Value))
+            : NotFound(ApiResponse<DataSourceSchemaDto>.Fail(result.Error.Code, result.Error.Message));
     }
 }

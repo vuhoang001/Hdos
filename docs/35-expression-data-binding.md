@@ -249,3 +249,25 @@ await fetch(`/forms/${moduleCode}/${formKey}/submit`, {
 | `FormFields` | `DataBindingJson` | `jsonb` nullable |
 | `FormFields` | `IsReadOnly` | `boolean` default `false` |
 | `FormScreens` | `DataSourcesJson` | `jsonb` nullable |
+
+---
+
+## Schema Discovery — UI dropdown thay vì gõ tay
+
+Mỗi `DataSource` có thêm field optional `schemaPath` trỏ về endpoint trả danh sách field FE có thể bind:
+
+```json
+{
+  "namespace": "benhnhan",
+  "serviceId": "datamatch",
+  "resourcePath": "/dm/records?...&value={maBN}",
+  "schemaPath":   "/dm/sources/his-01/benh-nhan/schema",
+  "requiredParams": ["maBN"]
+}
+```
+
+FE dùng `schemaPath` để hiển thị dropdown khi admin config DataBinding — không phải gõ `{{sources.benhnhan.fullName}}` bằng tay.
+
+Hỗ trợ thêm **auto-mapping by name** runtime: `FormField.key` trùng tên field trong schema → tự bind, không cần khai báo expression.
+
+Xem chi tiết: [40 — Schema Discovery](./40-schema-discovery.md)

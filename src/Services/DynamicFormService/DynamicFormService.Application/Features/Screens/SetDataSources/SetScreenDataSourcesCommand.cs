@@ -10,7 +10,8 @@ public sealed record DataSourceInput(
     string       Namespace,
     string       ServiceId,
     string       ResourcePath,
-    List<string> RequiredParams);
+    List<string> RequiredParams,
+    string?      SchemaPath = null);
 
 public sealed record SetScreenDataSourcesCommand(
     string               ModuleCode,
@@ -31,6 +32,7 @@ public sealed class SetScreenDataSourcesCommandValidator : AbstractValidator<Set
                 .WithMessage("Namespace chỉ được chứa chữ thường, số và dấu gạch dưới, bắt đầu bằng chữ.");
             d.RuleFor(x => x.ServiceId).NotEmpty().MaximumLength(50);
             d.RuleFor(x => x.ResourcePath).NotEmpty().MaximumLength(300);
+            d.RuleFor(x => x.SchemaPath).MaximumLength(300);
         });
         RuleFor(x => x.DataSources)
             .Must(list => list.Select(d => d.Namespace).Distinct().Count() == list.Count)
@@ -50,7 +52,7 @@ public sealed class SetScreenDataSourcesCommandHandler(
             return Result.Failure(Error.NotFound($"Screen '{request.ScreenCode}' trong module '{request.ModuleCode}'"));
 
         var sources = request.DataSources
-            .Select(d => new DataSource(d.Namespace, d.ServiceId, d.ResourcePath, d.RequiredParams))
+            .Select(d => new DataSource(d.Namespace, d.ServiceId, d.ResourcePath, d.RequiredParams, d.SchemaPath))
             .ToList();
 
         try

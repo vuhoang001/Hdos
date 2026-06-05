@@ -32,6 +32,7 @@ Bộ tài liệu này mô tả toàn bộ hệ thống **Hdos** — một nền 
 | [32 — DynamicFormService Spec](./32-dynamic-form-spec.md) | Technical spec: enums, value objects, entities, business rules, validation rules chi tiết |
 | [33 — Screen Designer](./33-screen-designer.md) | Business rules, validation, state machine riêng cho Screen Designer / Canvas |
 | [34 — Widget Catalog](./34-widget-catalog.md) | Danh mục 31 widget templates (visualization, healthcare, filter, layout, ai) |
+| [40 — Schema Discovery](./40-schema-discovery.md) | Endpoint `/.../schema` cho DataMatching + Lakehouse → FE hiện dropdown DataBinding thay vì gõ tay; auto-mapping by name |
 | [00 — Hướng dẫn viết Spec cho AI](./00-spec-format.md) | Format chuẩn để viết technical spec đủ rõ cho AI implement |
 
 ---

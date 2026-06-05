@@ -1,5 +1,6 @@
 using Hdos.Common.Responses;
 using Hdos.LakehouseService.Application.DTOs;
+using Hdos.LakehouseService.Application.Features.Snapshots.GetSchema;
 using Hdos.LakehouseService.Application.Features.Snapshots.GetSnapshotByKey;
 using Hdos.LakehouseService.Application.Features.Snapshots.GetSnapshots;
 using MediatR;
@@ -38,5 +39,20 @@ public sealed class SnapshotsController(ISender sender) : ControllerBase
     {
         var result = await sender.Send(new GetSnapshotsQuery(@namespace, limit), ct);
         return Ok(ApiResponse<List<LakehouseSnapshotDto>>.Ok(result.Value));
+    }
+
+    /// <summary>
+    /// Schema Discovery — FE dùng để hiển thị dropdown field khi config DataBinding.
+    /// Trả danh sách top-level keys của snapshot mới nhất trong namespace.
+    /// </summary>
+    [HttpGet("schema")]
+    public async Task<IActionResult> GetSchema(
+        [FromQuery] string @namespace,
+        CancellationToken ct)
+    {
+        var result = await sender.Send(new GetSnapshotSchemaQuery(@namespace), ct);
+        return result.IsSuccess
+            ? Ok(ApiResponse<DataSourceSchemaDto>.Ok(result.Value))
+            : NotFound(ApiResponse<DataSourceSchemaDto>.Fail(result.Error.Code, result.Error.Message));
     }
 }

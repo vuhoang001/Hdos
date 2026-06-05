@@ -76,7 +76,8 @@ public sealed record DataSourceDto(
     string       Namespace,
     string       ServiceId,
     string       ResourcePath,
-    List<string> RequiredParams);
+    List<string> RequiredParams,
+    string?      SchemaPath = null);
 
 // ── Submission ────────────────────────────────────────────────────────────────
 

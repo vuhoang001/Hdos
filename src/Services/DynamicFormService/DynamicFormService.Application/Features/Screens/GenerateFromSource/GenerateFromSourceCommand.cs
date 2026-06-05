@@ -26,7 +26,8 @@ public sealed record DataSourceConfig(
     string       Namespace,
     string       ServiceId,
     string       ResourcePath,
-    List<string> RequiredParams);
+    List<string> RequiredParams,
+    string?      SchemaPath = null);
 
 // Một lệnh duy nhất tạo toàn bộ: Module (nếu chưa có) + Screen + DataSources + Form + Fields + Tab + Widget → publish
 public sealed record GenerateFromSourceCommand(
@@ -138,7 +139,8 @@ public sealed class GenerateFromSourceCommandHandler(
             new(request.DataSource.Namespace,
                 request.DataSource.ServiceId,
                 request.DataSource.ResourcePath,
-                request.DataSource.RequiredParams)
+                request.DataSource.RequiredParams,
+                request.DataSource.SchemaPath)
         });
 
         // 5. Thêm tab mặc định + widget FormSection trỏ vào form vừa tạo

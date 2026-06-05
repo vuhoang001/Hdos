@@ -54,7 +54,7 @@ public sealed class GetScreenLayoutQueryHandler(
         }
 
         var dataSources = DeserializeOrNull<List<Domain.ValueObjects.DataSource>>(screen.DataSourcesJson)
-            ?.Select(d => new DataSourceDto(d.Namespace, d.ServiceId, d.ResourcePath, d.RequiredParams))
+            ?.Select(d => new DataSourceDto(d.Namespace, d.ServiceId, d.ResourcePath, d.RequiredParams, d.SchemaPath))
             .ToList() ?? [];
 
         return Result.Success(new ScreenLayoutDto(
