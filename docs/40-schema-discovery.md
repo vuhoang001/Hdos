@@ -229,3 +229,4 @@ function resolveFieldBinding(field, dataSources, sourceData) {
 - [35 — Expression Data Binding](./35-expression-data-binding.md) — cơ chế `{{sources.x.y}}`
 - [38 — Frontend SDUI Implementation Guide](./38-frontend-sdui-implementation-guide.md) — code FE fetch/evaluate
 - [39 — LakehouseService](./39-lakehouse-service.md) — domain + snapshot ingest
+- [41 — Loose Coupling Architecture](./41-loose-coupling-architecture.md) — mở rộng Schema Discovery thành Provider Catalog đầy đủ (FE không hardcode URL, admin chọn dropdown thay vì gõ resourcePath)
