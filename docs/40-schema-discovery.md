@@ -125,6 +125,8 @@ PUT /forms/admin/screens/{moduleCode}/{screenCode}/data-sources
 ]
 ```
 
+**Khuyến nghị:** thay vì gõ `serviceId + resourcePath + schemaPath` tay cho mỗi screen, hãy đăng ký 1 lần vào Provider Catalog rồi dùng `operationId` (xem [doc 41](./41-loose-coupling-architecture.md)). Cách này tránh phải sửa nhiều screen khi URL service thay đổi.
+
 ### 5.2. Layout response trả về SchemaPath
 
 ```bash

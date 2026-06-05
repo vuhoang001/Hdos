@@ -271,3 +271,23 @@ FE dùng `schemaPath` để hiển thị dropdown khi admin config DataBinding �
 Hỗ trợ thêm **auto-mapping by name** runtime: `FormField.key` trùng tên field trong schema → tự bind, không cần khai báo expression.
 
 Xem chi tiết: [40 — Schema Discovery](./40-schema-discovery.md)
+
+---
+
+## Provider Catalog (loose coupling)
+
+`DataSource` hiện hỗ trợ thêm field `operationId` (managed mode) thay vì gõ tay `serviceId` + `resourcePath`:
+
+```json
+{
+  "namespace": "benhnhan",
+  "operationId": "datamatch::patient-by-mabn",
+  "requiredParams": ["maBN"]
+}
+```
+
+Khi FE gọi `GET /forms/screens/.../layout`, BE tự resolve `operationId` qua Provider/Operation catalog → trả về `baseUrl + resourcePath + schemaPath + kind` đầy đủ. Đổi URL service ở Provider/Operation, mọi screen tự cập nhật. FE không còn hardcode mapping `serviceId → URL`.
+
+Vẫn hỗ trợ legacy mode (gõ tay `serviceId` + `resourcePath`) cho backward compat.
+
+Xem chi tiết: [41 — Loose Coupling Architecture](./41-loose-coupling-architecture.md)

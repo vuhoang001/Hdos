@@ -14,6 +14,8 @@ public sealed class DynamicFormDbContext(DbContextOptions<DynamicFormDbContext> 
     public DbSet<FormScreenTab>    FormScreenTabs    => Set<FormScreenTab>();
     public DbSet<FormScreenWidget> FormScreenWidgets => Set<FormScreenWidget>();
     public DbSet<WidgetCatalog>    WidgetCatalogs    => Set<WidgetCatalog>();
+    public DbSet<Provider>         Providers         => Set<Provider>();
+    public DbSet<Operation>        Operations        => Set<Operation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

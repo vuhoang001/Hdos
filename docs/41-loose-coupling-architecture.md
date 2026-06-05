@@ -114,16 +114,17 @@ Ba nguyên tắc kiến trúc:
 ### 4.1. `Provider` (Aggregate Root)
 
 ```csharp
-public sealed class Provider : AggregateRoot<string>
+public sealed class Provider : AggregateRoot<Guid>
 {
-    public string         Id           { get; private set; }  // slug, PK
+    public Guid           Id           { get; private set; }   // PK
+    public string         Code         { get; private set; }   // slug, unique. VD: "datamatch"
     public string         DisplayName  { get; private set; }
-    public string         BaseUrl      { get; private set; }  // "/dm" hoặc "https://datamatch.local"
+    public string         BaseUrl      { get; private set; }   // "/dm" hoặc "https://datamatch.local"
     public ProviderStatus Status       { get; private set; }
     public DateTime       CreatedAtUtc { get; private set; }
     public DateTime?      UpdatedAtUtc { get; private set; }
 
-    public static Provider Create(string id, string displayName, string baseUrl);
+    public static Provider Create(string code, string displayName, string baseUrl);
     public void Update(string displayName, string baseUrl);
     public void Activate();
     public void Deactivate();
@@ -132,8 +133,9 @@ public sealed class Provider : AggregateRoot<string>
 
 | Field | Convention |
 |-------|-----------|
-| `Id` | slug `[a-z0-9-]+`, 2-30 ký tự. VD: `"datamatch"`, `"lakehouse"`, `"m01"` |
-| `BaseUrl` | Path tương đối qua gateway (`"/dm"`) hoặc URL tuyệt đối. Không kết thúc bằng `/`. |
+| `Id` | `Guid`, sinh tự động. Internal PK của DB. |
+| `Code` | slug `[a-z0-9-]+`, 2-50 ký tự. **Unique**. Dùng làm key resolve trong DataSource. VD: `"datamatch"`, `"lakehouse"`, `"m01"` |
+| `BaseUrl` | Path tương đối qua gateway (`"/dm"`) hoặc URL tuyệt đối. Tự động strip trailing `/`. |
 | `Status` | `Active` (visible cho admin chọn) \| `Inactive` (ẩn nhưng giữ data) |
 
 ### 4.2. `Operation` (Aggregate Root)
@@ -141,30 +143,35 @@ public sealed class Provider : AggregateRoot<string>
 ```csharp
 public sealed class Operation : AggregateRoot<Guid>
 {
-    public Guid          Id             { get; private set; }
-    public string        ProviderId     { get; private set; }    // FK logic, không cứng
-    public string        OperationKey   { get; private set; }    // slug, unique trong provider
-    public string        DisplayName    { get; private set; }
-    public string        Pattern        { get; private set; }    // "/records?...{maBN}"
-    public string?       SchemaPath     { get; private set; }    // "/sources/his-01/benh-nhan/schema"
-    public string        RequiredParamsJson { get; private set; } // JSON array of string
-    public OperationKind Kind           { get; private set; }    // Single | List
-    public OperationStatus Status       { get; private set; }
-    public DateTime      CreatedAtUtc   { get; private set; }
-    public DateTime?     UpdatedAtUtc   { get; private set; }
+    public Guid           Id                 { get; private set; }
+    public string         ProviderCode       { get; private set; }   // FK logic (không cứng)
+    public string         OperationKey       { get; private set; }   // slug, unique trong provider
+    public string         DisplayName        { get; private set; }
+    public string         Pattern            { get; private set; }   // "/records?...{maBN}"
+    public string?        SchemaPath         { get; private set; }   // "/sources/his-01/benh-nhan/schema"
+    public string         RequiredParamsJson { get; private set; }   // JSON array of string
+    public OperationKind  Kind               { get; private set; }
+    public OperationStatus Status            { get; private set; }
+    public DateTime       CreatedAtUtc       { get; private set; }
+    public DateTime?      UpdatedAtUtc       { get; private set; }
+
+    public List<string> GetRequiredParams();
+    public string GetCombinedRef();   // "datamatch::patient-by-mabn"
 }
 
-public enum OperationKind  { Single = 0, List = 1 }
+public enum OperationKind   { Single = 0, List = 1 }
 public enum OperationStatus { Active = 0, Inactive = 1 }
 ```
 
 | Field | Convention |
 |-------|-----------|
+| `Id` | `Guid` |
+| `ProviderCode` | Khớp với `Provider.Code`. Liên kết logic (không có FK cứng vì 2 aggregate root). |
 | `OperationKey` | slug `[a-z0-9-]+`. Unique trong cùng provider. VD: `"patient-by-mabn"` |
-| `Pattern` | Path RELATIVE so với provider.BaseUrl. Có `{param}` placeholder. |
+| `Pattern` | Path RELATIVE so với `Provider.BaseUrl`. Có `{param}` placeholder. |
 | `Kind` | `Single` (response.data là object) \| `List` (response.data là array) — FE biết cách parse |
 
-**Khóa duy nhất:** `(ProviderId, OperationKey)`. Khi ref từ DataSource dùng dạng combined `"datamatch::patient-by-mabn"`.
+**Khóa duy nhất:** `(ProviderCode, OperationKey)`. Khi ref từ DataSource dùng dạng combined `"datamatch::patient-by-mabn"` (từ method `GetCombinedRef()`).
 
 ---
 
@@ -236,37 +243,48 @@ GET /forms/screens/{moduleCode}/{screenCode}/layout
 
 ```
 POST   /forms/admin/providers
-       Body: { id, displayName, baseUrl }
-       
+       Body: { code, displayName, baseUrl }
+       → 201 Created + ProviderDto. 409 nếu code đã tồn tại.
+
 GET    /forms/admin/providers
        Query: ?status=active|inactive
+       → 200 List<ProviderDto> (mỗi entry có operationCount)
 
-PUT    /forms/admin/providers/{id}
-       Body: { displayName, baseUrl }
+GET    /forms/admin/providers/{code}
+       → 200 ProviderDto. 404 nếu không tồn tại.
 
-DELETE /forms/admin/providers/{id}
-       Conflict (409) nếu còn Operation tham chiếu — phải xóa Operations trước.
+PUT    /forms/admin/providers/{code}
+       Body: { displayName, baseUrl, status? }
+       → 200 ProviderDto
+
+DELETE /forms/admin/providers/{code}
+       → 204. 409 nếu còn Operation tham chiếu (phải xóa Operations trước, hoặc Deactivate provider).
 ```
 
 ### 7.2. Operations CRUD (nested under provider)
 
 ```
-POST   /forms/admin/providers/{providerId}/operations
+POST   /forms/admin/providers/{providerCode}/operations
        Body: { operationKey, displayName, pattern, schemaPath?, requiredParams[], kind }
+       → 201 OperationDto. 404 nếu provider không tồn tại. 409 nếu operationKey trùng.
 
-GET    /forms/admin/providers/{providerId}/operations
+GET    /forms/admin/providers/{providerCode}/operations
+       → 200 List<OperationDto>
 
-PUT    /forms/admin/providers/{providerId}/operations/{operationKey}
+PUT    /forms/admin/providers/{providerCode}/operations/{operationKey}
+       Body: { displayName, pattern, schemaPath?, requiredParams[], kind, status? }
+       → 200 OperationDto
 
-DELETE /forms/admin/providers/{providerId}/operations/{operationKey}
-       Conflict (409) nếu còn DataSource đang ref — phải sửa screen trước, hoặc dùng force=true.
+DELETE /forms/admin/providers/{providerCode}/operations/{operationKey}
+       → 204. (Hiện chưa block khi screen còn ref — FE nên warn trước khi gọi.)
 ```
 
 ### 7.3. Flat list cho dropdown FE
 
 ```
 GET /forms/admin/operations
-    → Cross-provider list, mỗi entry kèm providerId + providerDisplayName.
+    Query: ?status=active|inactive
+    → 200 List<OperationDto> cross-provider, mỗi entry có providerCode + combinedRef.
     → FE dùng để render ProviderOperationSelect (2 dropdown).
 ```
 
@@ -306,7 +324,7 @@ Hoặc legacy mode (vẫn được hỗ trợ):
 
 1. Admin đăng ký Provider:
    POST /forms/admin/providers
-   { id: "datamatch", displayName: "DataMatching", baseUrl: "/dm" }
+   { code: "datamatch", displayName: "DataMatching", baseUrl: "/dm" }
 
 2. Admin đăng ký Operations:
    POST /forms/admin/providers/datamatch/operations
@@ -410,31 +428,31 @@ Giai đoạn 3 — DEPRECATE LEGACY
 
 | Object | Naming | Ví dụ |
 |--------|--------|-------|
-| `Provider.Id` | slug `[a-z0-9-]+`, 2-30 ký tự | `datamatch`, `lakehouse`, `m01` |
-| `Operation.OperationKey` | slug `[a-z0-9-]+`, 2-50 ký tự | `patient-by-mabn`, `lab-result-latest` |
-| Combined ref | `<providerId>::<operationKey>` | `datamatch::patient-by-mabn` |
-| `BaseUrl` | path/URL không có trailing `/` | `/dm`, `https://datamatch.local` |
+| `Provider.Code` | slug `[a-z0-9-]+`, 2-50 ký tự | `datamatch`, `lakehouse`, `m01` |
+| `Operation.OperationKey` | slug `[a-z0-9-]+`, 2-100 ký tự | `patient-by-mabn`, `lab-result-latest` |
+| Combined ref | `<providerCode>::<operationKey>` | `datamatch::patient-by-mabn` |
+| `BaseUrl` | path/URL không có trailing `/` (auto strip) | `/dm`, `https://datamatch.local` |
 | `Pattern` | bắt đầu bằng `/`, có `{param}` | `/records?value={maBN}` |
-| `RequiredParams` | tên param trong `Pattern` (không `{}`) | `["maBN"]` |
+| `RequiredParams` | tên param trong `Pattern` (không `{}`), auto-deduplicated | `["maBN"]` |
 | `Namespace` (DataSource) | `[a-z][a-z0-9_]*`, unique trong screen | `benhnhan`, `lab_result` |
 
 ---
 
-## 12. Implementation Plan
+## 12. Implementation Status
 
-| Bước | Module | Files chính | Test |
-|------|--------|-------------|------|
-| 1 | Domain | `Provider.cs`, `Operation.cs`, enums, `IProviderRepository`, `IOperationRepository` | unit test entity |
-| 2 | Infrastructure | EF config × 2, migration mới (2 bảng) | apply migration |
-| 3 | Application | Create/Update/Delete/List × 2 = 8 commands/queries | unit test handler |
-| 4 | API | `AdminProvidersController`, `AdminOperationsController`, `OperationsListController` | curl |
-| 5 | DataSource VO | Thêm `OperationId` optional, xử lý JSON deserialize | — |
-| 6 | Layout resolve | Update `GetScreenLayoutQueryHandler` 2 nhánh (managed vs legacy) | render test |
-| 7 | SetDataSources validator | Cho phép `OperationId` HOẶC `ResourcePath`, không cả hai null | — |
-| 8 | Seed script | One-off migration từ legacy DataSource → catalog | run trên dev |
-| 9 | Docs | Doc 41 (this), update 35 + 40 reference | — |
-
-**Ước lượng:** ~20 file mới + ~5 file sửa. Không phá backward compat.
+| Bước | Module | Files | Trạng thái |
+|------|--------|-------|-----------|
+| 1 | Domain | `Provider.cs`, `Operation.cs`, 3 enums, 2 repository interfaces | ✅ Done |
+| 2 | Infrastructure | `ProviderConfiguration`, `OperationConfiguration`, 2 repos, migration `AddProviderCatalog` | ✅ Done |
+| 3 | Application | 5 Provider commands/queries + 5 Operation commands/queries (Create/Update/Delete/List/Get) + DTOs | ✅ Done |
+| 4 | API | `AdminProvidersController` (5 endpoints), `AdminOperationsController` (5 endpoints incl. cross-provider list) | ✅ Done |
+| 5 | DataSource VO | Thêm `OperationId?`, `ServiceId`/`ResourcePath` → nullable, backward compat | ✅ Done |
+| 6 | Layout resolve | `GetScreenLayoutQueryHandler` 2 nhánh (managed vs legacy), fallback khi catalog xóa | ✅ Done |
+| 7 | SetDataSources validator | OperationId XOR (ServiceId+ResourcePath), regex `^[a-z0-9\-]+::[a-z0-9\-]+$` cho OperationId | ✅ Done |
+| 8 | Tests | `Hdos.DynamicFormService.Tests` — 28 tests (Provider/Operation entity, handlers, resolve pipeline) | ✅ Done |
+| 9 | Docs | Doc 41 (this), update 35 + 40 cross-reference | ✅ Done |
+| — | Seed script | One-off migration từ legacy DataSource → catalog | ⏸ Out of scope |
+| — | FE Admin UI | `ProviderOperationSelect` 2-dropdown trong dialog DataBinding | ⏸ FE team (repo `FOXAI-HDOSv2`) |
 
 ---
 

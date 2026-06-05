@@ -72,12 +72,22 @@ public sealed record ConditionalLogicDto(
 // Expression binding — Approach 2 (Expression Language Engine)
 public sealed record DataBindingDto(string Expression, string? DisplayFormat);
 
+// DataSourceDto được trả về cho FE — đã resolve qua Provider/Operation catalog nếu
+// DataSource ở chế độ MANAGED. FE không cần biết catalog tồn tại, chỉ dùng các field
+// dưới đây để fetch trực tiếp.
+//
+// - BaseUrl: optional, gắn vào trước ResourcePath khi fetch. Null cho LEGACY mode.
+// - Kind:    "Single" | "List" | null — FE biết cách parse response (object vs array).
+// - OperationId: echo back để FE biết source nào đã ref qua catalog.
 public sealed record DataSourceDto(
     string       Namespace,
-    string       ServiceId,
-    string       ResourcePath,
+    string?      ServiceId,
+    string?      ResourcePath,
     List<string> RequiredParams,
-    string?      SchemaPath = null);
+    string?      SchemaPath  = null,
+    string?      BaseUrl     = null,
+    string?      Kind        = null,
+    string?      OperationId = null);
 
 // ── Submission ────────────────────────────────────────────────────────────────
 
