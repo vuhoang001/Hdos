@@ -4,6 +4,7 @@ using Hdos.Common.HealthChecks;
 using Hdos.Common.Logging;
 using Hdos.Common.Monitoring;
 using Hdos.Common.Swagger;
+using Hdos.DataMatchingService.API.Swagger;
 using Hdos.DataMatchingService.Application;
 using Hdos.DataMatchingService.Infrastructure;
 using Hdos.DataMatchingService.Infrastructure.Persistence;
@@ -15,6 +16,13 @@ builder.UseHdosLogging("DataMatchingService");
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddHdosSwagger("DataMatchingService");
+builder.Services.ConfigureSwaggerGen(c =>
+{
+    c.OperationFilter<HideCancellationTokenFilter>();
+
+    foreach (var xml in Directory.EnumerateFiles(AppContext.BaseDirectory, "Hdos.DataMatchingService.*.xml"))
+        c.IncludeXmlComments(xml, includeControllerXmlComments: true);
+});
 
 builder.Services.AddDataMatchingApplication();
 builder.Services.AddDataMatchingInfrastructure(builder.Configuration);

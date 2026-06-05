@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Hdos.DataMatchingService.Application</RootNamespace>
     <AssemblyName>Hdos.DataMatchingService.Application</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

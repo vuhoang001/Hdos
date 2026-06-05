@@ -393,6 +393,69 @@ GET /dm/reports/tong-hop-nguon
 
 ---
 
+### Swagger UI — Convention & UX
+
+> Áp dụng cho DataMatchingService. Có thể nhân bản pattern này sang service khác sau.
+
+**Truy cập:** `http://localhost:5000/dm/swagger`
+
+#### 6 nhóm gom theo workflow nghiệp vụ
+
+Các endpoint được gắn `[Tags("N. Title")]` để gom nhóm theo đúng thứ tự sử dụng — đọc từ trên xuống là hiểu luồng:
+
+| # | Tag | Controller | Vai trò |
+|---|---|---|---|
+| 1 | **Ingest — Nạp dữ liệu vào staging** | `IngestController` | Nạp JSON / file → staging → `MatchingWorker` dedup & match |
+| 2 | **Source Profile & Schema** | `SourcesController` | Đăng ký mapping raw → canonical; Schema Discovery cho DynForm |
+| 3 | **Records — Truy vấn dữ liệu đã match** | `RecordsController` | GET by id (DynForm DataSource); search theo bộ lọc |
+| 4 | **Reports — Báo cáo tổng hợp** | `ReportsController` | Aggregate theo `reportCode` |
+| 5 | **Dashboards — KPI & chart** | `DashboardsController` | KPI ngữ nghĩa cao, render dashboard nghiệp vụ |
+| 6 | **SDUI Pages — Server-driven UI** | `PagesController` | Layout JSON, FE render không cần code mới |
+
+#### Mỗi endpoint có gì
+
+- `<summary>` — 1 dòng tiếng Việt mô tả *làm gì + cho ai*
+- `<remarks>` — ngắn gọn, kèm **ví dụ URL/body** copy-paste dùng được luôn
+- `<param>` — giải thích query param có nghĩa nghiệp vụ gì
+- `[ProducesResponseType(typeof(...), StatusCodes.Status...)]` — chỉ liệt kê status code thực sự dùng (200/201/202/400/404/409), không spam
+
+#### Những thứ KHÔNG hiện trên UI
+
+- `CancellationToken` — bị filter ẩn (do framework tự bind, FE không cần biết)
+- DTO trong layer Domain — không expose qua API nên không có ý nghĩa trong schema
+
+#### Bật / kế thừa convention
+
+Xem `src/Services/DataMatchingService/DataMatchingService.API/`:
+
+| File | Vai trò |
+|------|--------|
+| `Swagger/HideCancellationTokenFilter.cs` | `IOperationFilter` loại `CancellationToken` khỏi parameters |
+| `Program.cs` (ConfigureSwaggerGen) | Đăng ký filter + `IncludeXmlComments` cho mọi `Hdos.DataMatchingService.*.xml` |
+| `DataMatchingService.API.csproj` | Bật `<GenerateDocumentationFile>true</GenerateDocumentationFile>` + `<NoWarn>$(NoWarn);1591;1573</NoWarn>` |
+| `DataMatchingService.Application.csproj` | Tương tự — để DTO comment hiển thị trong schema |
+
+#### Áp dụng cho service khác
+
+1. Bật `<GenerateDocumentationFile>true</GenerateDocumentationFile>` + NoWarn 1591, 1573 trong `.csproj` API và Application
+2. Copy `Swagger/HideCancellationTokenFilter.cs` (chỉ ~25 dòng) sang `<Service>.API/Swagger/`
+3. Trong `Program.cs`, sau `AddHdosSwagger(...)` thêm:
+   ```csharp
+   builder.Services.ConfigureSwaggerGen(c =>
+   {
+       c.OperationFilter<HideCancellationTokenFilter>();
+       foreach (var xml in Directory.EnumerateFiles(AppContext.BaseDirectory, "Hdos.<Service>.*.xml"))
+           c.IncludeXmlComments(xml, includeControllerXmlComments: true);
+   });
+   ```
+4. Trên mỗi controller:
+   - Class-level: `[Tags("N. Tên nhóm")]` + `<summary>` mô tả nhóm
+   - Mỗi action: `<summary>` 1 dòng + `<remarks>` ví dụ + `[ProducesResponseType(...)]`
+
+> ⚠️ **Không sửa `BuildingBlocks/Common/Swagger/SwaggerExtensions.cs`** — giữ shared sạch để mỗi service tự chọn config riêng.
+
+---
+
 ## 5. Hướng dẫn sử dụng từ đầu đến cuối
 
 Ví dụ thực tế: HIS bệnh viện có 2 loại dữ liệu — **bệnh nhân** và **chứng từ viện phí**.
