@@ -9,4 +9,5 @@ public interface IFormModuleRepository
     Task<List<FormModule>> GetAllActiveAsync(CancellationToken ct);
     Task<bool> ExistsByCodeAsync(string code, CancellationToken ct);
     Task AddAsync(FormModule module, CancellationToken ct);
+    void Remove(FormModule module);
 }
