@@ -35,6 +35,7 @@ Bộ tài liệu này mô tả toàn bộ hệ thống **Hdos** — một nền 
 | [40 — Schema Discovery](./40-schema-discovery.md) | Endpoint `/.../schema` cho DataMatching + Lakehouse → FE hiện dropdown DataBinding thay vì gõ tay; auto-mapping by name |
 | [41 — Loose Coupling Architecture](./41-loose-coupling-architecture.md) | Provider/Operation Catalog: tách bạch Producer / Catalog / Consumer; FE không hardcode URL; Admin chọn dropdown thay vì gõ resourcePath |
 | [42 — Admin API Refactor](./42-admin-api-refactor.md) | Tách AdminFormsController + xóa AdminPagesController (duplicate Screens). Thêm Module CRUD (Update/Delete) với cascade guard |
+| [43 — Warehouse Sync → Lakehouse](./43-warehouse-sync-to-lakehouse.md) | Pattern pull data từ DW external (Postgres/SQL Server) vào LakehouseService qua `WarehousePollerWorker`. Phân chia trách nhiệm DE (VIEW SQL) vs BE (BackgroundService C#) + mô phỏng end-to-end |
 | [00 — Hướng dẫn viết Spec cho AI](./00-spec-format.md) | Format chuẩn để viết technical spec đủ rõ cho AI implement |
 
 ---
