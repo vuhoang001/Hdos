@@ -161,6 +161,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__LakehouseDb: "Host=postgres-lh;Port=5432;Database=LakehouseDb;Username=lh_user;Password=${POSTGRES_LH_PASSWORD:-lh_pass}"
+      ConnectionStrings__Warehouse: "${WAREHOUSE_CONN:-}"
       RabbitMq__Host: rabbitmq
       RabbitMq__Port: 5672
       Jwt__Issuer: "hdos-auth"

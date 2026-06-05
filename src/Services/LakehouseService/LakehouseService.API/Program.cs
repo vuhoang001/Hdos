@@ -7,6 +7,7 @@ using Hdos.Common.Swagger;
 using Hdos.LakehouseService.Application;
 using Hdos.LakehouseService.Infrastructure;
 using Hdos.LakehouseService.Infrastructure.Persistence;
+using Hdos.LakehouseService.Infrastructure.Sync;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,6 +19,7 @@ builder.Services.AddHdosSwagger("LakehouseService");
 
 builder.Services.AddLakehouseApplication();
 builder.Services.AddLakehouseInfrastructure(builder.Configuration);
+builder.Services.AddWarehouseSync(builder.Configuration);
 builder.Services.AddHdosJwtAuth(builder.Configuration);
 builder.Services.AddHdosAuthorization();
 builder.Services.AddHdosCors(builder.Configuration);
