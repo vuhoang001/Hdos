@@ -78,6 +78,8 @@ FormTemplate / FormScreen:
 | Method | Route | Mô tả |
 |--------|-------|-------|
 | `POST` | `/forms/admin/modules` | Tạo module |
+| `PUT` | `/forms/admin/modules/{moduleCode}` | Sửa Name/Description (Code immutable) |
+| `DELETE` | `/forms/admin/modules/{moduleCode}` | Hard delete; chặn nếu còn form/screen |
 | `POST` | `/forms/admin/modules/{moduleCode}/forms` | Tạo form |
 | `POST` | `/forms/admin/forms/{id}/fields` | Thêm field |
 | `POST` | `/forms/admin/forms/{id}/publish` | Publish form |

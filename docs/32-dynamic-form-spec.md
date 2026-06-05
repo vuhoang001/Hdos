@@ -415,6 +415,39 @@ Tạo module mới.
 
 ---
 
+### `PUT /forms/admin/modules/{moduleCode}` — `[Authorize(Roles="admin")]`
+
+Sửa module. `Code` immutable (dùng làm key trong URL); chỉ update `Name` + `Description`.
+
+**Body:** `{ name, description? }`
+
+**Validation:**
+
+| Field | Rule |
+|-------|------|
+| `name` | NotEmpty, max 200 |
+| `description` | max 500, optional |
+
+| Code | Khi nào |
+|------|---------|
+| 200 | Sửa thành công, trả `ModuleDto` |
+| 400 | Validation fail |
+| 404 | `moduleCode` không tồn tại |
+
+---
+
+### `DELETE /forms/admin/modules/{moduleCode}` — `[Authorize(Roles="admin")]`
+
+Hard delete module khỏi DB. Có guard để tránh orphan data: nếu module còn form hoặc screen → trả 409.
+
+| Code | Khi nào |
+|------|---------|
+| 200 | Xóa thành công |
+| 404 | `moduleCode` không tồn tại |
+| 409 | Module còn form (gọi DELETE form trước) hoặc còn screen (gọi DELETE screen trước) |
+
+---
+
 ### `POST /forms/admin/modules/{moduleCode}/forms` — `[Authorize(Roles="admin")]`
 
 Tạo form mới trong module.
@@ -736,6 +769,8 @@ Danh sách screens của module. Trả tất cả status (frontend tự filter n
 | **BR-12** | `FormSubmission` immutable sau khi tạo — chỉ `Status` thay đổi | Không có method sửa answers |
 | **BR-13** | `FormVersion` capture tại thời điểm submit — không thay đổi dù form publish lại | Set trong `FormSubmission.Create()` |
 | **BR-14** | `SaveTabWidgets` là full replacement — không patch từng widget | Gọi `tab.ReplaceWidgets(newWidgets)` |
+| **BR-15** | `FormModule.Code` immutable — không sửa được sau khi tạo | `UpdateModuleCommand` không nhận `Code` mới |
+| **BR-16** | `DELETE module` chỉ thành công khi module rỗng (không còn form và screen nào) | Guard trong `DeleteModuleCommandHandler` |
 
 ---
 
@@ -744,6 +779,8 @@ Danh sách screens của module. Trả tất cả status (frontend tự filter n
 | Field | Entity/Command | Pattern / Constraint |
 |-------|----------------|---------------------|
 | `Module.Code` | `CreateModuleCommand` | NotEmpty, max 50, `^[a-z0-9\-]+$` |
+| `Module.Name` (update) | `UpdateModuleCommand` | NotEmpty, max 200 |
+| `Module.Description` (update) | `UpdateModuleCommand` | max 500, optional |
 | `Form.Key` | `CreateFormCommand` | NotEmpty, max 100, `^[a-z0-9\-]+$` |
 | `Field.Key` | `AddFieldCommand` | NotEmpty, max 100, `^[a-z0-9_]+$` ← dùng `_` không phải `-` |
 | `Screen.Code` | `CreateScreenCommand` | NotEmpty, max 100, `^[a-z0-9\-]+$` |
@@ -954,6 +991,8 @@ POST /forms/tiep-nhan/phieu-bao-hiem/submit
 | Method | URL | Mô tả | Auth |
 |--------|-----|-------|------|
 | `POST` | `/forms/admin/modules` | Tạo module | Admin |
+| `PUT` | `/forms/admin/modules/{code}` | Sửa Name/Description module | Admin |
+| `DELETE` | `/forms/admin/modules/{code}` | Hard delete module (chặn nếu còn form/screen) | Admin |
 | `GET` | `/forms/modules` | Danh sách module | Public |
 | `POST` | `/forms/admin/modules/{code}/forms` | Tạo form | Admin |
 | `GET` | `/forms/{moduleCode}` | Danh sách form | Public |

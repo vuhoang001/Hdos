@@ -268,7 +268,15 @@
       "Bash(PATH=/home/hoanggggf/.dotnet:__TRACKED_VAR__/.dotnet/tools:__TRACKED_VAR__ DOTNET_ROOT=/home/hoanggggf/.dotnet dotnet-ef migrations add InitialCreate --project /home/hoanggggf/Documents/Code/work/Hdos/src/Services/DynamicFormService/DynamicFormService.Infrastructure/DynamicFormService.Infrastructure.csproj --startup-project /home/hoanggggf/Documents/Code/work/Hdos/src/Services/DynamicFormService/DynamicFormService.API/DynamicFormService.API.csproj --output-dir Persistence/Migrations)",
       "Bash(export PATH=\"$HOME/.dotnet:$HOME/.dotnet/tools:$PATH\")",
       "Bash(lspci)",
-      "Bash(brew install *)"
+      "Bash(brew install *)",
+      "Bash(~/.dotnet/dotnet --list-runtimes)",
+      "Bash(~/.dotnet/dotnet --list-sdks)",
+      "Bash(bash /home/hoanggggf/Documents/Code/work/Hdos/scripts/demo-fresher-flow.sh)",
+      "Bash(bash /home/hoanggggf/Documents/Code/work/Hdos/scripts/demo-dashboard-flow.sh)",
+      "Bash(awk '{print $1}')",
+      "Bash(gh repo *)",
+      "Bash(gh api *)",
+      "Bash(docker network *)"
     ]
   },
   "hooks": {
