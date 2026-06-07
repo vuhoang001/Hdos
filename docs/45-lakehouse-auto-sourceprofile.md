@@ -15,15 +15,16 @@
 ## Mục lục
 
 1. [Phần 1 — Xác nhận 2 nguồn data đã thống nhất](#phần-1--xác-nhận-2-nguồn-data-đã-thống-nhất)
-2. [Phần 2 — Auto-enroll SourceProfile khi tạo ViewBinding](#phần-2--auto-enroll-sourceprofile-khi-tạo-viewbinding)
-3. [Vấn đề friction hiện tại](#3-vấn-đề-friction-hiện-tại)
-4. [Ba hướng giải quyết — so sánh](#4-ba-hướng-giải-quyết--so-sánh)
-5. [Hướng C — Preview + Compound Create (recommend)](#5-hướng-c--preview--compound-create-recommend)
-6. [Hướng B — Auto-convention (MVP nhanh)](#6-hướng-b--auto-convention-mvp-nhanh)
-7. [Cấu hình inter-service](#7-cấu-hình-inter-service)
-8. [Edge cases + quyết định kỹ thuật](#8-edge-cases--quyết-định-kỹ-thuật)
-9. [Implementation order](#9-implementation-order)
-10. [Testing checklist](#10-testing-checklist)
+2. [Walkthrough end-to-end — 2 case sử dụng](#2-walkthrough-end-to-end--2-case-sử-dụng)
+3. [Phần 2 — Auto-enroll SourceProfile khi tạo ViewBinding](#phần-2--auto-enroll-sourceprofile-khi-tạo-viewbinding)
+4. [Vấn đề friction hiện tại](#4-vấn-đề-friction-hiện-tại)
+5. [Ba hướng giải quyết — so sánh](#5-ba-hướng-giải-quyết--so-sánh)
+6. [Hướng C — Preview + Compound Create (recommend)](#6-hướng-c--preview--compound-create-recommend)
+7. [Hướng B — Auto-convention (MVP nhanh)](#7-hướng-b--auto-convention-mvp-nhanh)
+8. [Cấu hình inter-service](#8-cấu-hình-inter-service)
+9. [Edge cases + quyết định kỹ thuật](#9-edge-cases--quyết-định-kỹ-thuật)
+10. [Implementation order](#10-implementation-order)
+11. [Testing checklist](#11-testing-checklist)
 
 ---
 
@@ -116,9 +117,615 @@ FE `useDataSources` fetch song song 2 endpoint. Binding:
 
 ---
 
+## 2. Walkthrough end-to-end — 2 case sử dụng
+
+> Phần này liệt kê **từng bước cụ thể** + **API nào dùng ở mỗi bước** cho 2 case khi onboard 1 nguồn data mới. Đọc trước khi code để hiểu mục tiêu UX cuối cùng.
+>
+> Base URL local: `http://localhost:5000` (qua nginx gateway). HTTPS: `https://localhost:8443`.
+
+### 2.1 Case A — Nguồn push REST (HIS / BHYT / file Excel)
+
+**Use case minh hoạ:** HIS bệnh viện A tự push từng record bệnh nhân vào Hdos realtime mỗi khi nhập viện.
+
+#### Sơ đồ luồng
+
+```
+DE Admin                       External system (HIS)              Hdos
+   │                                  │                              │
+   │ [Step 1] POST /dm/sources        │                              │
+   │ ─────────────────────────────────┼──────────────────────────────►│
+   │ ◄─ 201                            │                              │
+   │                                  │                              │
+   │                                  │ [Step 2] POST /dm/ingest/json│
+   │                                  │ (mỗi record mới)             │
+   │                                  │ ─────────────────────────────►│
+   │                                  │ ◄─ 202                        │
+   │                                  │                              │
+   │ [Step 3] Verify (đợi ~30s)        │                              │
+   │ GET /dm/records?... ─────────────────────────────────────────────►│
+   │ ◄─ 200 [...]                                                     │
+   │                                                                  │
+   │ [Step 4] POST /forms/admin/generate-from-source                  │
+   │ ────────────────────────────────────────────────────────────────►│
+   │ ◄─ 201                                                            │
+   │                                                                  │
+   │              [Step 5] FE user mở screen                          │
+   │              GET /forms/screens/{m}/{s}/layout                   │
+   │              GET /dm/records/{id}                                │
+   │              → form pre-fill                                     │
+```
+
+#### Step 1 — Đăng ký SourceProfile (1 lần, lúc onboard)
+
+```http
+POST http://localhost:5000/dm/sources
+Content-Type: application/json
+
+{
+  "sourceSystem":     "his-01",
+  "recordType":       "benh-nhan",
+  "displayName":      "Bệnh nhân (HIS-01)",
+  "businessKeyField": "MaBenhNhan",
+  "mappings": {
+    "ho_ten":        "TenBenhNhan",
+    "ngay_sinh":     "NgaySinh",
+    "ma_benh_nhan":  "MaBenhNhan",
+    "khoa_dieu_tri": "KhoaDieuTri",
+    "chan_doan":     "ChanDoan",
+    "ngay_nhap_vien":"NgayNhapVien"
+  }
+}
+
+→ 201 Created
+{ "success": true, "data": { "id": "...", "sourceSystem": "his-01", ... } }
+```
+
+#### Step 2 — Push data (mỗi record realtime)
+
+External system (HIS) tự gọi sau mỗi sự kiện nhập viện:
+
+```http
+POST http://localhost:5000/dm/ingest/json
+Content-Type: application/json
+
+{
+  "sourceSystem":  "his-01",
+  "recordType":    "benh-nhan",
+  "payload": {
+    "ho_ten":        "Nguyễn Văn An",
+    "ngay_sinh":     "1985-03-15",
+    "ma_benh_nhan":  "BN2024001",
+    "khoa_dieu_tri": "Khoa Tim Mạch",
+    "chan_doan":     "Tăng huyết áp độ II",
+    "ngay_nhap_vien":"2026-06-01"
+  }
+}
+
+→ 202 Accepted
+{ "success": true, "data": { "id": "rec-uuid", "status": "Pending" } }
+```
+
+**Alternative — file batch (migration):**
+
+```http
+POST http://localhost:5000/dm/ingest/file
+Content-Type: multipart/form-data
+
+file:                <patients.csv hoặc patients.json>
+sourceSystem:        his-01
+recordType:          benh-nhan
+businessKeyOverride: (null)
+
+→ 202 Accepted
+{ "success": true, "data": { "count": 1000, "ids": [...] } }
+```
+
+#### Step 3 — Verify (đợi ~30s MatchingWorker)
+
+```http
+GET http://localhost:5000/dm/records?sourceSystem=his-01&recordType=benh-nhan&limit=10
+
+→ 200 OK
+{
+  "success": true,
+  "data": [
+    {
+      "id":           "rec-uuid",
+      "sourceSystem": "his-01",
+      "recordType":   "benh-nhan",
+      "businessKey":  "BN2024001",
+      "status":       "Matched",
+      "canonicalPayload": "{\"TenBenhNhan\":\"Nguyễn Văn An\",\"MaBenhNhan\":\"BN2024001\",...}",
+      "receivedAt":   "2026-06-07T...",
+      "processedAt":  "2026-06-07T..."
+    }
+  ]
+}
+```
+
+#### Step 4 — Auto-generate DynForm screen (1 lần per recordType)
+
+```http
+POST http://localhost:5000/forms/admin/generate-from-source
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{
+  "moduleCode":  "datamatch",
+  "moduleName":  "DataMatching",
+  "screenCode":  "patient-detail",
+  "screenTitle": "Hồ sơ bệnh nhân",
+  "formKey":     "patient-form",
+  "formTitle":   "Thông tin bệnh nhân",
+  "dataSource": {
+    "namespace":      "record",
+    "serviceId":      "datamatch",
+    "resourcePath":   "/dm/records/{recordId}",
+    "requiredParams": ["recordId"]
+  },
+  "fields": [
+    { "canonicalKey": "MaBenhNhan",  "label": "Mã BN",        "fieldType": "Text" },
+    { "canonicalKey": "TenBenhNhan", "label": "Họ tên",       "fieldType": "Text" },
+    { "canonicalKey": "NgaySinh",    "label": "Ngày sinh",    "fieldType": "Date",
+      "displayFormat": "date:DD/MM/YYYY" },
+    { "canonicalKey": "KhoaDieuTri", "label": "Khoa",         "fieldType": "Text" },
+    { "canonicalKey": "ChanDoan",    "label": "Chẩn đoán",    "fieldType": "Text" },
+    { "canonicalKey": "NgayNhapVien","label": "Ngày NV",      "fieldType": "Date",
+      "displayFormat": "date:DD/MM/YYYY" }
+  ]
+}
+
+→ 201 Created
+{
+  "moduleCode":      "datamatch",
+  "screenCode":      "patient-detail",
+  "formKey":         "patient-form",
+  "fieldsGenerated": 6
+}
+```
+
+#### Step 5 — FE user mở screen (auto, không gõ API tay)
+
+User vào URL `/screen?module=datamatch&page=patient-detail&recordId=rec-uuid`. FE tự gọi:
+
+```http
+GET /forms/screens/datamatch/patient-detail/layout
+→ 200 { dataSources, tabs: [{ widgets: [...] }] }
+
+GET /dm/records/rec-uuid
+→ 200 { canonicalPayload: "{...}" }
+```
+
+→ FE `useDataSources` parse + spread canonical fields, FormSectionWidget render form pre-fill.
+
+---
+
+### 2.2 Case B1 — Lakehouse view, CÁCH HIỆN TẠI (manual, post Phase 2)
+
+> Đây là tình trạng **trước khi triển khai doc 45**. Admin phải gõ 2 API riêng cho SourceProfile và ViewBinding.
+
+**Use case minh hoạ:** DE đã tạo view `warehouse.v_lab_results_v1` chứa lab results. Admin muốn data này hiển thị trên FE.
+
+#### Sơ đồ luồng
+
+```
+DE (Data Engineer)              Admin Hdos                              Hdos
+   │                              │                                      │
+   │ Tạo VIEW + GRANT SELECT       │                                      │
+   │ cho hdos_reader              │                                      │
+   │ ─────────────────────────────►│                                      │
+   │                              │                                      │
+   │                              │ [Step 1] Mở pgAdmin xem schema view  │
+   │                              │ (manual, ngoài Hdos)                 │
+   │                              │                                      │
+   │                              │ [Step 2] POST /dm/sources             │
+   │                              │ (gõ mappings tay)                    │
+   │                              │ ────────────────────────────────────►│
+   │                              │ ◄─ 201                                │
+   │                              │                                      │
+   │                              │ [Step 3] POST /lakehouse/view-bindings│
+   │                              │ ────────────────────────────────────►│
+   │                              │ ◄─ 201                                │
+   │                              │                                      │
+   │                              │ [Step 4] POST /.../{id}/sync          │
+   │                              │ ────────────────────────────────────►│
+   │                              │ ◄─ 202 (n rows published)             │
+   │                              │                                      │
+   │                              │ [Step 5] Verify GET /dm/records       │
+   │                              │ ────────────────────────────────────►│
+   │                              │ ◄─ 200 [...]                          │
+   │                              │                                      │
+   │                              │ [Step 6] POST /forms/admin/generate.. │
+   │                              │ ────────────────────────────────────►│
+   │                              │ ◄─ 201                                │
+   │                              │                                      │
+   │                              │ [Step 7] FE user mở screen           │
+```
+
+#### Step 1 — Mở pgAdmin xem schema view (ngoài Hdos)
+
+```sql
+-- Chạy thủ công bằng pgAdmin / psql với account có quyền:
+SELECT column_name, data_type, is_nullable
+FROM information_schema.columns
+WHERE table_schema || '.' || table_name = 'warehouse.v_lab_results_v1'
+ORDER BY ordinal_position;
+```
+
+→ Admin chép tay danh sách columns ra: `business_key, hba1c, blood_glucose, bmi, updated_at`.
+
+#### Step 2 — Đăng ký SourceProfile (manual)
+
+```http
+POST http://localhost:5000/dm/sources
+Content-Type: application/json
+
+{
+  "sourceSystem":     "lakehouse:v_lab_results_v1",
+  "recordType":       "lab-result",
+  "displayName":      "Lab Results — Warehouse v1",
+  "businessKeyField": "MaBenhNhan",
+  "mappings": {
+    "business_key":  "MaBenhNhan",
+    "hba1c":         "HbA1c",
+    "blood_glucose": "Glucose",
+    "bmi":           "BMI",
+    "updated_at":    "_updated_at"
+  }
+}
+
+→ 201
+{ "success": true, "data": { "id": "...", ... } }
+```
+
+> Đau khổ: view 30+ column thì 30+ entry mapping. Mỗi entry phải gõ chính xác cả 2 phía.
+
+#### Step 3 — Đăng ký ViewBinding
+
+```http
+POST http://localhost:5000/lakehouse/view-bindings
+Content-Type: application/json
+
+{
+  "viewName":            "warehouse.v_lab_results_v1",
+  "sourceSystem":        "lakehouse:v_lab_results_v1",
+  "recordType":          "lab-result",
+  "businessKeyColumn":   "business_key",
+  "updatedAtColumn":     "updated_at",
+  "pollIntervalSeconds": 300
+}
+
+→ 201
+{ "success": true, "data": { "id": "binding-uuid", ... } }
+```
+
+> **Lưu ý quan trọng**: Nếu admin làm Step 3 trước Step 2 (sai thứ tự) → sync sẽ chạy nhưng DataMatching consumer warning "SourceProfile not found" cho từng record → 0 record xuất hiện ở `/dm/records`. Phải Step 2 → Step 3.
+
+#### Step 4 — Trigger sync ngay (không đợi worker)
+
+```http
+POST http://localhost:5000/lakehouse/view-bindings/binding-uuid/sync
+
+→ 202
+{
+  "success": true,
+  "data": {
+    "bindingId": "binding-uuid",
+    "viewName":  "warehouse.v_lab_results_v1",
+    "rowCount":  1000,
+    "jobId":     "sync-lab-result-20260607...",
+    "duration":  "00:00:02.345",
+    "error":     null
+  }
+}
+```
+
+#### Step 5 — Verify (đợi ~30s MatchingWorker)
+
+```http
+GET http://localhost:5000/dm/records?sourceSystem=lakehouse:v_lab_results_v1&recordType=lab-result&limit=5
+
+→ 200
+{
+  "success": true,
+  "data": [
+    {
+      "id":               "rec-1",
+      "sourceSystem":     "lakehouse:v_lab_results_v1",
+      "recordType":       "lab-result",
+      "businessKey":      "BN-0001",
+      "status":           "Matched",
+      "canonicalPayload": "{\"MaBenhNhan\":\"BN-0001\",\"HbA1c\":7.2,\"Glucose\":142,...}"
+    }
+  ]
+}
+```
+
+#### Step 6 — Auto-generate DynForm screen
+
+Y hệt Case A Step 4 nhưng đổi field theo canonical của lab-result:
+
+```http
+POST /forms/admin/generate-from-source
+{
+  "moduleCode": "lab",
+  "screenCode": "lab-result-detail",
+  "formKey":    "lab-result-form",
+  "dataSource": {
+    "namespace":      "record",
+    "resourcePath":   "/dm/records/{recordId}",
+    "requiredParams": ["recordId"]
+  },
+  "fields": [
+    { "canonicalKey": "MaBenhNhan", "label": "Mã BN",   "fieldType": "Text"   },
+    { "canonicalKey": "HbA1c",      "label": "HbA1c",   "fieldType": "Number" },
+    { "canonicalKey": "Glucose",    "label": "Glucose", "fieldType": "Number" },
+    { "canonicalKey": "BMI",        "label": "BMI",     "fieldType": "Number" }
+  ]
+}
+
+→ 201
+```
+
+#### Step 7 — FE user mở screen
+
+Y hệt Case A Step 5: FE gọi layout + records, render form.
+
+#### Tổng số API call manual mà admin biết: **5 endpoint khác nhau, 3 lần gõ body JSON dài**
+
+---
+
+### 2.3 Case B2 — Lakehouse view, CÁCH PHASE 2.5 hướng C (preview + compound)
+
+> Đây là target sau khi triển khai doc 45 hướng C. Gộp Step 1-3 của Case B1 thành **2 call duy nhất**.
+
+#### Sơ đồ luồng
+
+```
+Admin Hdos                                     Hdos
+   │                                            │
+   │ [Step 1] GET /.../preview-schema           │
+   │ ──────────────────────────────────────────►│
+   │                                            │ LakehouseService:
+   │                                            │   query warehouse Npgsql
+   │                                            │   information_schema.columns
+   │                                            │   build suggestedCanonical
+   │ ◄─ 200 { columns: [...] }                   │
+   │                                            │
+   │ [Step 2] Admin (or FE) chỉnh canonical map │
+   │                                            │
+   │ [Step 3] POST /.../with-profile            │
+   │ (body chứa cả binding + profile)            │
+   │ ──────────────────────────────────────────►│
+   │                                            │ LakehouseService:
+   │                                            │   1. POST /dm/sources (qua HTTP)
+   │                                            │   2. Tạo ViewBinding cục bộ
+   │ ◄─ 201 { binding, profileEnrolled }         │
+   │                                            │
+   │ [Step 4] POST /.../{id}/sync               │
+   │ ──────────────────────────────────────────►│
+   │                                            │
+   │ Step 5-7 giống Case B1 step 5-7            │
+```
+
+#### Step 1 — Preview schema view
+
+```http
+GET http://localhost:5000/lakehouse/view-bindings/preview-schema?viewName=warehouse.v_lab_results_v1
+
+→ 200
+{
+  "success": true,
+  "data": {
+    "viewName": "warehouse.v_lab_results_v1",
+    "columns": [
+      {
+        "name":                   "business_key",
+        "dataType":               "text",
+        "nullable":               false,
+        "suggestedCanonical":     "MaBenhNhan",
+        "isBusinessKeyCandidate": true,
+        "isUpdatedAtCandidate":   false
+      },
+      {
+        "name":                   "hba1c",
+        "dataType":               "numeric",
+        "nullable":               true,
+        "suggestedCanonical":     "HbA1c",
+        "isBusinessKeyCandidate": false,
+        "isUpdatedAtCandidate":   false
+      },
+      {
+        "name":                   "blood_glucose",
+        "dataType":               "numeric",
+        "nullable":               true,
+        "suggestedCanonical":     "Glucose",
+        "isBusinessKeyCandidate": false,
+        "isUpdatedAtCandidate":   false
+      },
+      {
+        "name":                   "updated_at",
+        "dataType":               "timestamptz",
+        "nullable":               false,
+        "suggestedCanonical":     "_updated_at",
+        "isBusinessKeyCandidate": false,
+        "isUpdatedAtCandidate":   true
+      }
+    ]
+  }
+}
+```
+
+> Backend đã tự gợi ý canonical name + đánh dấu column nào nên làm business key / updated-at.
+
+#### Step 2 — Admin chỉnh mapping nếu cần (qua FE)
+
+Admin xem table, chỉnh canonical name cho column nào cần đổi (vd `blood_glucose` → muốn rename thành `LuongDuongHuyet` thay vì `Glucose`). Sau đó submit:
+
+#### Step 3 — Compound create (1 call gộp cả 2)
+
+```http
+POST http://localhost:5000/lakehouse/view-bindings/with-profile
+Content-Type: application/json
+
+{
+  "binding": {
+    "viewName":            "warehouse.v_lab_results_v1",
+    "sourceSystem":        "lakehouse:v_lab_results_v1",
+    "recordType":          "lab-result",
+    "businessKeyColumn":   "business_key",
+    "updatedAtColumn":     "updated_at",
+    "pollIntervalSeconds": 300
+  },
+  "profile": {
+    "displayName":      "Lab Results — Warehouse v1",
+    "businessKeyField": "MaBenhNhan",
+    "mappings": {
+      "business_key":  "MaBenhNhan",
+      "hba1c":         "HbA1c",
+      "blood_glucose": "Glucose",
+      "updated_at":    "_updated_at"
+    }
+  }
+}
+
+→ 201
+{
+  "success": true,
+  "data": {
+    "binding": {
+      "id":           "binding-uuid",
+      "viewName":     "warehouse.v_lab_results_v1",
+      "sourceSystem": "lakehouse:v_lab_results_v1",
+      "recordType":   "lab-result",
+      "isActive":     true,
+      ...
+    },
+    "profileEnrolled": true
+  }
+}
+```
+
+> Behind the scenes: LakehouseService tự gọi `POST http://datamatchingservice:8080/dm/sources` (qua `ISourceProfileEnrollClient` HTTP), nhận 201 hoặc 409 (idempotent) → tạo ViewBinding cục bộ → trả 201 cho admin.
+
+#### Step 4-7 — y hệt Case B1 Step 4-7
+
+```http
+POST /lakehouse/view-bindings/binding-uuid/sync   → 202
+GET /dm/records?sourceSystem=lakehouse:v_lab_results_v1  → 200
+POST /forms/admin/generate-from-source            → 201
+... FE auto mở screen ...
+```
+
+#### Tổng số API call: **2 endpoint khác nhau (preview + with-profile), 1 lần gõ body JSON** (so với 3 của Case B1)
+
+---
+
+### 2.4 Case B3 — Lakehouse view, MVP hướng B (auto convention)
+
+> Phiên bản nhanh nhất: bỏ luôn preview, backend tự introspect + tự sinh mapping convention.
+
+#### Sơ đồ luồng
+
+```
+Admin Hdos                                     Hdos
+   │                                            │
+   │ [Step 1] POST /.../with-auto-profile        │
+   │ ──────────────────────────────────────────►│
+   │                                            │ LakehouseService:
+   │                                            │   1. Introspect view
+   │                                            │   2. Auto sinh mappings
+   │                                            │      snake → PascalCase
+   │                                            │      + domain overrides
+   │                                            │   3. POST /dm/sources
+   │                                            │   4. Tạo ViewBinding
+   │ ◄─ 201                                      │
+   │                                            │
+   │ Step 2-5 giống Case B1 step 4-7            │
+```
+
+#### Step 1 — 1 call auto (không gõ mappings)
+
+```http
+POST http://localhost:5000/lakehouse/view-bindings/with-auto-profile
+Content-Type: application/json
+
+{
+  "viewName":            "warehouse.v_lab_results_v1",
+  "sourceSystem":        "lakehouse:v_lab_results_v1",
+  "recordType":          "lab-result",
+  "businessKeyColumn":   "business_key",
+  "updatedAtColumn":     "updated_at",
+  "pollIntervalSeconds": 300,
+  "displayName":         "Lab Results — Warehouse v1"
+}
+
+→ 201
+{
+  "success": true,
+  "data": {
+    "binding": { "id": "...", ... },
+    "profile": {
+      "enrolled":   true,
+      "businessKeyField": "MaBenhNhan",
+      "mappings": {
+        "business_key":  "MaBenhNhan",
+        "hba1c":         "Hba1c",          ← convention auto, đẹp xấu chấp nhận
+        "blood_glucose": "BloodGlucose",
+        "updated_at":    "_updated_at"
+      }
+    }
+  }
+}
+```
+
+> Admin **không control** canonical name. Nếu muốn đổi `Hba1c` → `HbA1c` (đẹp hơn) phải gọi API riêng sau:
+> ```http
+> PUT /dm/sources/{id}  (chưa có UI — Postman)
+> ```
+
+#### Step 2-5 — y hệt Case B1 Step 4-7
+
+---
+
+### 2.5 Bảng so sánh số API call
+
+| Case | Số endpoint admin gõ | Số lần gõ body JSON dài | Time onboard 1 view | Admin control mapping |
+|---|---|---|---|---|
+| **A** (HIS push) | 2 (sources + generate-form) — ingest tự động từ HIS | 2 | 5 phút | N/A |
+| **B1** (manual hiện tại) | 4 (sources, view-bindings, sync, generate-form) | 3 | 15-20 phút | ✅ |
+| **B2** (Phase 2.5 hướng C) | 3 (preview, with-profile, generate-form) — sync optional | 1 | 5-7 phút | ✅ |
+| **B3** (MVP hướng B) | 2 (with-auto-profile, generate-form) | 1 | 3 phút | ❌ phải PUT sửa sau |
+
+### 2.6 Mapping endpoint → service nào sở hữu
+
+| Endpoint | Service xử lý | Phase nào |
+|---|---|---|
+| `POST /dm/sources` | DataMatchingService | đã có từ trước |
+| `POST /dm/ingest/json` / `/file` | DataMatchingService | đã có từ trước |
+| `GET /dm/records*` | DataMatchingService | đã có từ trước |
+| `POST /lakehouse/view-bindings` | LakehouseService | Phase 2 (Stage 4) |
+| `POST /lakehouse/view-bindings/{id}/sync` | LakehouseService | Phase 2 (Stage 4) |
+| **`GET /lakehouse/view-bindings/preview-schema`** | **LakehouseService** | **Phase 2.5 (doc này)** |
+| **`POST /lakehouse/view-bindings/with-profile`** | **LakehouseService** | **Phase 2.5 (doc này)** |
+| **`POST /lakehouse/view-bindings/with-auto-profile`** | **LakehouseService** | **Phase 2.5 (doc này)** |
+| `POST /forms/admin/generate-from-source` | DynamicFormService | đã có từ trước |
+| `GET /forms/screens/{m}/{s}/layout` | DynamicFormService | đã có từ trước |
+
+### 2.7 Quyết định khi triển khai
+
+**Trước khi code phần Phase 2.5:**
+- Nếu chỉ có 1-2 lakehouse view mới mỗi tháng → **Case B1 manual đủ dùng**, không cần code Phase 2.5
+- Nếu thêm hàng tuần / cần admin self-service → **code Case B3 (MVP B) trước, ~0.5 ngày**
+- Nếu admin cần xem schema view trước khi cấu hình → **code Case B2 (hướng C), ~1.5 ngày**
+
+→ Phần còn lại của tài liệu này (từ section 3 trở đi) cover chi tiết cách code Case B2 + B3.
+
+---
+
 ## Phần 2 — Auto-enroll SourceProfile khi tạo ViewBinding
 
-## 3. Vấn đề friction hiện tại
+## 4. Vấn đề friction hiện tại
 
 Sau Phase 2, để thêm 1 view lakehouse mới hiển thị trên FE, admin **vẫn phải làm 3 bước thủ công**:
 
@@ -154,7 +761,7 @@ Sau Phase 2, để thêm 1 view lakehouse mới hiển thị trên FE, admin **v
 
 ---
 
-## 4. Ba hướng giải quyết — so sánh
+## 5. Ba hướng giải quyết — so sánh
 
 | Hướng | Mô tả | Effort | Khi nào dùng |
 |---|---|---|---|
@@ -166,9 +773,9 @@ Sau Phase 2, để thêm 1 view lakehouse mới hiển thị trên FE, admin **v
 
 ---
 
-## 5. Hướng C — Preview + Compound Create (recommend)
+## 6. Hướng C — Preview + Compound Create (recommend)
 
-### 5.1 Architecture
+### 6.1 Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -215,9 +822,9 @@ Sau Phase 2, để thêm 1 view lakehouse mới hiển thị trên FE, admin **v
                                               └─────────────────────┘
 ```
 
-### 5.2 Endpoints mới
+### 6.2 Endpoints mới
 
-#### 5.2.1 `GET /lakehouse/view-bindings/preview-schema`
+#### 6.2.1 `GET /lakehouse/view-bindings/preview-schema`
 
 Đọc metadata view từ warehouse Postgres, trả columns + suggested canonical name.
 
@@ -268,7 +875,7 @@ Sau Phase 2, để thêm 1 view lakehouse mới hiển thị trên FE, admin **v
 - `404 NotFound` — view không tồn tại / hdos_reader không có quyền SELECT
 - `400 Validation` — viewName không match format `schema.table_name`
 
-#### 5.2.2 `POST /lakehouse/view-bindings/with-profile`
+#### 6.2.2 `POST /lakehouse/view-bindings/with-profile`
 
 Compound: tạo SourceProfile (cross-service) + ViewBinding (cục bộ) trong 1 call.
 
@@ -313,7 +920,7 @@ Compound: tạo SourceProfile (cross-service) + ViewBinding (cục bộ) trong 1
 - `502 BadGateway` — DataMatching không reachable
 - `500` — DataMatching enroll fail với non-409 status
 
-### 5.3 File layout backend
+### 6.3 File layout backend
 
 ```
 src/Services/LakehouseService/
@@ -340,9 +947,9 @@ src/Services/LakehouseService/
         └── ViewBindingsController.cs                 ← THÊM 2 endpoint
 ```
 
-### 5.4 Code mẫu
+### 6.4 Code mẫu
 
-#### 5.4.1 ViewSchemaDto
+#### 6.4.1 ViewSchemaDto
 
 ```csharp
 // LakehouseService.Application/DTOs/ViewSchemaDto.cs
@@ -361,7 +968,7 @@ public sealed record ViewColumnInfoDto(
     bool   IsUpdatedAtCandidate);
 ```
 
-#### 5.4.2 PreviewSchemaQuery + Handler
+#### 6.4.2 PreviewSchemaQuery + Handler
 
 ```csharp
 // LakehouseService.Application/Features/ViewBindings/PreviewSchema/PreviewSchemaQuery.cs
@@ -474,7 +1081,7 @@ public sealed class PreviewSchemaQueryHandler(NpgsqlDataSource warehouseDs)
 }
 ```
 
-#### 5.4.3 ISourceProfileEnrollClient
+#### 6.4.3 ISourceProfileEnrollClient
 
 ```csharp
 // LakehouseService.Application/Services/ISourceProfileEnrollClient.cs
@@ -499,7 +1106,7 @@ public sealed record SourceProfileEnrollRequest(
     Dictionary<string, string> Mappings);
 ```
 
-#### 5.4.4 SourceProfileEnrollClient (HTTP)
+#### 6.4.4 SourceProfileEnrollClient (HTTP)
 
 ```csharp
 // LakehouseService.Infrastructure/ExternalClients/SourceProfileEnrollClient.cs
@@ -566,7 +1173,7 @@ public sealed class SourceProfileEnrollClient(
 }
 ```
 
-#### 5.4.5 CreateBindingWithProfileCommand + Handler
+#### 6.4.5 CreateBindingWithProfileCommand + Handler
 
 ```csharp
 // LakehouseService.Application/Features/ViewBindings/CreateWithProfile/CreateBindingWithProfileCommand.cs
@@ -693,7 +1300,7 @@ public sealed class CreateBindingWithProfileHandler(
 }
 ```
 
-#### 5.4.6 Controller — thêm 2 endpoint
+#### 6.4.6 Controller — thêm 2 endpoint
 
 ```csharp
 // LakehouseService.API/Controllers/ViewBindingsController.cs (thêm vào class hiện có)
@@ -738,7 +1345,7 @@ public async Task<IActionResult> CreateWithProfile(
 }
 ```
 
-### 5.5 Register DI
+### 6.5 Register DI
 
 ```csharp
 // LakehouseService.Infrastructure/DependencyInjection.cs (thêm vào AddLakehouseInfrastructure)
@@ -754,11 +1361,11 @@ services.AddHttpClient<ISourceProfileEnrollClient, SourceProfileEnrollClient>(c 
 
 ---
 
-## 6. Hướng B — Auto-convention (MVP nhanh)
+## 7. Hướng B — Auto-convention (MVP nhanh)
 
 Nếu chưa cần preview UI, làm phiên bản tự động hoàn toàn:
 
-### 6.1 1 endpoint duy nhất
+### 7.1 1 endpoint duy nhất
 
 ```http
 POST /lakehouse/view-bindings/with-auto-profile
@@ -774,7 +1381,7 @@ POST /lakehouse/view-bindings/with-auto-profile
 ```
 
 Backend:
-1. Introspect view (như §5.4.2)
+1. Introspect view (như §6.4.2)
 2. Build mappings tự động: mỗi column → `SuggestCanonical(name)` (cùng helper)
 3. Set `businessKeyField = SuggestCanonical(businessKeyColumn)`
 4. Enroll qua `ISourceProfileEnrollClient`
@@ -782,7 +1389,7 @@ Backend:
 
 → 0 click chỉnh mapping. Admin sửa sau qua API `PUT /dm/sources/{id}` (chưa có UI).
 
-### 6.2 So với hướng C
+### 7.2 So với hướng C
 
 | Tiêu chí | B (auto) | C (preview + confirm) |
 |---|---|---|
@@ -796,9 +1403,9 @@ Backend:
 
 ---
 
-## 7. Cấu hình inter-service
+## 8. Cấu hình inter-service
 
-### 7.1 Environment variable
+### 8.1 Environment variable
 
 Thêm vào `docker-compose.yml` cho `lakehouseservice`:
 
@@ -811,7 +1418,7 @@ lakehouseservice:
 
 Trong production thay bằng URL thực hoặc nginx internal endpoint.
 
-### 7.2 Auth giữa 2 service
+### 8.2 Auth giữa 2 service
 
 **Hôm nay:** Internal HTTP call **không có auth**. Cùng docker network, RabbitMQ + Postgres cũng không auth giữa services.
 
@@ -819,7 +1426,7 @@ Trong production thay bằng URL thực hoặc nginx internal endpoint.
 
 Tài liệu này không scope phần auth — coi như trusted internal network.
 
-### 7.3 Timeout + Retry
+### 8.3 Timeout + Retry
 
 `HttpClient` config:
 - Timeout 10s — đủ cho enroll (chỉ 1 INSERT + bảng nhỏ)
@@ -835,7 +1442,7 @@ services.AddHttpClient<ISourceProfileEnrollClient, SourceProfileEnrollClient>(c 
 
 ---
 
-## 8. Edge cases + quyết định kỹ thuật
+## 9. Edge cases + quyết định kỹ thuật
 
 | Tình huống | Quyết định | Lý do |
 |---|---|---|
@@ -853,7 +1460,7 @@ services.AddHttpClient<ISourceProfileEnrollClient, SourceProfileEnrollClient>(c 
 
 ---
 
-## 9. Implementation order
+## 10. Implementation order
 
 ### Phase 1 — MVP (Hướng B, 0.5–1 ngày)
 
@@ -898,9 +1505,9 @@ services.AddHttpClient<ISourceProfileEnrollClient, SourceProfileEnrollClient>(c 
 
 ---
 
-## 10. Testing checklist
+## 11. Testing checklist
 
-### 10.1 Unit / integration BE
+### 11.1 Unit / integration BE
 
 ```
 [ ] PreviewSchemaQueryHandler:
@@ -927,7 +1534,7 @@ services.AddHttpClient<ISourceProfileEnrollClient, SourceProfileEnrollClient>(c 
     [ ] BusinessKeyColumn không có entry trong mappings → Validator fail
 ```
 
-### 10.2 End-to-end manual
+### 11.2 End-to-end manual
 
 ```
 [ ] docker compose up -d
@@ -955,7 +1562,7 @@ services.AddHttpClient<ISourceProfileEnrollClient, SourceProfileEnrollClient>(c 
     → expect: data với canonical fields đã rename theo mapping
 ```
 
-### 10.3 Re-run (idempotent)
+### 11.3 Re-run (idempotent)
 
 ```
 [ ] Tạo lại với cùng viewName → 409 Conflict (binding-level dedup)
