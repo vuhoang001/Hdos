@@ -2,189 +2,114 @@ using System.Diagnostics;
 using System.Text.Json;
 using Hdos.Common.Messaging;
 using Hdos.Contracts.IntegrationEvents;
+using Hdos.LakehouseService.Domain.Entities;
+using Hdos.LakehouseService.Domain.Repositories;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 
 namespace Hdos.LakehouseService.Infrastructure.Sync;
 
 /// <summary>
-/// Pull data từ warehouse external, publish mỗi row sang RabbitMQ để
-/// <c>LakehouseDataReadyConsumer</c> upsert vào <c>LakehouseSnapshots</c>.
+/// Pull data từ warehouse external (PG view), publish mỗi row thành
+/// <c>RawRecordIngestRequestedIntegrationEvent</c> để <c>DataMatchingService</c> consume,
+/// apply <c>SourceProfile</c> mapping → canonical record.
 ///
-/// Demo Phase 1: chỉ hỗ trợ VIEW <c>api.encounter_activity_daily</c>.
-/// Mỗi row → 1 event với <c>BusinessKey</c> composite <c>{date}|{department_id}|{room_id}</c>.
+/// VIEW + cặp (SourceSystem, RecordType) được đăng ký động qua <see cref="ViewBinding"/>
+/// (không hardcode). Xem doc 44 — Unified Ingest Pipeline §4, §6.
 /// </summary>
 public sealed class WarehouseViewSyncer(
-    NpgsqlDataSource warehouseDataSource,
-    IEventBus eventBus,
-    ISyncStateRepository syncState,
+    NpgsqlDataSource             warehouseDataSource,
+    IEventBus                    eventBus,
+    ISyncStateRepository         syncState,
+    IViewBindingRepository       bindings,
     ILogger<WarehouseViewSyncer> logger) : IWarehouseViewSyncer
 {
-    private static readonly IReadOnlyDictionary<string, ViewMeta> SupportedViews =
-        new Dictionary<string, ViewMeta>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["encounter_activity_daily"] = new(
-                Sql: """
-                    SELECT date,
-                           department_id,
-                           room_id,
-                           encounter_count,
-                           distinct_patient_count,
-                           inpatient_encounter_count,
-                           discharged_encounter_count,
-                           insured_encounter_count
-                    FROM api.encounter_activity_daily
-                    """,
-                BuildKey: r => Key(
-                    Date(r, 0),
-                    Str(r, 1),
-                    Str(r, 2))),
-
-            ["finance_daily"] = new(
-                Sql: """
-                    SELECT date,
-                           department_id,
-                           room_id,
-                           finance_bucket,
-                           invoice_type_id,
-                           invoice_form_id,
-                           invoice_type_detail_id,
-                           payment_group_id,
-                           payment_source_id,
-                           invoice_count,
-                           distinct_encounter_count,
-                           total_invoice_amount,
-                           total_discount_amount
-                    FROM api.finance_daily
-                    """,
-                BuildKey: r => Key(
-                    Date(r, 0),
-                    Str(r, 1),  Str(r, 2),  Str(r, 3),
-                    Str(r, 4),  Str(r, 5),  Str(r, 6),
-                    Str(r, 7),  Str(r, 8))),
-
-            ["inpatient_summary_daily"] = new(
-                Sql: """
-                    SELECT date,
-                           department_id,
-                           record_type_id,
-                           record_status_id,
-                           medical_record_status_out_id,
-                           encounter_count,
-                           distinct_patient_count,
-                           inpatient_encounter_count,
-                           discharged_encounter_count
-                    FROM api.inpatient_summary_daily
-                    """,
-                BuildKey: r => Key(
-                    Date(r, 0),
-                    Str(r, 1), Str(r, 2), Str(r, 3), Str(r, 4))),
-
-            ["bed_occupancy"] = new(
-                Sql: """
-                    SELECT date,
-                           department_id,
-                           department_code,
-                           department_name,
-                           planned_bed_count,
-                           actual_bed_count,
-                           configured_bed_count,
-                           disabled_bed_count,
-                           available_bed_count,
-                           occupied_bed_count,
-                           occupancy_ratio
-                    FROM api.bed_occupancy
-                    """,
-                BuildKey: r => Key(
-                    Date(r, 0),
-                    Str(r, 1))),
-
-            ["clinical_pathway"] = new(
-                Sql: """
-                    SELECT pathway_id,
-                           pathway_code,
-                           pathway_name,
-                           icd10_codes,
-                           pathway_group_id,
-                           configured_treatment_days,
-                           pathway_sheet_count,
-                           distinct_protocol_day_count
-                    FROM api.clinical_pathway
-                    """,
-                BuildKey: r => Str(r, 0)),
-
-            ["medicine_stock"] = new(
-                Sql: """
-                    SELECT medicine_store_id,
-                           latest_log_date,
-                           stock_on_hand,
-                           opening_qty,
-                           log_count,
-                           total_approved_export
-                    FROM api.medicine_stock
-                    """,
-                BuildKey: r => Str(r, 0)),
-        };
-
-    public IReadOnlyCollection<string> SupportedViewNames => SupportedViews.Keys.ToArray();
-
-    // ── Key builder helpers ──────────────────────────────────────────────────
-    private static string Str(NpgsqlDataReader r, int i) =>
-        r.IsDBNull(i) ? "_" : (r.GetValue(i)?.ToString() ?? "_");
-
-    private static string Date(NpgsqlDataReader r, int i) =>
-        r.IsDBNull(i) ? "_" : r.GetFieldValue<DateTime>(i).ToString("yyyy-MM-dd");
-
-    private static string Key(params string[] parts) => string.Join("|", parts);
-
-    public async Task<SyncResult> SyncAsync(string viewName, CancellationToken ct)
+    public async Task<SyncResult> SyncAsync(Guid bindingId, CancellationToken ct)
     {
-        if (!SupportedViews.TryGetValue(viewName, out var meta))
-            throw new ArgumentException($"View '{viewName}' chưa được khai báo trong WarehouseViewSyncer.", nameof(viewName));
+        var binding = await bindings.GetByIdAsync(bindingId, ct)
+            ?? throw new ArgumentException($"ViewBinding '{bindingId}' không tồn tại.", nameof(bindingId));
 
-        var jobId  = $"sync-{viewName}-{DateTime.UtcNow:yyyyMMddHHmmss}";
-        var sw     = Stopwatch.StartNew();
-        var count  = 0;
+        if (!binding.IsActive)
+            throw new InvalidOperationException($"ViewBinding '{binding.ViewName}' đang Inactive.");
 
-        await using var conn = await warehouseDataSource.OpenConnectionAsync(ct);
-        await using var cmd  = new NpgsqlCommand(meta.Sql, conn);
+        return await SyncBindingAsync(binding, ct);
+    }
+
+    public async Task<List<SyncResult>> SyncAllActiveAsync(CancellationToken ct)
+    {
+        var actives = await bindings.ListActiveAsync(ct);
+        var results = new List<SyncResult>(actives.Count);
+
+        foreach (var b in actives)
+        {
+            try
+            {
+                results.Add(await SyncBindingAsync(b, ct));
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Sync failed for ViewBinding {ViewName} ({Id})", b.ViewName, b.Id);
+                results.Add(new SyncResult(b.Id, b.ViewName, 0, string.Empty, TimeSpan.Zero, ex.Message));
+            }
+        }
+
+        return results;
+    }
+
+    private async Task<SyncResult> SyncBindingAsync(ViewBinding b, CancellationToken ct)
+    {
+        var jobId = $"sync-{b.RecordType}-{DateTime.UtcNow:yyyyMMddHHmmss}";
+        var sw    = Stopwatch.StartNew();
+        var count = 0;
+
+        // SELECT * giữ nguyên column name của VIEW — payload raw cho DataMatching mapping.
+        var sql = $"SELECT * FROM {b.ViewName}";
+
+        await using var conn   = await warehouseDataSource.OpenConnectionAsync(ct);
+        await using var cmd    = new NpgsqlCommand(sql, conn);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
 
-        // Lấy column names 1 lần để build JSON payload
-        var fieldNames = Enumerable.Range(0, reader.FieldCount)
-            .Select(i => reader.GetName(i))
-            .ToArray();
+        var fieldNames    = Enumerable.Range(0, reader.FieldCount).Select(reader.GetName).ToArray();
+        var bizKeyOrdinal = SafeGetOrdinal(reader, b.BusinessKeyColumn)
+            ?? throw new InvalidOperationException(
+                $"Cột BusinessKey '{b.BusinessKeyColumn}' không có trong VIEW '{b.ViewName}'.");
 
         while (await reader.ReadAsync(ct))
         {
-            var businessKey = meta.BuildKey(reader);
-            var payload     = BuildPayloadJson(reader, fieldNames);
+            var businessKey   = reader.IsDBNull(bizKeyOrdinal)
+                ? string.Empty
+                : reader.GetValue(bizKeyOrdinal)?.ToString() ?? string.Empty;
+            var rawPayload    = BuildPayloadJson(reader, fieldNames);
 
-            await eventBus.PublishAsync(new LakehouseDataReadyIntegrationEvent(
-                JobId:        jobId,
-                Namespace:    viewName,
-                BusinessKey:  businessKey,
-                Payload:      payload,
-                DownloadUrl:  null,
-                TotalRecords: 1,
-                ProcessedAt:  DateTime.UtcNow), ct);
+            await eventBus.PublishAsync(new RawRecordIngestRequestedIntegrationEvent(
+                SourceSystem:   b.SourceSystem,
+                RecordType:     b.RecordType,
+                BusinessKey:    businessKey,
+                RawPayloadJson: rawPayload,
+                SourceJobId:    jobId), ct);
 
             count++;
         }
 
-        await syncState.UpsertAsync(viewName, count, jobId, ct);
+        await syncState.UpsertAsync(b.ViewName, count, jobId, ct);
         sw.Stop();
 
         logger.LogInformation(
-            "Warehouse sync {View}: {Count} rows published in {Ms} ms (job {JobId})",
-            viewName, count, sw.ElapsedMilliseconds, jobId);
+            "Warehouse sync {View} ({Source}/{Type}): {Count} rows in {Ms} ms (job {JobId})",
+            b.ViewName, b.SourceSystem, b.RecordType, count, sw.ElapsedMilliseconds, jobId);
 
-        return new SyncResult(viewName, count, jobId, sw.Elapsed);
+        return new SyncResult(b.Id, b.ViewName, count, jobId, sw.Elapsed, null);
+    }
+
+    private static int? SafeGetOrdinal(NpgsqlDataReader r, string columnName)
+    {
+        try { return r.GetOrdinal(columnName); }
+        catch (IndexOutOfRangeException) { return null; }
     }
 
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
-        WriteIndented = false,
+        WriteIndented          = false,
         DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.Never,
     };
 
@@ -192,22 +117,18 @@ public sealed class WarehouseViewSyncer(
     {
         var dict = new Dictionary<string, object?>(r.FieldCount);
         for (var i = 0; i < r.FieldCount; i++)
-        {
             dict[fieldNames[i]] = r.IsDBNull(i) ? null : NormalizeValue(r.GetValue(i));
-        }
         return JsonSerializer.Serialize(dict, JsonOpts);
     }
 
     private static object? NormalizeValue(object value) => value switch
     {
-        DateTime dt => dt.ToString("o"),                          // ISO 8601
+        DateTime dt        => dt.ToString("o"),
         DateTimeOffset dto => dto.ToString("o"),
-        DateOnly d => d.ToString("yyyy-MM-dd"),
-        TimeSpan ts => ts.ToString(),
-        Guid g => g.ToString(),
-        byte[] bytes => Convert.ToBase64String(bytes),
-        _ => value
+        DateOnly d         => d.ToString("yyyy-MM-dd"),
+        TimeSpan ts        => ts.ToString(),
+        Guid g             => g.ToString(),
+        byte[] bytes       => Convert.ToBase64String(bytes),
+        _                  => value
     };
-
-    private sealed record ViewMeta(string Sql, Func<NpgsqlDataReader, string> BuildKey);
 }

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using FluentValidation;
 using Hdos.DataMatchingService.Application.DTOs;
+using Hdos.DataMatchingService.Application.Services;
 using Hdos.DataMatchingService.Domain.Entities;
 using Hdos.DataMatchingService.Domain.Repositories;
 using Hdos.SharedKernel;
@@ -31,38 +32,26 @@ public sealed class IngestFileValidator : AbstractValidator<IngestFileCommand>
 }
 
 public sealed class IngestFileHandler(
-    ISourceProfileRepository profiles,
+    IIngestCoreService core,
     IStagingRecordRepository records,
     IDataMatchingUnitOfWork uow)
     : IRequestHandler<IngestFileCommand, Result<IngestBatchResultDto>>
 {
     public async Task<Result<IngestBatchResultDto>> Handle(IngestFileCommand request, CancellationToken ct)
     {
-        var profile = await profiles.GetBySystemAndTypeAsync(request.SourceSystem, request.RecordType, ct);
-        if (profile is null)
-            return Result.Failure<IngestBatchResultDto>(
-                Error.NotFound($"SourceProfile '{request.SourceSystem}/{request.RecordType}' not found."));
-
-        var mappings = profile.GetMappings();
         var rawJsonStrings = ParseFile(request.FileStream, request.FileName);
         var stagingRecords = new List<StagingRecord>();
 
         foreach (var rawJson in rawJsonStrings)
         {
-            var canonicalPayload = IngestJsonHandler.ApplyMappings(rawJson, mappings);
-            var businessKey = request.BusinessKeyOverride
-                ?? IngestJsonHandler.ExtractBusinessKey(canonicalPayload, profile.BusinessKeyField);
-            var payloadHash = IngestJsonHandler.ComputeHash(rawJson);
+            var built = await core.TryBuildRecordAsync(
+                request.SourceSystem, request.RecordType, rawJson, request.BusinessKeyOverride, ct);
 
-            if (await records.ExistsHashAsync(payloadHash, ct)) continue;
+            if (built.IsFailure)
+                return Result.Failure<IngestBatchResultDto>(built.Error);
 
-            stagingRecords.Add(StagingRecord.Receive(
-                request.SourceSystem,
-                request.RecordType,
-                rawJson,
-                canonicalPayload,
-                businessKey,
-                payloadHash));
+            if (built.Value is { } record)
+                stagingRecords.Add(record);
         }
 
         if (stagingRecords.Count > 0)

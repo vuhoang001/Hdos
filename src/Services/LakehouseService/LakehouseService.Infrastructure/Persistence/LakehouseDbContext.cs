@@ -6,7 +6,7 @@ namespace Hdos.LakehouseService.Infrastructure.Persistence;
 
 public sealed class LakehouseDbContext(DbContextOptions<LakehouseDbContext> options) : DbContext(options)
 {
-    public DbSet<LakehouseSnapshot> Snapshots => Set<LakehouseSnapshot>();
+    public DbSet<ViewBinding> ViewBindings => Set<ViewBinding>();
     public DbSet<SyncState> WarehouseSyncStates => Set<SyncState>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

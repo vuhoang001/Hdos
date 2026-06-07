@@ -489,6 +489,64 @@ Không cần sửa frontend. Chỉ cần:
 
 ---
 
+## Lakehouse view as source (Phase 2)
+
+Từ doc 44 — Unified Ingest Pipeline, dữ liệu từ lakehouse PostgreSQL view cũng chảy vào `/dm/records/{id}` thay vì endpoint riêng. Flow giống hệt HIS/BHYT, chỉ khác bước **publish event** (LakehouseService poll view → publish `RawRecordIngestRequestedIntegrationEvent` → DataMatching consume).
+
+**Quy trình đăng ký 1 source lakehouse:**
+
+```
+[1] DE: cấp VIEW + GRANT SELECT hdos_reader   (xem doc 43)
+
+[2] BE/Admin: đăng ký SourceProfile (mapping field DB → canonical)
+    POST /dm/sources
+    {
+      "sourceSystem":     "lakehouse:v_lab_results_v1",
+      "recordType":       "lab-result",
+      "businessKeyField": "MaBenhNhan",
+      "mappings": {
+        "business_key": "MaBenhNhan",
+        "hba1c":        "HbA1c",
+        "blood_glucose":"Glucose",
+        ...
+      }
+    }
+
+[3] BE/Admin: đăng ký ViewBinding (view → SourceProfile)
+    POST /lakehouse/view-bindings
+    {
+      "viewName":           "warehouse.v_lab_results_v1",
+      "sourceSystem":       "lakehouse:v_lab_results_v1",
+      "recordType":         "lab-result",
+      "businessKeyColumn":  "business_key",
+      "updatedAtColumn":    "updated_at",
+      "pollIntervalSeconds":300
+    }
+
+[4] WarehousePollerWorker tự pick up → record xuất hiện ở /dm/records/...
+
+[5] Auto-generate form (giống hệt bước 2.1 ở "PHẦN 2" phía trên):
+    POST /forms/admin/generate-from-source
+    {
+      "moduleCode": "lab",
+      "screenCode": "lab-result-detail",
+      "dataSource": {
+        "namespace":      "record",
+        "resourcePath":   "/dm/records/{recordId}",
+        "requiredParams": ["recordId"]
+      },
+      "fields": [...]
+    }
+
+[6] Frontend dùng ngay — KHÔNG cần code FE mới:
+    <DynamicFormScreen moduleCode="lab" screenCode="lab-result-detail"
+                       routeParams={{ recordId }} />
+```
+
+**Điểm quan trọng:** mọi source — HIS REST push, BHYT file, lakehouse view, API ngoài — đều hiển thị qua **cùng một `<DynamicFormScreen>` component** với cùng DataSource `/dm/records/{id}`. FE không có if-branch theo source. Xem doc 44 mục 5 (Phân chia trách nhiệm) và mục 7 (Cách thêm source mới).
+
+---
+
 ## Checklist để chạy
 
 ```

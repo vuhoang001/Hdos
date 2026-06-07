@@ -1,12 +1,19 @@
-# 43 — Warehouse Sync → Lakehouse Pattern
+# 43 — Warehouse Sync → DataMatching Pattern
 
-> Tài liệu mô phỏng đầy đủ cách **kéo dữ liệu từ Data Warehouse external** (Postgres) vào `LakehouseService` của Hdos, và **phân chia trách nhiệm rõ ràng giữa team Data Engineering (DE) và team Backend (BE)**.
+> ⚠️ **STATUS — Updated cho Phase 2 (Unified Ingest).**
+> Trước đây pattern này publish vào `LakehouseDataReadyIntegrationEvent` → lưu `LakehouseSnapshot`. Từ Phase 2 (xem [doc 44](./44-unified-ingest-pipeline.md)), `WarehouseViewSyncer` publish **`RawRecordIngestRequestedIntegrationEvent`** → DataMatching apply `SourceProfile` mapping → `StagingRecord`. Toàn bộ pattern poll-from-warehouse vẫn nguyên, chỉ đổi destination.
+>
+> Tài liệu này đã được cập nhật. Code sample, checklist và verify steps đều trỏ về pipeline mới.
+
+---
+
+> Tài liệu mô phỏng đầy đủ cách **kéo dữ liệu từ Data Warehouse external** (Postgres) vào pipeline **DataMatchingService** của Hdos qua LakehouseService làm Source Provider, và **phân chia trách nhiệm rõ ràng giữa team Data Engineering (DE) và team Backend (BE)**.
 
 **Áp dụng cho:** Hệ thống đã có sẵn data warehouse (Postgres / SQL Server) chứa data đã được lakehouse pipeline xử lý. Bây giờ muốn đẩy data đó vào Hdos để FE render qua DynForm.
 
 **Không áp dụng cho:**
 - Realtime CDC streaming (xem doc 22)
-- Producer là người ngoài tự push vào RabbitMQ (xem doc 39 — Lakehouse service phase 1)
+- Producer là người ngoài tự push vào RabbitMQ với schema cố định (xem doc 39 — Lakehouse service Phase 1 legacy)
 
 ---
 
@@ -77,27 +84,35 @@ Câu hỏi: **làm sao Hdos lấy data từ warehouse → cho FE?**
 │                                                                      │
 │  ┌──────────────────────────────┐                                   │
 │  │ WarehousePollerWorker        │ ◄── BE viết (BackgroundService)   │
-│  │ (LakehouseService.Infra/Sync)│                                   │
+│  │ (LakehouseService.Infra/Sync)│     Source Provider role           │
+│  │  + ViewBinding registry      │                                   │
 │  └──────────┬───────────────────┘                                   │
-│             │ publish IntegrationEvent                              │
+│             │ publish RawRecordIngestRequestedIntegrationEvent      │
 │             ▼                                                        │
 │         RabbitMQ                                                    │
 │             │                                                        │
 │             ▼                                                        │
 │  ┌──────────────────────────────┐                                   │
-│  │ LakehouseService (đã có sẵn) │                                   │
-│  │  - Consumer                  │                                   │
-│  │  - LakehouseSnapshots Postgres                                   │
-│  │  - REST /lakehouse/...       │                                   │
+│  │ DataMatchingService          │                                   │
+│  │  - RawRecordIngestRequested  │                                   │
+│  │    Consumer                  │                                   │
+│  │  - SourceProfile mapping     │                                   │
+│  │    (raw → canonical)         │                                   │
+│  │  - SHA-256 dedup             │                                   │
+│  │  - StagingRecord Postgres    │                                   │
+│  │  - REST /dm/records/{id}     │                                   │
 │  └──────────┬───────────────────┘                                   │
 │             │                                                        │
 │             ▼                                                        │
 │  ┌──────────────────────────────┐                                   │
 │  │ DynForm Screen DataSource    │                                   │
+│  │  /dm/records/{id} (unified)  │                                   │
 │  │ → FE render form pre-filled  │                                   │
 │  └──────────────────────────────┘                                   │
 └──────────────────────────────────────────────────────────────────────┘
 ```
+
+> **Khác biệt so với phiên bản trước:** đích đến của `WarehousePollerWorker` không còn là `LakehouseSnapshots` table — mà publish vào DataMatching qua event `RawRecordIngestRequestedIntegrationEvent`. DataMatching áp `SourceProfile` mapping → canonical fields → FE binding qua `/dm/records/{id}` thống nhất với mọi source khác. Xem [doc 44](./44-unified-ingest-pipeline.md) mục 2.
 
 ### 1.3 Vì sao pattern này tốt
 
@@ -348,7 +363,10 @@ public sealed record SyncResult(int RecordsProcessed, DateTime? NewLastSyncedAt)
 
 #### File 2: `Sync/WarehouseSyncer.cs`
 
+> Phase 2 — đọc `ViewBinding` registry (không hardcode view name), publish `RawRecordIngestRequestedIntegrationEvent` (xem doc 44 mục 3). Raw payload đúng nguyên cấu trúc cột của VIEW — DataMatching `SourceProfile` sẽ mapping sang canonical field.
+
 ```csharp
+using System.Text.Json;
 using Hdos.Common.Messaging;
 using Hdos.Contracts.IntegrationEvents;
 using Microsoft.Extensions.Logging;
@@ -357,85 +375,90 @@ using Npgsql;
 namespace Hdos.LakehouseService.Infrastructure.Sync;
 
 public sealed class WarehouseSyncer(
-    NpgsqlDataSource warehouseDataSource,
-    IEventBus eventBus,
-    ISyncStateRepository syncState,
-    ILogger<WarehouseSyncer> logger) : IWarehouseSyncer
+    NpgsqlDataSource          warehouseDataSource,
+    IEventBus                 eventBus,
+    ISyncStateRepository      syncState,
+    IViewBindingRepository    bindings,
+    ILogger<WarehouseSyncer>  logger) : IWarehouseSyncer
 {
-    private const string Namespace = "lab-results";
-    private const int    BatchSize = 1000;
-
-    private const string Sql = """
-        SELECT business_key,
-               hba1c,
-               blood_glucose,
-               bmi,
-               avg_hba1c_30d,
-               measurement_count_30d,
-               last_measured_at,
-               updated_at
-        FROM warehouse.v_lab_results_v1
-        WHERE updated_at > @lastSync
-        ORDER BY updated_at
-        LIMIT @batchSize;
-        """;
+    private const int BatchSize = 1000;
 
     public async Task<SyncResult> SyncAsync(CancellationToken ct)
     {
-        var lastSync = await syncState.GetLastSyncAtAsync(Namespace, ct);
-        var jobId    = $"sync-{Namespace}-{DateTime.UtcNow:yyyyMMddHHmmss}";
+        var total = 0;
+        var actives = await bindings.GetActiveAsync(ct);
+
+        foreach (var binding in actives)
+            total += await SyncBindingAsync(binding, ct);
+
+        return new SyncResult(total, DateTime.UtcNow);
+    }
+
+    private async Task<int> SyncBindingAsync(ViewBinding b, CancellationToken ct)
+    {
+        var lastSync = await syncState.GetLastSyncAtAsync(b.SourceSystem, ct);
+        var jobId    = $"sync-{b.RecordType}-{DateTime.UtcNow:yyyyMMddHHmmss}";
+
+        // SELECT * giữ nguyên column name của VIEW — payload raw cho DataMatching mapping.
+        var sql = $"""
+            SELECT *
+            FROM {b.ViewName}
+            WHERE {b.UpdatedAtColumn} > @lastSync
+            ORDER BY {b.UpdatedAtColumn}
+            LIMIT @batchSize;
+            """;
 
         await using var conn = await warehouseDataSource.OpenConnectionAsync(ct);
-        await using var cmd  = new NpgsqlCommand(Sql, conn);
+        await using var cmd  = new NpgsqlCommand(sql, conn);
         cmd.Parameters.AddWithValue("lastSync",  lastSync);
         cmd.Parameters.AddWithValue("batchSize", BatchSize);
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
 
-        var count       = 0;
-        DateTime? maxUpdated = null;
+        var count        = 0;
+        DateTime? maxUpd = null;
+        var updatedAtOrdinal = reader.GetOrdinal(b.UpdatedAtColumn);
+        var bizKeyOrdinal    = reader.GetOrdinal(b.BusinessKeyColumn);
 
         while (await reader.ReadAsync(ct))
         {
-            var businessKey = reader.GetString(0);
-            var payload     = BuildPayloadJson(reader);
-            var updatedAt   = reader.GetDateTime(7);
+            var businessKey   = reader.GetValue(bizKeyOrdinal)?.ToString() ?? string.Empty;
+            var rawPayloadJson = BuildRowJson(reader);
+            var updatedAt     = reader.GetDateTime(updatedAtOrdinal);
 
-            await eventBus.PublishAsync(new LakehouseDataReadyIntegrationEvent(
-                JobId:        jobId,
-                Namespace:    Namespace,
-                BusinessKey:  businessKey,
-                Payload:      payload,
-                DownloadUrl:  null,
-                TotalRecords: 1,
-                ProcessedAt:  updatedAt), ct);
+            await eventBus.PublishAsync(new RawRecordIngestRequestedIntegrationEvent(
+                SourceSystem:   b.SourceSystem,
+                RecordType:     b.RecordType,
+                BusinessKey:    businessKey,
+                RawPayloadJson: rawPayloadJson,
+                SourceJobId:    jobId), ct);
+            // CorrelationId + OccurredOnUtc kế thừa từ IntegrationEvent base, MassTransitEventBus tự set.
 
             count++;
-            if (maxUpdated is null || updatedAt > maxUpdated) maxUpdated = updatedAt;
+            if (maxUpd is null || updatedAt > maxUpd) maxUpd = updatedAt;
         }
 
-        if (maxUpdated is { } newLastSync)
-            await syncState.SaveLastSyncAtAsync(Namespace, newLastSync, ct);
+        if (maxUpd is { } newLastSync)
+            await syncState.SaveLastSyncAtAsync(b.SourceSystem, newLastSync, ct);
 
         logger.LogInformation(
-            "Warehouse sync {Namespace}: {Count} records, lastSync {Old} → {New}",
-            Namespace, count, lastSync, maxUpdated);
+            "Warehouse sync {View} ({Source}/{Type}): {Count} records, lastSync {Old} → {New}",
+            b.ViewName, b.SourceSystem, b.RecordType, count, lastSync, maxUpd);
 
-        return new SyncResult(count, maxUpdated);
+        return count;
     }
 
-    private static string BuildPayloadJson(NpgsqlDataReader r) =>
-        System.Text.Json.JsonSerializer.Serialize(new
-        {
-            hbA1c               = r.IsDBNull(1) ? null : (decimal?)r.GetDecimal(1),
-            bloodGlucose        = r.IsDBNull(2) ? null : (decimal?)r.GetDecimal(2),
-            bmi                 = r.IsDBNull(3) ? null : (decimal?)r.GetDecimal(3),
-            avgHbA1c30d         = r.IsDBNull(4) ? null : (decimal?)r.GetDecimal(4),
-            measurementCount30d = r.GetInt32(5),
-            lastMeasuredAt      = r.GetDateTime(6),
-        });
+    private static string BuildRowJson(NpgsqlDataReader r)
+    {
+        var dict = new Dictionary<string, object?>();
+        for (var i = 0; i < r.FieldCount; i++)
+            dict[r.GetName(i)] = r.IsDBNull(i) ? null : r.GetValue(i);
+        return JsonSerializer.Serialize(dict);
+    }
 }
 ```
+
+> **So với phiên bản cũ:** không còn `const string Namespace`, không còn `BuildPayloadJson` camelCase. Payload giữ nguyên column name (`business_key`, `hba1c`, ...) và DataMatching `SourceProfile.mappings` mới là nơi rename sang canonical (`MaBenhNhan`, `HbA1c`, ...). Điều này cho phép admin sửa mapping mà không deploy code.
 
 #### File 3: `Sync/WarehousePollerWorker.cs`
 
@@ -569,6 +592,33 @@ lakehouseservice:
 ### 3.4 HTTP test end-to-end
 
 ```bash
+# 0. Tạo SourceProfile + ViewBinding (1 lần / admin):
+curl -k -X POST https://localhost:8443/dm/sources \
+  -H "Content-Type: application/json" -d '{
+    "sourceSystem":     "lakehouse:v_lab_results_v1",
+    "recordType":       "lab-result",
+    "displayName":      "Lab Results — Warehouse v1",
+    "businessKeyField": "MaBenhNhan",
+    "mappings": {
+      "business_key":     "MaBenhNhan",
+      "hba1c":            "HbA1c",
+      "blood_glucose":    "Glucose",
+      "bmi":              "BMI",
+      "avg_hba1c_30d":    "HbA1cTrungBinh30Ngay",
+      "last_measured_at": "NgayDoGanNhat"
+    }
+  }'
+
+curl -k -X POST https://localhost:8443/lakehouse/view-bindings \
+  -H "Content-Type: application/json" -d '{
+    "viewName":            "warehouse.v_lab_results_v1",
+    "sourceSystem":        "lakehouse:v_lab_results_v1",
+    "recordType":          "lab-result",
+    "businessKeyColumn":   "business_key",
+    "updatedAtColumn":     "updated_at",
+    "pollIntervalSeconds": 300
+  }'
+
 # 1. Seed thêm 5 row mới vào warehouse (giả lập DE pipeline chạy)
 docker exec warehouse-postgres psql -U warehouse_admin -d warehouse -c "
   INSERT INTO warehouse.fact_lab_results (business_key, hba1c, blood_glucose, weight_kg, height_m, measured_at)
@@ -581,10 +631,11 @@ docker compose restart lakehouseservice
 
 # 3. Xem log để chắc sync chạy thành công
 docker compose logs lakehouseservice | grep "Warehouse sync"
-# → Warehouse sync lab-results: 5 records, lastSync ... → ...
+# → Warehouse sync warehouse.v_lab_results_v1 (lakehouse:v_lab_results_v1/lab-result):
+#   5 records, lastSync ... → ...
 
-# 4. Query LakehouseService REST → verify data đã sync
-curl -k "https://localhost:8443/lakehouse/snapshots/latest?namespace=lab-results&key=BN-9999"
+# 4. Verify ở DataMatching (đợi ≤ 30s để MatchingWorker xử lý)
+curl -k "https://localhost:8443/dm/records?sourceSystem=lakehouse:v_lab_results_v1&recordType=lab-result"
 ```
 
 Response mong đợi:
@@ -592,45 +643,56 @@ Response mong đợi:
 ```json
 {
   "success": true,
-  "data": {
-    "id": "...",
-    "namespace": "lab-results",
-    "businessKey": "BN-9999",
-    "payload": "{\"hbA1c\":8.5,\"bloodGlucose\":180,\"bmi\":26.0,\"avgHbA1c30d\":8.5,\"measurementCount30d\":5,\"lastMeasuredAt\":\"...\"}",
-    "jobId": "sync-lab-results-...",
-    "receivedAt": "..."
-  }
+  "data": [
+    {
+      "id":           "...",
+      "sourceSystem": "lakehouse:v_lab_results_v1",
+      "recordType":   "lab-result",
+      "businessKey":  "BN-9999",
+      "canonicalPayload": {
+        "MaBenhNhan":            "BN-9999",
+        "HbA1c":                 8.5,
+        "Glucose":               180,
+        "BMI":                   26.0,
+        "HbA1cTrungBinh30Ngay":  8.5,
+        "NgayDoGanNhat":         "..."
+      },
+      "status": "Matched"
+    }
+  ]
 }
 ```
 
 ### 3.5 Tích hợp DynForm
 
-Tạo Screen mới trỏ vào lakehouse:
+Tạo Screen + auto-generate form (xem doc 36 mục "Auto-generate giao diện"). DataSource trỏ `/dm/records/{recordId}` — **giống hệt** với DataMatching từ HIS:
 
 ```bash
-# Tạo Screen "Hồ sơ bệnh nhân"
-curl -k -X POST https://localhost:8443/forms/admin/screens \
-  -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" \
-  -d '{"moduleCode":"m01","code":"ho-so-bn","title":"Hồ sơ bệnh nhân","sortOrder":0}'
+curl -k -X POST https://localhost:8443/forms/admin/generate-from-source \
+  -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{
+    "moduleCode":  "lab",
+    "screenCode":  "lab-result-detail",
+    "screenTitle": "Chi tiết xét nghiệm",
+    "formKey":     "lab-result-form",
+    "dataSource": {
+      "namespace":      "record",
+      "serviceId":      "datamatch",
+      "resourcePath":   "/dm/records/{recordId}",
+      "requiredParams": ["recordId"]
+    },
+    "fields": [
+      { "canonicalKey": "MaBenhNhan", "label": "Mã bệnh nhân", "fieldType": "Text" },
+      { "canonicalKey": "HbA1c",      "label": "HbA1c",        "fieldType": "Number" },
+      { "canonicalKey": "Glucose",    "label": "Glucose",      "fieldType": "Number" },
+      { "canonicalKey": "BMI",        "label": "BMI",          "fieldType": "Number" }
+    ]
+  }'
 
-# Khai báo DataSource trỏ vào LakehouseService
-curl -k -X PUT https://localhost:8443/forms/admin/screens/m01/ho-so-bn/data-sources \
-  -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" \
-  -d '[{
-    "namespace": "labResults",
-    "serviceId": "lakehouseservice",
-    "resourcePath": "/lakehouse/snapshots/latest?namespace=lab-results&key={maBN}",
-    "requiredParams": ["maBN"]
-  }]'
-
-# Tạo form + thêm field bind expression
-# (Thêm các field key=hba1c, bmi với dataBindingExpression={{sources.labResults.hbA1c}})
-
-# Verify layout response
-curl -k "https://localhost:8443/forms/screens/m01/ho-so-bn/layout"
+# FE mở /lab/lab-result-detail/{recordId} → form pre-fill ngay.
+# Binding expression: {{sources.record.HbA1c}} (namespace "record" thống nhất).
 ```
 
-FE giờ chỉ cần truyền `maBN=BN-9999` qua route → form tự pre-fill.
+> **Khác biệt so với Phase 1:** không còn endpoint `/lakehouse/snapshots/latest`, không còn `namespace=labResults`. Mọi screen — dù data đến từ HIS, BHYT hay lakehouse — đều dùng cùng 1 DataSource shape: `/dm/records/{recordId}`. FE không có if-branch theo source.
 
 ---
 
@@ -979,25 +1041,30 @@ DE                                          BE
 ```
 [ ] Đọc VIEW spec từ DE
 [ ] Thêm ConnectionStrings__Warehouse vào appsettings + docker-compose env
+[ ] Thêm RawRecordIngestRequestedIntegrationEvent vào BuildingBlocks/Contracts
+[ ] DataMatching: thêm IIngestCoreService + RawRecordIngestRequestedConsumer (xem doc 44 §3+§5)
+[ ] LakehouseService: tạo ViewBinding entity + repo + CRUD endpoint (doc 44 §4)
 [ ] Tạo folder LakehouseService.Infrastructure/Sync/
-    [ ] IWarehouseSyncer + WarehouseSyncer
+    [ ] IWarehouseSyncer + WarehouseSyncer (publish RawRecordIngestRequested)
     [ ] WarehousePollerWorker (BackgroundService)
     [ ] ISyncStateRepository + SyncStateRepository
     [ ] DI extension AddWarehouseSync()
-[ ] Thêm DbSet<SyncState> vào LakehouseDbContext + EF migration
+[ ] Thêm DbSet<SyncState> + DbSet<ViewBinding> vào LakehouseDbContext + EF migration
 [ ] Thêm WarehouseViewHealthCheck — smoke test khi startup
 [ ] Thêm Prometheus metrics:
-    [ ] lakehouse_warehouse_synced_rows_total{namespace}
-    [ ] lakehouse_warehouse_sync_duration_seconds{namespace}
+    [ ] lakehouse_warehouse_synced_rows_total{source_system,record_type}
+    [ ] lakehouse_warehouse_sync_duration_seconds{source_system,record_type}
 [ ] Test integration:
-    [ ] Seed thêm row vào warehouse → đợi 5 phút → GET /lakehouse/snapshots/latest → verify
-[ ] Tạo DynForm DataSource trỏ vào /lakehouse/snapshots/latest
-[ ] Tạo Form + Field với expression {{sources.labResults.X}}
+    [ ] Đăng ký SourceProfile + ViewBinding qua REST
+    [ ] Seed thêm row vào warehouse → đợi 5 phút → GET /dm/records?sourceSystem=... → verify
+[ ] Tạo DynForm DataSource trỏ /dm/records/{recordId} (xem doc 36)
+[ ] Tạo Form + Field với expression {{sources.record.X}}
 [ ] FE/Postman verify pre-fill thành công
 [ ] Setup Grafana alert:
     [ ] No-sync trong 30 phút → warning
     [ ] Sync duration P95 > 30s → warning
-[ ] Document trong README service: "warehouse sync chạy mỗi 5 phút"
+    [ ] DataMatching queue depth > 10000 → warning (consumer behind)
+[ ] Document trong README service: "warehouse sync chạy mỗi 5 phút, publish vào DataMatching"
 ```
 
 ---
@@ -1049,17 +1116,20 @@ Nếu VIEW phức tạp → đề xuất MV (materialized view).
 
 ### Lỗi 5: Duplicate event — cùng business_key publish nhiều lần
 
-Bình thường — vì `updated_at` warehouse có thể thay đổi nhiều lần. `LakehouseService` consumer phải **idempotent** — upsert theo `(namespace, business_key)`, không insert mới mỗi lần.
+Bình thường — vì `updated_at` warehouse có thể thay đổi nhiều lần. `DataMatchingService` consumer dedup bằng **SHA-256 của raw payload** (xem `IngestJsonHandler.ComputeHash`):
 
-Check `LakehouseSnapshots` table:
+- Raw payload **giống hệt** lần publish trước → consumer trả `Error.Conflict("Duplicate payload")`. Phải **ack** message (không nack), nếu không sẽ retry vô tận.
+- Raw payload **khác** dù chỉ 1 field → record mới được tạo (versioning theo hash).
+
+Check duplicate ở DataMatching DB:
 ```sql
 SELECT business_key, COUNT(*)
-FROM "LakehouseSnapshots"
-WHERE namespace = 'lab-results'
-GROUP BY business_key HAVING COUNT(*) > 1;
+FROM staging_records
+WHERE source_system = 'lakehouse:v_lab_results_v1'
+GROUP BY business_key HAVING COUNT(*) > 5;   -- > 5 versions = đáng nghi
 ```
 
-Nếu có duplicate → fix consumer logic (`MERGE` thay vì `INSERT`).
+Nếu count cao bất thường → kiểm tra VIEW có column nào thay đổi nhỏ-nhỏ liên tục không (VD: `updated_at` chính nó). Loại trừ trong `SourceProfile.mappings` để dedup hit nhiều hơn.
 
 ---
 
@@ -1088,25 +1158,46 @@ sql/warehouse/                                    ← DE viết
 └── specs/
     └── v_lab_results_v1.md
 
+src/BuildingBlocks/Contracts/IntegrationEvents/   ← Phase 2 mới
+└── RawRecordIngestRequestedIntegrationEvent.cs   ← MỚI (doc 44 §3)
+
+src/Services/DataMatchingService/                 ← Phase 2 mới
+├── DataMatchingService.Application/
+│   └── Services/
+│       ├── IIngestCoreService.cs                 ← MỚI (tách từ IngestJsonHandler)
+│       └── IngestCoreService.cs                  ← MỚI
+└── DataMatchingService.Infrastructure/
+    └── Messaging/Consumers/
+        └── RawRecordIngestRequestedConsumer.cs   ← MỚI
+
 src/Services/LakehouseService/                    ← BE viết
+├── LakehouseService.Domain/
+│   ├── Entities/ViewBinding.cs                  ← MỚI (doc 44 §4)
+│   └── Repositories/IViewBindingRepository.cs   ← MỚI
+├── LakehouseService.Application/
+│   └── Features/ViewBindings/                   ← MỚI — CRUD commands/queries
 ├── LakehouseService.Infrastructure/
-│   ├── Sync/                                    ← MỚI
+│   ├── Sync/
 │   │   ├── IWarehouseSyncer.cs
-│   │   ├── WarehouseSyncer.cs
+│   │   ├── WarehouseSyncer.cs                    ← publish RawRecordIngestRequested
 │   │   ├── WarehousePollerWorker.cs
 │   │   ├── ISyncStateRepository.cs
 │   │   ├── SyncStateRepository.cs
 │   │   ├── WarehouseViewHealthCheck.cs
 │   │   └── WarehouseSyncRegistration.cs
 │   └── Persistence/
-│       ├── LakehouseDbContext.cs                ← THÊM DbSet<SyncState>
+│       ├── LakehouseDbContext.cs                ← DbSet<SyncState>, DbSet<ViewBinding>
+│       ├── Configurations/ViewBindingConfiguration.cs  ← MỚI
+│       ├── Repositories/ViewBindingRepository.cs       ← MỚI
 │       └── Migrations/
-│           └── 2026MMDD_AddSyncState.cs         ← MỚI
+│           └── 2026MMDD_AddViewBindings.cs       ← MỚI
 └── LakehouseService.API/
-    └── Program.cs                               ← THÊM AddWarehouseSync()
+    ├── Controllers/ViewBindingsController.cs    ← MỚI
+    └── Program.cs                               ← AddWarehouseSync()
 
 docker-compose.yml                               ← THÊM env ConnectionStrings__Warehouse
 docs/43-warehouse-sync-to-lakehouse.md           ← Tài liệu này
+docs/44-unified-ingest-pipeline.md               ← Doc kiến trúc Phase 2
 ```
 
 ---
@@ -1116,6 +1207,7 @@ docs/43-warehouse-sync-to-lakehouse.md           ← Tài liệu này
 - [22 — CDC với Debezium + Kafka](./22-cdc-debezium-kafka.md) — Realtime alternative
 - [23 — DataMatchingService](./23-data-matching-service.md) — Provider khác cho DynForm
 - [35 — Expression Data Binding](./35-expression-data-binding.md) — Cách DynForm bind data
-- [36 — DataMatch → DynForm Flow](./36-datamatch-to-dynform-flow.md) — Pattern tương tự với DataMatching
-- [39 — LakehouseService](./39-lakehouse-service.md) — Tổng quan service consume event
+- [36 — DataMatch → DynForm Flow](./36-datamatch-to-dynform-flow.md) — Auto-generate form từ source
+- [39 — LakehouseService](./39-lakehouse-service.md) — Phase 1 (legacy snapshot path)
 - [41 — Loose Coupling Architecture](./41-loose-coupling-architecture.md) — Provider Catalog cho DynForm
+- [44 — Unified Ingest Pipeline](./44-unified-ingest-pipeline.md) — **Kiến trúc đích cho Phase 2 (file này hỗ trợ implement)**

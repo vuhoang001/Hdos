@@ -1,8 +1,6 @@
 using Hdos.Common.Extensions;
-using Hdos.LakehouseService.Domain.Repositories;
 using Hdos.LakehouseService.Infrastructure.Consumers;
 using Hdos.LakehouseService.Infrastructure.Persistence;
-using Hdos.LakehouseService.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,11 +18,9 @@ public static class DependencyInjection
                 configuration.GetConnectionString("LakehouseDb"),
                 pg => pg.MigrationsAssembly(typeof(LakehouseDbContext).Assembly.FullName)));
 
-        services.AddScoped<ILakehouseSnapshotRepository, LakehouseSnapshotRepository>();
-
         services.AddMassTransitMessaging(configuration, x =>
         {
-            x.AddConsumer<LakehouseDataReadyConsumer>();
+            // DE pipeline báo "data ready" → trigger sync các ViewBinding tương ứng (doc 44 §6).
             x.AddConsumer<WarehouseRefreshedConsumer>();
         }, servicePrefix: "lh",
            externalConsumersAssembly: typeof(DependencyInjection).Assembly);

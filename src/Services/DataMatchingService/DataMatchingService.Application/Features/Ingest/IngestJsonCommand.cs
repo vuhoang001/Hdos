@@ -1,9 +1,7 @@
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using FluentValidation;
 using Hdos.DataMatchingService.Application.DTOs;
-using Hdos.DataMatchingService.Domain.Entities;
+using Hdos.DataMatchingService.Application.Services;
 using Hdos.DataMatchingService.Domain.Repositories;
 using Hdos.SharedKernel;
 using MediatR;
@@ -35,77 +33,27 @@ public sealed class IngestJsonValidator : AbstractValidator<IngestJsonCommand>
 }
 
 public sealed class IngestJsonHandler(
-    ISourceProfileRepository profiles,
+    IIngestCoreService core,
     IStagingRecordRepository records,
     IDataMatchingUnitOfWork uow)
     : IRequestHandler<IngestJsonCommand, Result<IngestResultDto>>
 {
     public async Task<Result<IngestResultDto>> Handle(IngestJsonCommand request, CancellationToken ct)
     {
-        // Tìm profile theo (sourceSystem, recordType) — mỗi loại tài liệu có mapping riêng.
-        var profile = await profiles.GetBySystemAndTypeAsync(request.SourceSystem, request.RecordType, ct);
-        if (profile is null)
-            return Result.Failure<IngestResultDto>(
-                Error.NotFound($"SourceProfile '{request.SourceSystem}/{request.RecordType}' not found."));
+        var built = await core.TryBuildRecordAsync(
+            request.SourceSystem, request.RecordType, request.RawPayload, request.BusinessKeyOverride, ct);
 
-        var mappings       = profile.GetMappings();
-        var canonicalPayload = ApplyMappings(request.RawPayload, mappings);
-        var businessKey    = request.BusinessKeyOverride
-                             ?? ExtractBusinessKey(canonicalPayload, profile.BusinessKeyField);
-        var payloadHash    = ComputeHash(request.RawPayload);
+        if (built.IsFailure)
+            return Result.Failure<IngestResultDto>(built.Error);
 
-        if (await records.ExistsHashAsync(payloadHash, ct))
+        var record = built.Value;
+        if (record is null)
             return Result.Failure<IngestResultDto>(
                 Error.Conflict("Duplicate payload: a record with this exact content already exists."));
-
-        var record = StagingRecord.Receive(
-            request.SourceSystem,
-            request.RecordType,
-            request.RawPayload,
-            canonicalPayload,
-            businessKey,
-            payloadHash);
 
         await records.AddAsync(record, ct);
         await uow.SaveChangesAsync(ct);
 
         return new IngestResultDto(record.Id, record.SourceSystem, record.RecordType, record.BusinessKey, record.Status.ToString());
-    }
-
-    // Đổi tên field của JSON gốc sang tên chuẩn theo bảng mapping.
-    // Field không có trong mapping → giữ nguyên, không mất dữ liệu.
-    internal static string ApplyMappings(string rawPayload, Dictionary<string, string> mappings)
-    {
-        using var doc = JsonDocument.Parse(rawPayload);
-        var result = new Dictionary<string, JsonElement>();
-
-        foreach (var prop in doc.RootElement.EnumerateObject())
-        {
-            var key = mappings.TryGetValue(prop.Name, out var canonical) ? canonical : prop.Name;
-            result[key] = prop.Value.Clone();
-        }
-
-        return JsonSerializer.Serialize(result);
-    }
-
-    // Trích giá trị của businessKeyField từ canonicalPayload.
-    internal static string? ExtractBusinessKey(string? canonicalPayload, string businessKeyField)
-    {
-        if (string.IsNullOrEmpty(canonicalPayload)) return null;
-        try
-        {
-            using var doc = JsonDocument.Parse(canonicalPayload);
-            if (doc.RootElement.TryGetProperty(businessKeyField, out var val))
-                return val.ToString();
-        }
-        catch { }
-        return null;
-    }
-
-    // SHA-256 của raw payload dưới dạng hex lowercase — dùng để phát hiện trùng lặp.
-    internal static string ComputeHash(string input)
-    {
-        var bytes = Encoding.UTF8.GetBytes(input);
-        return Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
     }
 }

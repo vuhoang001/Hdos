@@ -35,7 +35,8 @@ Bộ tài liệu này mô tả toàn bộ hệ thống **Hdos** — một nền 
 | [40 — Schema Discovery](./40-schema-discovery.md) | Endpoint `/.../schema` cho DataMatching + Lakehouse → FE hiện dropdown DataBinding thay vì gõ tay; auto-mapping by name |
 | [41 — Loose Coupling Architecture](./41-loose-coupling-architecture.md) | Provider/Operation Catalog: tách bạch Producer / Catalog / Consumer; FE không hardcode URL; Admin chọn dropdown thay vì gõ resourcePath |
 | [42 — Admin API Refactor](./42-admin-api-refactor.md) | Tách AdminFormsController + xóa AdminPagesController (duplicate Screens). Thêm Module CRUD (Update/Delete) với cascade guard |
-| [43 — Warehouse Sync → Lakehouse](./43-warehouse-sync-to-lakehouse.md) | Pattern pull data từ DW external (Postgres/SQL Server) vào LakehouseService qua `WarehousePollerWorker`. Phân chia trách nhiệm DE (VIEW SQL) vs BE (BackgroundService C#) + mô phỏng end-to-end |
+| [43 — Warehouse Sync → DataMatching](./43-warehouse-sync-to-lakehouse.md) | Pattern pull data từ DW external (Postgres/SQL Server) qua `WarehouseViewSyncer` → publish `RawRecordIngestRequestedIntegrationEvent` vào DataMatching. Phân chia trách nhiệm DE (VIEW SQL) vs BE (BackgroundService C#) + mô phỏng end-to-end. **Updated cho Phase 2 (doc 44).** |
+| [44 — Unified Ingest Pipeline](./44-unified-ingest-pipeline.md) | Hợp nhất DataMatching + LakehouseSnapshot thành 1 pipeline: mọi source (HIS / BHYT / lakehouse view / API ngoài) publish 1 event → DataMatching apply SourceProfile mapping → `/dm/records/{id}` thống nhất cho FE. ViewBinding registry + migration từ Phase 1 |
 | [00 — Hướng dẫn viết Spec cho AI](./00-spec-format.md) | Format chuẩn để viết technical spec đủ rõ cho AI implement |
 
 ---

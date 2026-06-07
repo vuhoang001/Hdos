@@ -2,15 +2,24 @@ namespace Hdos.LakehouseService.Infrastructure.Sync;
 
 public interface IWarehouseViewSyncer
 {
-    /// <summary>Danh sách tên VIEW mà syncer hỗ trợ.</summary>
-    IReadOnlyCollection<string> SupportedViewNames { get; }
+    /// <summary>
+    /// Pull toàn bộ row của VIEW theo 1 binding cụ thể, publish mỗi row thành
+    /// <c>RawRecordIngestRequestedIntegrationEvent</c> để DataMatchingService consume.
+    /// Cập nhật <see cref="SyncState"/> theo <c>ViewName</c> của binding.
+    /// </summary>
+    Task<SyncResult> SyncAsync(Guid bindingId, CancellationToken ct);
 
     /// <summary>
-    /// Full-pull 1 VIEW từ warehouse external, publish mỗi row thành
-    /// <c>LakehouseDataReadyIntegrationEvent</c>. Đồng thời cập nhật
-    /// <see cref="SyncState"/> tracking last sync time + row count.
+    /// Pull tất cả binding đang active. Lỗi 1 binding không stop các binding còn lại —
+    /// mỗi binding sync độc lập, kết quả thu về list.
     /// </summary>
-    Task<SyncResult> SyncAsync(string viewName, CancellationToken ct);
+    Task<List<SyncResult>> SyncAllActiveAsync(CancellationToken ct);
 }
 
-public sealed record SyncResult(string ViewName, int RowCount, string JobId, TimeSpan Duration);
+public sealed record SyncResult(
+    Guid     BindingId,
+    string   ViewName,
+    int      RowCount,
+    string   JobId,
+    TimeSpan Duration,
+    string?  Error);

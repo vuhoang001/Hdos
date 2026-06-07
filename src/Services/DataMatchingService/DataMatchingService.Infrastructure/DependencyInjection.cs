@@ -1,5 +1,6 @@
 using Hdos.Common.Extensions;
 using Hdos.DataMatchingService.Domain.Repositories;
+using Hdos.DataMatchingService.Infrastructure.Messaging.Consumers;
 using Hdos.DataMatchingService.Infrastructure.Persistence;
 using Hdos.DataMatchingService.Infrastructure.Workers;
 using MassTransit;
@@ -32,6 +33,9 @@ public static class DependencyInjection
                 o.UsePostgres();
                 o.UseBusOutbox();
             });
+
+            // Consume RawRecordIngestRequestedIntegrationEvent từ source providers (doc 44).
+            x.AddConsumer<RawRecordIngestRequestedConsumer>();
         }, servicePrefix: "dm");
 
         services.AddHostedService<MatchingWorker>();
