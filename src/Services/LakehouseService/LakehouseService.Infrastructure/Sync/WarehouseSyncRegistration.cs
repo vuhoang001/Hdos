@@ -1,4 +1,6 @@
+using Hdos.LakehouseService.Application.Services;
 using Hdos.LakehouseService.Domain.Repositories;
+using Hdos.LakehouseService.Infrastructure.ExternalClients;
 using Hdos.LakehouseService.Infrastructure.Persistence.Repositories;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,6 +26,7 @@ public static class WarehouseSyncRegistration
         services.AddScoped<ISyncStateRepository, SyncStateRepository>();
         services.AddScoped<IViewBindingRepository, ViewBindingRepository>();
         services.AddScoped<IWarehouseViewSyncer, WarehouseViewSyncer>();
+        services.AddScoped<IWarehouseSchemaIntrospector, WarehouseSchemaIntrospector>();
 
         return services;
     }

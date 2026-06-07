@@ -1,6 +1,7 @@
 using Hdos.Common.Responses;
 using Hdos.LakehouseService.Application.DTOs;
 using Hdos.LakehouseService.Application.Features.ViewBindings.CreateViewBinding;
+using Hdos.LakehouseService.Application.Features.ViewBindings.CreateWithAutoProfile;
 using Hdos.LakehouseService.Application.Features.ViewBindings.DeleteViewBinding;
 using Hdos.LakehouseService.Application.Features.ViewBindings.ListViewBindings;
 using Hdos.LakehouseService.Application.Features.ViewBindings.UpdateViewBinding;
@@ -33,7 +34,44 @@ public sealed class ViewBindingsController(
         return Ok(ApiResponse<List<ViewBindingDto>>.Ok(result.Value));
     }
 
-    /// <summary>Tạo binding mới.</summary>
+    /// <summary>
+    /// MVP B — Tạo binding mới + tự động enroll SourceProfile sang DataMatching.
+    /// Backend introspect view (information_schema.columns), sinh mapping convention
+    /// (snake_case → PascalCase + domain overrides), gọi /dm/sources qua HTTP idempotent.
+    /// Admin không cần gõ mappings tay. Xem doc 45 §7.
+    /// </summary>
+    /// <response code="201">Cả binding + SourceProfile đều sẵn sàng.</response>
+    /// <response code="400">Validation fail / cột business-key hoặc updated-at không có trong view.</response>
+    /// <response code="404">View không tồn tại / hdos_reader thiếu quyền SELECT.</response>
+    /// <response code="409">Binding cho view này đã tồn tại.</response>
+    /// <response code="502">DataMatchingService không reachable / enroll fail.</response>
+    [HttpPost("with-auto-profile")]
+    [ProducesResponseType(typeof(ApiResponse<CreateWithAutoProfileResultDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status502BadGateway)]
+    public async Task<IActionResult> CreateWithAutoProfile(
+        [FromBody] CreateWithAutoProfileCommand cmd, CancellationToken ct)
+    {
+        var result = await sender.Send(cmd, ct);
+        if (result.IsSuccess)
+            return Created(string.Empty,
+                ApiResponse<CreateWithAutoProfileResultDto>.Ok(result.Value));
+
+        return result.Error.Code switch
+        {
+            "Conflict" => Conflict(ApiResponse.Fail(result.Error.Code, result.Error.Message)),
+            "NotFound" => NotFound(ApiResponse.Fail(result.Error.Code, result.Error.Message)),
+            "Validation" when result.Error.Message.Contains("DataMatching", StringComparison.OrdinalIgnoreCase)
+                           || result.Error.Message.Contains("Timeout", StringComparison.OrdinalIgnoreCase)
+                => StatusCode(StatusCodes.Status502BadGateway,
+                              ApiResponse.Fail(result.Error.Code, result.Error.Message)),
+            _ => BadRequest(ApiResponse.Fail(result.Error.Code, result.Error.Message))
+        };
+    }
+
+    /// <summary>Tạo binding mới (manual — admin tự đăng ký SourceProfile trước qua /dm/sources).</summary>
     /// <response code="201">Tạo thành công.</response>
     /// <response code="409">Đã có binding khác trỏ tới cùng view.</response>
     [HttpPost]

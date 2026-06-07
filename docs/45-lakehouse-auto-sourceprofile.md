@@ -1462,28 +1462,41 @@ services.AddHttpClient<ISourceProfileEnrollClient, SourceProfileEnrollClient>(c 
 
 ## 10. Implementation order
 
-### Phase 1 — MVP (Hướng B, 0.5–1 ngày)
+### Phase 1 — MVP (Hướng B) — ✅ ĐÃ TRIỂN KHAI
+
+> Files thực tế thêm vào codebase trong commit MVP B:
 
 ```
-[1] Common (cần cho cả B + C)
-    [ ] Tạo ISourceProfileEnrollClient + SourceProfileEnrollClient
-    [ ] Thêm AddHttpClient trong DependencyInjection
-    [ ] Thêm env Services__DataMatching__BaseUrl vào docker-compose
+[1] Common (cần cho cả B + C) — ✅
+    [x] LakehouseService.Application/Services/ISourceProfileEnrollClient.cs
+    [x] LakehouseService.Application/Services/IWarehouseSchemaIntrospector.cs ◄── refactor
+    [x] LakehouseService.Application/Helpers/CanonicalNameSuggester.cs
+    [x] LakehouseService.Infrastructure/ExternalClients/SourceProfileEnrollClient.cs
+    [x] LakehouseService.Infrastructure/ExternalClients/WarehouseSchemaIntrospector.cs ◄── refactor
+    [x] AddHttpClient<ISourceProfileEnrollClient> trong Infrastructure DI
+    [x] Register IWarehouseSchemaIntrospector trong WarehouseSyncRegistration
 
-[2] B — Auto endpoint
-    [ ] Tạo Features/ViewBindings/CreateWithAutoProfile/
-        [ ] Command + Validator + Handler
-        [ ] Reuse SuggestCanonical helper (đặt static class chung Helpers/)
-    [ ] Thêm endpoint POST /lakehouse/view-bindings/with-auto-profile vào controller
-    [ ] dotnet build + test manual qua Postman
+[2] B — Auto endpoint — ✅
+    [x] Features/ViewBindings/CreateWithAutoProfile/CreateWithAutoProfileCommand.cs
+        (Command + Validator + Handler + Result DTO trong 1 file)
+    [x] Endpoint POST /lakehouse/view-bindings/with-auto-profile
+    [x] dotnet build pass (0 error, 2 warning pre-existing OpenTelemetry)
 
-[3] Verify end-to-end
+[3] Verify end-to-end — TODO admin/QA chạy
     [ ] Tạo 1 view test trong warehouse-postgres (xem doc 43 §3.2)
+    [ ] Set env Services__DataMatching__BaseUrl trong docker-compose
+        (default http://datamatchingservice:8080 đã có sẵn fallback)
     [ ] Gọi POST /lakehouse/view-bindings/with-auto-profile
-    [ ] GET /dm/sources → confirm profile đã enroll
+    [ ] GET /dm/sources → confirm profile đã enroll với mappings auto
     [ ] GET /lakehouse/view-bindings → confirm binding tạo
     [ ] Trigger sync → record xuất hiện ở /dm/records
 ```
+
+> **Refactor so với spec ban đầu §6.4.2**: Application layer không reference Npgsql,
+> nên thay vì inject `NpgsqlDataSource` thẳng vào handler, đã tách thành
+> `IWarehouseSchemaIntrospector` interface (Application) + `WarehouseSchemaIntrospector`
+> impl (Infrastructure). Sạch hơn, test được với mock. Pattern này reuse cho Phase 2
+> (hướng C) — handler `PreviewSchema` sẽ dùng cùng interface, chỉ trả thêm DataType/Nullable.
 
 ### Phase 2 — Production (Hướng C, +1 ngày)
 
