@@ -26,16 +26,14 @@ public sealed class DashboardEngine
 
         var reportDate = date ?? DateOnly.FromDateTime(DateTime.UtcNow);
 
-        // Fetch tất cả record types cần thiết song song
-        var fetchTasks = config.RecordTypes
-            .Select(async rt =>
-            {
-                var raw = await _records.GetMatchedAsync(sourceSystem, rt, null, null, ct);
-                return (RecordType: rt, Rows: ParsePayloads(raw));
-            });
-
-        var fetched = await Task.WhenAll(fetchTasks);
-        var data    = fetched.ToDictionary(x => x.RecordType, x => x.Rows);
+        // Fetch tuần tự — DbContext không thread-safe; Task.WhenAll trên cùng repo
+        // sẽ throw "A second operation was started on this context instance".
+        var data = new Dictionary<string, List<Dictionary<string, JsonElement>>>(config.RecordTypes.Count);
+        foreach (var rt in config.RecordTypes)
+        {
+            var raw  = await _records.GetMatchedAsync(sourceSystem, rt, null, null, ct);
+            data[rt] = ParsePayloads(raw);
+        }
 
         var sections = config.BuildSections(data, reportDate);
         return new DashboardResult(code, config.Title, reportDate, DateTime.UtcNow, sections);

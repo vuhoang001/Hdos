@@ -1057,6 +1057,8 @@ Mỗi request `/dm/pages/{code}`:
 
 Hiện tại chỉ có `executive` page (dùng `benh-nhan-noi-tru` + `cau-hinh-giuong`). Để FE consume được chart từ data lakehouse như `bed-occupancy`, cần **BE thêm 1 file C#**:
 
+> ⚠️ **Pitfall đã từng gặp (2026-06-08):** `SduiEngine.ExecuteAsync` ban đầu dùng `Task.WhenAll` để fetch parallel mỗi `RecordType`, dẫn đến `InvalidOperationException: A second operation was started on this context instance` — vì `DbContext` không thread-safe. Đã fix sang sequential `foreach await`. Khi viết `SduiPageConfig` mới mà cần fetch thêm data ngoài `RecordTypes`, **không tự gọi parallel** nếu dùng cùng repository injected (cùng DbContext). Pattern an toàn: dùng `IServiceScopeFactory` tạo scope riêng cho mỗi task, hoặc giữ sequential.
+
 ### 16.1 Pattern (ví dụ minh hoạ — chưa implement)
 
 ```csharp
@@ -1071,6 +1073,14 @@ public sealed class BedOccupancySduiConfig : SduiPageConfig
         DateOnly reportDate)
     {
         var rows = data.GetValueOrDefault("bed-occupancy", []);
+
+        // ⚠️ LUÔN guard data rỗng — nếu không sẽ throw → 500
+        if (rows.Count == 0)
+            return new SduiPage(
+                Code, "Bed Occupancy", "Trống", false,
+                $"Chưa có dữ liệu cho ngày {reportDate:dd/MM/yyyy}",
+                [], [], DateTime.UtcNow);
+
         // ... aggregate + build SduiPage ...
     }
 }
@@ -1129,3 +1139,4 @@ export function PageSelector({ value, onChange }: { value: string; onChange: (c:
 ## 18. Changelog
 
 - **2026-06-08** — Initial. Cover endpoint `/dm/pages/{code}`, 5 component types, TS types, Next.js + Recharts renderer.
+- **2026-06-08 (hotfix)** — Document pitfall: `SduiEngine` + `DashboardEngine` đã sửa từ `Task.WhenAll` → sequential `foreach await` để tránh `InvalidOperationException` khi 2+ record types fetch song song trên cùng `DbContext`. Thêm guard empty-data trong template `BuildPage` ở §16.
