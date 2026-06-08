@@ -21,13 +21,13 @@ namespace Hdos.LakehouseService.Application.Features.ViewBindings.CreateWithAuto
 /// sau. Xem doc 45 §7.
 /// </summary>
 public sealed record CreateWithAutoProfileCommand(
-    string ViewName,
-    string SourceSystem,
-    string RecordType,
-    string BusinessKeyColumn,
-    string UpdatedAtColumn,
-    int    PollIntervalSeconds,
-    string DisplayName) : IRequest<Result<CreateWithAutoProfileResultDto>>;
+    string  ViewName,
+    string  SourceSystem,
+    string  RecordType,
+    string  BusinessKeyColumn,
+    string? UpdatedAtColumn,
+    int     PollIntervalSeconds,
+    string  DisplayName) : IRequest<Result<CreateWithAutoProfileResultDto>>;
 
 public sealed record CreateWithAutoProfileResultDto(
     ViewBindingDto             Binding,
@@ -46,7 +46,8 @@ public sealed class CreateWithAutoProfileValidator : AbstractValidator<CreateWit
         RuleFor(x => x.SourceSystem).NotEmpty().MaximumLength(200);
         RuleFor(x => x.RecordType).NotEmpty().MaximumLength(100);
         RuleFor(x => x.BusinessKeyColumn).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.UpdatedAtColumn).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.UpdatedAtColumn).MaximumLength(100)
+            .When(x => !string.IsNullOrEmpty(x.UpdatedAtColumn));
         RuleFor(x => x.PollIntervalSeconds).GreaterThanOrEqualTo(30);
         RuleFor(x => x.DisplayName).NotEmpty().MaximumLength(200);
     }
@@ -80,7 +81,8 @@ public sealed class CreateWithAutoProfileHandler(
         if (!columnNames.Contains(cmd.BusinessKeyColumn, StringComparer.OrdinalIgnoreCase))
             return Result.Failure<CreateWithAutoProfileResultDto>(
                 Error.Validation($"Cột '{cmd.BusinessKeyColumn}' không có trong view '{cmd.ViewName}'."));
-        if (!columnNames.Contains(cmd.UpdatedAtColumn, StringComparer.OrdinalIgnoreCase))
+        if (!string.IsNullOrEmpty(cmd.UpdatedAtColumn)
+            && !columnNames.Contains(cmd.UpdatedAtColumn, StringComparer.OrdinalIgnoreCase))
             return Result.Failure<CreateWithAutoProfileResultDto>(
                 Error.Validation($"Cột '{cmd.UpdatedAtColumn}' không có trong view '{cmd.ViewName}'."));
 

@@ -7,14 +7,14 @@ using MediatR;
 namespace Hdos.LakehouseService.Application.Features.ViewBindings.UpdateViewBinding;
 
 public sealed record UpdateViewBindingCommand(
-    Guid   Id,
-    string ViewName,
-    string SourceSystem,
-    string RecordType,
-    string BusinessKeyColumn,
-    string UpdatedAtColumn,
-    int    PollIntervalSeconds,
-    bool   IsActive) : IRequest<Result<ViewBindingDto>>;
+    Guid    Id,
+    string  ViewName,
+    string  SourceSystem,
+    string  RecordType,
+    string  BusinessKeyColumn,
+    string? UpdatedAtColumn,
+    int     PollIntervalSeconds,
+    bool    IsActive) : IRequest<Result<ViewBindingDto>>;
 
 public sealed class UpdateViewBindingValidator : AbstractValidator<UpdateViewBindingCommand>
 {
@@ -25,7 +25,8 @@ public sealed class UpdateViewBindingValidator : AbstractValidator<UpdateViewBin
         RuleFor(x => x.SourceSystem).NotEmpty().MaximumLength(200);
         RuleFor(x => x.RecordType).NotEmpty().MaximumLength(100);
         RuleFor(x => x.BusinessKeyColumn).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.UpdatedAtColumn).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.UpdatedAtColumn).MaximumLength(100)
+            .When(x => !string.IsNullOrEmpty(x.UpdatedAtColumn));
         RuleFor(x => x.PollIntervalSeconds).GreaterThanOrEqualTo(30);
     }
 }

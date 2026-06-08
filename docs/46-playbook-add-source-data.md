@@ -251,6 +251,8 @@ curl -X POST http://localhost:5000/lakehouse/view-bindings/with-auto-profile \
   }'
 ```
 
+> **`updatedAtColumn` là optional.** Nếu view không có cột mốc timestamp/date, bỏ field này khỏi body — syncer hiện tại đang full-scan nên không dùng. Khi nâng cấp incremental sync mới cần.
+
 Response 201:
 
 ```json
@@ -410,7 +412,7 @@ http://localhost:5000/screen?module=lab&page=lab-result-detail&recordId=<rec-uui
 | Cách 1: 409 Conflict khi push | Record giống hệt đã ingest trước (SHA-256 dedup) | Bình thường — payload duplicate bị skip idempotent. Đổi 1 field bất kỳ thì record mới |
 | Cách 2: 502 BadGateway | DataMatching không reachable từ Lakehouse | Check env `Services__DataMatching__BaseUrl` trong docker-compose, restart `lakehouseservice` |
 | Cách 2: 404 "View không tồn tại" | DE chưa GRANT SELECT cho `hdos_reader` | `GRANT SELECT ON warehouse.v_xxx_v1 TO hdos_reader;` |
-| Cách 2: 400 "Cột không có trong view" | Typo `businessKeyColumn` / `updatedAtColumn` | Check tên cột bằng `\d warehouse.v_xxx_v1` trong psql |
+| Cách 2: 400 "Cột không có trong view" | Typo `businessKeyColumn` / `updatedAtColumn` (nếu có truyền) | Check tên cột bằng `\d warehouse.v_xxx_v1` trong psql. `updatedAtColumn` optional — bỏ field nếu view không có cột timestamp/date. |
 | Cách 2: 409 Conflict tạo binding | Đã có binding cho view này | `DELETE /lakehouse/view-bindings/{id}` trước, hoặc dùng `PUT` nếu chỉ cần update |
 | FE mở screen trắng | Quên auto-gen form | Chạy Bước 1.4 (Cách 1) hoặc Bước 2.5 (Cách 2) |
 | FE pre-fill rỗng | `canonicalKey` ở form sai (case-sensitive) | Tên trong `canonicalPayload` mới đúng. VD Cách 2 sinh `Hba1c` thì form phải khai `Hba1c`, không phải `HbA1c` |

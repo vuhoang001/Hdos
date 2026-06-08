@@ -646,6 +646,8 @@ Admin Hdos                                     Hdos
 
 #### Step 1 — 1 call auto (không gõ mappings)
 
+> **Update (2026-06-08):** `updatedAtColumn` đã đổi thành **optional** — view không có cột timestamp/date thì bỏ field này khỏi body. Validator chỉ check existence khi truyền. Syncer hiện đang full-scan nên không dùng cột này; chỉ cần khi nâng cấp incremental sync.
+
 ```http
 POST http://localhost:5000/lakehouse/view-bindings/with-auto-profile
 Content-Type: application/json

@@ -28,8 +28,8 @@ public sealed class ViewBinding : AggregateRoot<Guid>
     /// <summary>Tên cột trong VIEW chứa business key. VD: "business_key".</summary>
     public string BusinessKeyColumn { get; private set; } = null!;
 
-    /// <summary>Tên cột timestamp dùng để poll incremental. VD: "updated_at".</summary>
-    public string UpdatedAtColumn { get; private set; } = null!;
+    /// <summary>Tên cột timestamp dùng để poll incremental. VD: "updated_at". Optional — view không có cột mốc thì null.</summary>
+    public string? UpdatedAtColumn { get; private set; }
 
     /// <summary>Khoảng cách giữa 2 lần poll, đơn vị giây. Tối thiểu 30s.</summary>
     public int PollIntervalSeconds { get; private set; }
@@ -40,12 +40,12 @@ public sealed class ViewBinding : AggregateRoot<Guid>
     private ViewBinding() { }
 
     public static ViewBinding Create(
-        string viewName,
-        string sourceSystem,
-        string recordType,
-        string businessKeyColumn,
-        string updatedAtColumn,
-        int    pollIntervalSeconds)
+        string  viewName,
+        string  sourceSystem,
+        string  recordType,
+        string  businessKeyColumn,
+        string? updatedAtColumn,
+        int     pollIntervalSeconds)
     {
         return new ViewBinding
         {
@@ -61,12 +61,12 @@ public sealed class ViewBinding : AggregateRoot<Guid>
     }
 
     public void Update(
-        string viewName,
-        string sourceSystem,
-        string recordType,
-        string businessKeyColumn,
-        string updatedAtColumn,
-        int    pollIntervalSeconds)
+        string  viewName,
+        string  sourceSystem,
+        string  recordType,
+        string  businessKeyColumn,
+        string? updatedAtColumn,
+        int     pollIntervalSeconds)
     {
         ViewName            = viewName;
         SourceSystem        = sourceSystem;

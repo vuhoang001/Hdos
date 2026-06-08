@@ -164,8 +164,8 @@ ViewBindings controller hiện tại **không gắn `[Authorize]` ở method lev
 ## 3. Bước 0 — Inspect view schema
 
 Phải làm trước khi gọi `with-auto-profile`. Cần biết:
-- Cột nào dùng làm **`businessKeyColumn`** (định danh 1 row, có thể coi như PK của record)
-- Cột nào dùng làm **`updatedAtColumn`** (timestamp/date column — validator yêu cầu)
+- Cột nào dùng làm **`businessKeyColumn`** (định danh 1 row, có thể coi như PK của record) — **bắt buộc**
+- Cột nào dùng làm **`updatedAtColumn`** (timestamp/date column) — **optional**, có thể bỏ qua nếu view không có cột mốc
 
 ### 3.1 List view trong schema
 
@@ -195,7 +195,7 @@ ORDER BY ordinal_position;
 | Cột | Tiêu chí | Reference |
 |---|---|---|
 | `businessKeyColumn` | NOT NULL, tên là `business_key`, `patient_id`, `ma_benh_nhan`, `ma_bn`, hoặc kết thúc bằng `_id` / `_key` | `IsBusinessKeyCandidate(...)` |
-| `updatedAtColumn` | NOT NULL, kiểu `timestamp*` hoặc `date`, tên kết thúc `_at` hoặc `_time` | `IsUpdatedAtCandidate(...)` |
+| `updatedAtColumn` (optional) | NOT NULL, kiểu `timestamp*` hoặc `date`, tên kết thúc `_at` hoặc `_time` — bỏ qua nếu view không có | `IsUpdatedAtCandidate(...)` |
 
 **Lưu ý quan trọng — businessKey không unique:** Nếu cột bạn chọn (vd `department_id`) lặp lại qua nhiều record (vì view có nhiều ngày), DataMatching sẽ coi mỗi record sau là **update** của record trước. Semantic trở thành "snapshot mới nhất của mỗi business-key thắng". Với view dạng aggregated daily, đây thường là điều bạn muốn cho dashboard.
 
@@ -203,9 +203,9 @@ Nếu cần giữ TỪNG snapshot là 1 record riêng → phải thêm cột t�
 
 ### 3.4 Khi view không có cột `updated_at`
 
-Validator yêu cầu cột tồn tại nhưng **`WarehouseViewSyncer` không thực sự dùng** (xem `WarehouseViewSyncer.cs:66` — SQL là `SELECT * FROM <view>`, không có `WHERE updated_at > ...`). Nên dùng cột timestamp/date BẤT KỲ tồn tại trong view, vd `date`, `created_at`, `measured_at`.
+`updatedAtColumn` giờ **optional** — bỏ field khỏi body hoặc set `null` là OK. `WarehouseViewSyncer` không thực sự dùng (`WarehouseViewSyncer.cs:66` đang `SELECT * FROM <view>` full-scan), nên có hay không cũng không ảnh hưởng pipeline hiện tại.
 
-→ **Đây là "trick" để qua validator khi view không có cột chuẩn `updated_at`.** Khi pipeline được nâng cấp lên incremental sync (doc 43 đề cập), nên thêm cột `updated_at TIMESTAMPTZ` thực sự vào view.
+→ Khi nào pipeline upgrade sang **incremental sync** (doc 43 đề cập, dùng `WHERE updated_at > @lastSync`), lúc đó mới cần thêm cột `updated_at TIMESTAMPTZ` thực sự vào view + update binding qua `PUT /lakehouse/view-bindings/{id}`.
 
 ---
 
@@ -485,7 +485,7 @@ occupancy_ratio     | numeric          | YES
 | Decision | Giá trị | Lý do |
 |---|---|---|
 | `businessKeyColumn` | `department_id` | Cột NOT NULL, kết thúc `_id` → candidate. Semantic: 1 record / khoa, snapshot mới nhất thắng. |
-| `updatedAtColumn` | `date` | View không có `updated_at`. `date` kiểu DATE thoả validator. Syncer không thực sự dùng cột này nên OK. |
+| `updatedAtColumn` | `date` | (optional) View không có `updated_at` thật. Có thể bỏ field này luôn — ở đây vẫn truyền `date` để demo nếu sau upgrade incremental sync. |
 | `sourceSystem` | `lakehouse:bed_occupancy` | Convention rõ ràng nguồn lakehouse + tên view |
 | `recordType` | `bed-occupancy` | kebab-case |
 
@@ -568,7 +568,7 @@ curl -X POST "$BASE/lakehouse/view-bindings/with-auto-profile" \
     "sourceSystem":        "lakehouse:<VIEW_NAME>",
     "recordType":          "<kebab-case>",
     "businessKeyColumn":   "<CHỌN_TỪ_INSPECT>",
-    "updatedAtColumn":     "<CHỌN_TỪ_INSPECT>",
+    "updatedAtColumn":     "<CHỌN_TỪ_INSPECT_HOẶC_BỎ_FIELD_NÀY>",
     "pollIntervalSeconds": 300,
     "displayName":         "<Human-readable name>"
   }'

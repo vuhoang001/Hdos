@@ -8,12 +8,12 @@ using MediatR;
 namespace Hdos.LakehouseService.Application.Features.ViewBindings.CreateViewBinding;
 
 public sealed record CreateViewBindingCommand(
-    string ViewName,
-    string SourceSystem,
-    string RecordType,
-    string BusinessKeyColumn,
-    string UpdatedAtColumn,
-    int    PollIntervalSeconds) : IRequest<Result<ViewBindingDto>>;
+    string  ViewName,
+    string  SourceSystem,
+    string  RecordType,
+    string  BusinessKeyColumn,
+    string? UpdatedAtColumn,
+    int     PollIntervalSeconds) : IRequest<Result<ViewBindingDto>>;
 
 public sealed class CreateViewBindingValidator : AbstractValidator<CreateViewBindingCommand>
 {
@@ -23,7 +23,8 @@ public sealed class CreateViewBindingValidator : AbstractValidator<CreateViewBin
         RuleFor(x => x.SourceSystem).NotEmpty().MaximumLength(200);
         RuleFor(x => x.RecordType).NotEmpty().MaximumLength(100);
         RuleFor(x => x.BusinessKeyColumn).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.UpdatedAtColumn).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.UpdatedAtColumn).MaximumLength(100)
+            .When(x => !string.IsNullOrEmpty(x.UpdatedAtColumn));
         RuleFor(x => x.PollIntervalSeconds).GreaterThanOrEqualTo(30);
     }
 }

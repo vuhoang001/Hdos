@@ -15,7 +15,7 @@ public sealed class ViewBindingConfiguration : IEntityTypeConfiguration<ViewBind
         b.Property(x => x.SourceSystem).HasMaxLength(200).IsRequired();
         b.Property(x => x.RecordType).HasMaxLength(100).IsRequired();
         b.Property(x => x.BusinessKeyColumn).HasMaxLength(100).IsRequired();
-        b.Property(x => x.UpdatedAtColumn).HasMaxLength(100).IsRequired();
+        b.Property(x => x.UpdatedAtColumn).HasMaxLength(100);
         b.Property(x => x.PollIntervalSeconds).IsRequired();
         b.Property(x => x.IsActive).IsRequired();
 

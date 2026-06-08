@@ -41,7 +41,7 @@ public sealed class ViewBindingsController(
     /// Admin không cần gõ mappings tay. Xem doc 45 §7.
     /// </summary>
     /// <response code="201">Cả binding + SourceProfile đều sẵn sàng.</response>
-    /// <response code="400">Validation fail / cột business-key hoặc updated-at không có trong view.</response>
+    /// <response code="400">Validation fail / cột business-key không có trong view. Cột updated-at (nếu truyền) cũng phải tồn tại.</response>
     /// <response code="404">View không tồn tại / hdos_reader thiếu quyền SELECT.</response>
     /// <response code="409">Binding cho view này đã tồn tại.</response>
     /// <response code="502">DataMatchingService không reachable / enroll fail.</response>
@@ -165,10 +165,10 @@ public sealed class ViewBindingsController(
 }
 
 public sealed record UpdateViewBindingBody(
-    string ViewName,
-    string SourceSystem,
-    string RecordType,
-    string BusinessKeyColumn,
-    string UpdatedAtColumn,
-    int    PollIntervalSeconds,
-    bool   IsActive);
+    string  ViewName,
+    string  SourceSystem,
+    string  RecordType,
+    string  BusinessKeyColumn,
+    string? UpdatedAtColumn,
+    int     PollIntervalSeconds,
+    bool    IsActive);
