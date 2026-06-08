@@ -8,6 +8,8 @@
 > Tài liệu này **doc-only** — không thay đổi code BE. Sử dụng infra đã có sẵn
 > (`SduiEngine`, `PagesController`) cùng config mẫu `ExecutiveSduiConfig`.
 >
+> **Cần overview tổng?** Đọc [doc 51 — Charts & Dashboards System Overview](./51-charts-system-overview.md) trước (decision matrix + endpoint catalog).
+>
 > **Tài liệu liên quan:**
 > - [`docs/25-sdui-server-driven-ui.md`](./25-sdui-server-driven-ui.md) — khái niệm SDUI vs Dashboard
 > - [`docs/38-frontend-sdui-implementation-guide.md`](./38-frontend-sdui-implementation-guide.md) — FE generic SDUI render (cho DynamicForm)
@@ -15,6 +17,7 @@
 > - [`docs/45-lakehouse-auto-sourceprofile.md`](./45-lakehouse-auto-sourceprofile.md) — MVP B với-auto-profile
 > - [`docs/46-playbook-add-source-data.md`](./46-playbook-add-source-data.md) — playbook onboard nguồn data
 > - [`docs/47-test-mvp-b-lakehouse-view.md`](./47-test-mvp-b-lakehouse-view.md) — test guide
+> - [`docs/50-add-new-lakehouse-chart-guide.md`](./50-add-new-lakehouse-chart-guide.md) — BE Path B (direct lakehouse SQL)
 
 ---
 

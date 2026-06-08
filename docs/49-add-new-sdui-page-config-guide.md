@@ -8,8 +8,11 @@
 > Worked example: `bed-occupancy` — dùng data ingest qua `with-auto-profile` từ
 > view `api.bed_occupancy`.
 >
+> **Cần overview tổng?** Đọc [doc 51 — Charts & Dashboards System Overview](./51-charts-system-overview.md) trước (Path A vs Path B + endpoint catalog).
+>
 > **Tài liệu liên quan:**
 > - [doc 25](./25-sdui-server-driven-ui.md) — khái niệm SDUI vs Dashboard Engine
+> - [doc 50](./50-add-new-lakehouse-chart-guide.md) — **Path B** (raw SQL không cần ingest) — đối lập với Path A của doc này
 > - [doc 44](./44-unified-ingest-pipeline.md) — luồng ingest tổng
 > - [doc 45](./45-lakehouse-auto-sourceprofile.md) — MVP B `with-auto-profile`
 > - [doc 46](./46-playbook-add-source-data.md) — playbook onboard nguồn data

@@ -7,6 +7,7 @@
 > Companion với:
 > - [doc 48](./48-frontend-consume-dm-pages-chart-guide.md) — FE consume SduiPage
 > - [doc 49](./49-add-new-sdui-page-config-guide.md) — Path A (qua StagingRecord)
+> - **[doc 51](./51-charts-system-overview.md) — System overview (decision matrix, endpoint catalog)**
 >
 > **Khác biệt với Path A (doc 49):** không cần SourceProfile + ingest. Mỗi request
 > chart = 1 SQL query live vào lakehouse PG.

@@ -3,6 +3,8 @@
 > **Mục đích.** Hướng dẫn TEST end-to-end luồng auto-enroll SourceProfile từ warehouse view qua endpoint `POST /lakehouse/view-bindings/with-auto-profile` (MVP B). Đối tượng đọc: dev / QA / admin cần verify pipeline hoạt động trước khi onboard nguồn data thật vào production.
 >
 > **Khác với doc 46 (playbook 2 cách).** Doc 46 trình bày 2 cách (DataMatching push + Lakehouse view) ở mức tổng quan. Doc này CHỈ tập trung MVP B (Lakehouse view), đi sâu vào **TEST + DEBUG** với case study cụ thể `lakehouse_serving` (schema `api`).
+>
+> **Cần overview tổng hệ thống chart?** Đọc [doc 51 — Charts & Dashboards System Overview](./51-charts-system-overview.md).
 
 ---
 

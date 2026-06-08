@@ -3,6 +3,13 @@
 > **TL;DR.** Khi admin tạo `ViewBinding` ở LakehouseService, thay vì bắt admin gõ tay `POST /dm/sources` trước, **LakehouseService tự introspect schema view → suggest mapping → enroll SourceProfile sang DataMatching** trong cùng 1 transaction logic. Admin chỉ click 1 lần.
 >
 > Tài liệu này mở rộng [doc 44](./44-unified-ingest-pipeline.md) — giải quyết friction lớn nhất khi onboard 1 lakehouse view mới.
+>
+> **🔄 Update 2026-06-08:** Field `updatedAtColumn` ở mọi endpoint ViewBinding đã đổi
+> thành **optional** (commit 5a0235c) — view không có cột timestamp/date thì bỏ field
+> này khỏi body. Mọi JSON example trong doc vẫn để `"updatedAtColumn": "updated_at"`
+> để minh họa, nhưng bạn có thể omit nếu view không có.
+>
+> **Cần overview tổng?** Đọc [doc 51 — Charts & Dashboards System Overview](./51-charts-system-overview.md).
 
 **Áp dụng cho:** Phase 2 đã setup (xem doc 44). Phần này là Phase 2.5 — automation tăng productivity admin.
 

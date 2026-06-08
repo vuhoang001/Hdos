@@ -3,11 +3,20 @@
 Backend trả về **cả layout lẫn dữ liệu** — frontend chỉ render theo cấu trúc nhận được,
 không cần biết trước từng màn hình là gì.
 
+> **Cần overview tổng hệ thống chart?** Đọc **[doc 51](./51-charts-system-overview.md)**
+> — chỉ-mục đầy đủ các path (StagingRecord vs direct lakehouse), endpoint catalog,
+> file structure, deploy status.
+
 ---
 
 ## 1. Khái niệm & So sánh với Dashboard Engine
 
-| | Dashboard Engine (`/dm/dashboards`) | SDUI (`/dm/pages`) |
+> ⚠️ **Update 2026-06-08:** `Dashboard Engine` (`/dm/dashboards/{code}`) chỉ có code
+> `DashboardEngine` + `DashboardConfig` đăng ký DI nhưng **controller chưa wire** —
+> endpoint này chưa truy cập được qua HTTP. Hiện tại chỉ có **SDUI** (`/dm/pages/{code}`)
+> sống. Bảng so sánh dưới đây mô tả thiết kế gốc — Dashboard Engine để dành.
+
+| | Dashboard Engine (`/dm/dashboards`) ❌ chưa wire | SDUI (`/dm/pages`) ✅ sống |
 |---|---|---|
 | Backend trả về | Dữ liệu theo `sections[]` đã cố định shape | Toàn bộ layout: vị trí, span, màu sắc, actions |
 | Frontend cần biết | Loại section nào ứng với component nào | Không cần biết gì — render generic |
@@ -16,6 +25,10 @@ không cần biết trước từng màn hình là gì.
 
 **Dùng SDUI khi:** bạn có nhiều màn hình dashboard khác nhau về layout và muốn thêm
 màn hình mới mà không triển khai lại frontend.
+
+> **Path khác cho chart:** SDUI ở doc này đi qua **StagingRecord** (cần ingest data
+> trước). Nếu muốn query thẳng lakehouse PG không ingest, dùng `/lakehouse/charts/{code}`
+> — pattern Path B. Xem [doc 50](./50-add-new-lakehouse-chart-guide.md).
 
 ---
 
