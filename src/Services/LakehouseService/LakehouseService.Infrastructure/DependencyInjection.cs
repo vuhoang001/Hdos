@@ -1,5 +1,7 @@
 using Hdos.Common.Extensions;
 using Hdos.LakehouseService.Application.Services;
+using Hdos.LakehouseService.Infrastructure.Charts;
+using Hdos.LakehouseService.Infrastructure.Charts.Configs;
 using Hdos.LakehouseService.Infrastructure.Consumers;
 using Hdos.LakehouseService.Infrastructure.ExternalClients;
 using Hdos.LakehouseService.Infrastructure.Persistence;
@@ -35,6 +37,10 @@ public static class DependencyInjection
                     ?? "http://datamatchingservice:8080");
             c.Timeout = TimeSpan.FromSeconds(10);
         });
+
+        // Lakehouse Charts — thêm chart mới: AddSingleton<ILakehouseChartConfig, YourChart>()
+        services.AddSingleton<ILakehouseChartConfig, BedOccupancyLakehouseChart>();
+        services.AddSingleton<LakehouseChartBuilder>();
 
         return services;
     }
