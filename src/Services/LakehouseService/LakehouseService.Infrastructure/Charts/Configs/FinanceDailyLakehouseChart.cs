@@ -5,19 +5,21 @@ using Npgsql;
 namespace Hdos.LakehouseService.Infrastructure.Charts.Configs;
 
 /// <summary>
-/// Tài chính theo ngày — query trực tiếp warehouse view <c>api.finance_daily</c>
-/// bằng raw SQL Npgsql. KHÔNG qua StagingRecord / ingest.
+/// Tài chính theo ngày — query trực tiếp <b>raw tables</b> lakehouse PG, KHÔNG qua view.
+/// Mỗi widget compute bằng SQL JOIN + GROUP BY ở DB-side.
 ///
-/// SQL alias dùng đúng canonical names match SourceProfile
-/// <c>lakehouse:finance_daily / finance-daily</c> đã đăng ký bên DataMatching:
-///   total_invoice_amount     → TotalInvoiceAmount
-///   total_discount_amount    → TotalDiscountAmount
-///   invoice_count            → InvoiceCount
-///   distinct_encounter_count → DistinctEncounterCount
-///   department_id            → DepartmentId
-///   finance_bucket           → FinanceBucket
+/// ⚠️ TRƯỚC KHI DEPLOY: Thay placeholder table names trong const dưới đây + cột thật
+/// trong các SQL bằng schema/column thực tế của bạn.
+///   Grep từ khóa: "TODO_TABLE", "TODO_COLUMN" trong file này.
 ///
-/// Khi SourceProfile thay đổi tên canonical → sửa cả alias trong SQL ở đây.
+/// Canonical alias trong SQL match SourceProfile convention nếu có:
+///   total_amount      → TotalInvoiceAmount
+///   discount_amount   → TotalDiscountAmount
+///   invoice_count     → InvoiceCount
+///   encounter_count   → DistinctEncounterCount
+///   department_id     → DepartmentId
+///   department_name   → DepartmentName     (mới — JOIN từ master table)
+///   finance_bucket    → FinanceBucket
 ///
 /// GET /lakehouse/charts/finance-daily?date=yyyy-MM-dd&amp;department=3
 /// </summary>
@@ -25,10 +27,13 @@ public sealed class FinanceDailyLakehouseChart : ILakehouseChartConfig
 {
     public string Code => "finance-daily";
 
-    // ── SourceProfile convention (tham chiếu, không enforce runtime) ─────
     public const string SourceSystem = "lakehouse:finance_daily";
     public const string RecordType   = "finance-daily";
-    private const string ViewName    = "api.finance_daily";
+
+    // ── TODO_TABLE: replace với schema/table thật của bạn ──
+    private const string InvoiceTable    = "raw.invoices";             // TODO_TABLE: vd "bronze.invoice_facts"
+    private const string DepartmentTable = "master.departments";       // TODO_TABLE: vd "ref.departments"
+    private const string EncounterTable  = "raw.encounters";           // TODO_TABLE: optional, comment-out nếu không có
 
     public async Task<SduiPage> BuildAsync(
         NpgsqlDataSource  ds,
@@ -36,6 +41,11 @@ public sealed class FinanceDailyLakehouseChart : ILakehouseChartConfig
         IQueryCollection  query,
         CancellationToken ct)
     {
+        // Demo mode — fake SduiPage không đụng DB. Dùng để FE test mapping
+        // hoặc khi raw tables chưa setup. /lakehouse/charts/finance-daily?demo=true
+        if (string.Equals(query["demo"].FirstOrDefault(), "true", StringComparison.OrdinalIgnoreCase))
+            return BuildDemo(reportDate);
+
         int? deptId = int.TryParse(query["department"].FirstOrDefault(), out var d) ? d : null;
 
         var totals    = await FetchTotalsAsync(ds, reportDate, deptId, ct);
@@ -47,7 +57,7 @@ public sealed class FinanceDailyLakehouseChart : ILakehouseChartConfig
 
         return new SduiPage(
             Code:        Code,
-            Title:       "Tài chính theo ngày (Live)",
+            Title:       "Tài chính theo ngày (Live, raw SQL)",
             Badge:       "Live",
             Live:        true,
             Subtitle:    $"Lakehouse trực tiếp · {DateTime.UtcNow.AddHours(7):HH:mm} · Ngày {reportDate:dd/MM/yyyy}"
@@ -62,10 +72,9 @@ public sealed class FinanceDailyLakehouseChart : ILakehouseChartConfig
     }
 
     // ─────────────────────────────────────────────────────────
-    // Raw SQL — alias = canonical name của SourceProfile
+    // Record types — alias canonical
     // ─────────────────────────────────────────────────────────
 
-    // Record fields dùng đúng canonical name → dev đọc SQL/C# nhất quán
     private sealed record Totals(
         decimal TotalInvoiceAmount,
         decimal TotalDiscountAmount,
@@ -74,6 +83,7 @@ public sealed class FinanceDailyLakehouseChart : ILakehouseChartConfig
 
     private sealed record PerDept(
         int     DepartmentId,
+        string  DepartmentName,
         decimal TotalInvoiceAmount,
         decimal TotalDiscountAmount,
         int     DistinctEncounterCount);
@@ -82,18 +92,34 @@ public sealed class FinanceDailyLakehouseChart : ILakehouseChartConfig
         string  FinanceBucket,
         decimal TotalInvoiceAmount);
 
+    // ─────────────────────────────────────────────────────────
+    // SQL queries — raw tables, không qua view
+    // ─────────────────────────────────────────────────────────
+
     private static async Task<Totals> FetchTotalsAsync(
         NpgsqlDataSource ds, DateOnly date, int? deptFilter, CancellationToken ct)
     {
-        const string sql = $"""
+        // [Query 1/3 — Aggregate tổng từ invoices + JOIN encounters cho distinct count]
+        //
+        // TODO_COLUMN: rename cột nếu schema thực tế khác:
+        //   i.invoice_date        — cột date của invoice
+        //   i.department_id       — FK khoa
+        //   i.total_amount        — số tiền trước discount
+        //   i.discount_amount     — số tiền giảm
+        //   e.encounter_id        — id lượt khám
+        //   e.encounter_date      — ngày khám
+        var sql = $"""
             SELECT
-                COALESCE(SUM(total_invoice_amount),     0)::numeric AS "TotalInvoiceAmount",
-                COALESCE(SUM(total_discount_amount),    0)::numeric AS "TotalDiscountAmount",
-                COALESCE(SUM(invoice_count),            0)::int     AS "InvoiceCount",
-                COALESCE(SUM(distinct_encounter_count), 0)::int     AS "DistinctEncounterCount"
-            FROM {ViewName}
-            WHERE date = @d
-              AND (@dept IS NULL OR department_id = @dept)
+                COALESCE(SUM(i.total_amount),    0)::numeric            AS "TotalInvoiceAmount",
+                COALESCE(SUM(i.discount_amount), 0)::numeric            AS "TotalDiscountAmount",
+                COUNT(i.id)::int                                          AS "InvoiceCount",
+                COUNT(DISTINCT e.encounter_id)::int                       AS "DistinctEncounterCount"
+            FROM {InvoiceTable} i
+            LEFT JOIN {EncounterTable} e
+                   ON e.department_id   = i.department_id
+                  AND e.encounter_date  = i.invoice_date
+            WHERE i.invoice_date = @d
+              AND (@dept IS NULL OR i.department_id = @dept)
         """;
 
         await using var conn = await ds.OpenConnectionAsync(ct);
@@ -114,17 +140,27 @@ public sealed class FinanceDailyLakehouseChart : ILakehouseChartConfig
     private static async Task<List<PerDept>> FetchPerDepartmentAsync(
         NpgsqlDataSource ds, DateOnly date, int? deptFilter, CancellationToken ct)
     {
-        const string sql = $"""
+        // [Query 2/3 — GROUP BY khoa, JOIN departments lấy tên khoa thật]
+        //
+        // TODO_COLUMN: rename cột master table nếu cần:
+        //   d.id                  — PK departments
+        //   d.department_name     — cột tên khoa
+        //   (hoặc dùng d.name nếu schema khác)
+        var sql = $"""
             SELECT
-                department_id                                       AS "DepartmentId",
-                COALESCE(SUM(total_invoice_amount),     0)::numeric AS "TotalInvoiceAmount",
-                COALESCE(SUM(total_discount_amount),    0)::numeric AS "TotalDiscountAmount",
-                COALESCE(SUM(distinct_encounter_count), 0)::int     AS "DistinctEncounterCount"
-            FROM {ViewName}
-            WHERE date = @d
-              AND (@dept IS NULL OR department_id = @dept)
-            GROUP BY department_id
-            ORDER BY SUM(total_invoice_amount) DESC NULLS LAST
+                i.department_id                                          AS "DepartmentId",
+                COALESCE(d.department_name, 'Khoa #' || i.department_id) AS "DepartmentName",
+                COALESCE(SUM(i.total_amount),    0)::numeric              AS "TotalInvoiceAmount",
+                COALESCE(SUM(i.discount_amount), 0)::numeric              AS "TotalDiscountAmount",
+                COUNT(DISTINCT e.encounter_id)::int                       AS "DistinctEncounterCount"
+            FROM {InvoiceTable} i
+            LEFT JOIN {DepartmentTable} d ON d.id = i.department_id
+            LEFT JOIN {EncounterTable}  e ON e.department_id = i.department_id
+                                          AND e.encounter_date = i.invoice_date
+            WHERE i.invoice_date = @d
+              AND (@dept IS NULL OR i.department_id = @dept)
+            GROUP BY i.department_id, d.department_name
+            ORDER BY SUM(i.total_amount) DESC NULLS LAST
             LIMIT 30
         """;
 
@@ -138,6 +174,7 @@ public sealed class FinanceDailyLakehouseChart : ILakehouseChartConfig
         while (await reader.ReadAsync(ct))
             list.Add(new PerDept(
                 DepartmentId:           reader.GetInt32(reader.GetOrdinal("DepartmentId")),
+                DepartmentName:         reader.GetString(reader.GetOrdinal("DepartmentName")),
                 TotalInvoiceAmount:     reader.GetDecimal(reader.GetOrdinal("TotalInvoiceAmount")),
                 TotalDiscountAmount:    reader.GetDecimal(reader.GetOrdinal("TotalDiscountAmount")),
                 DistinctEncounterCount: reader.GetInt32(reader.GetOrdinal("DistinctEncounterCount"))));
@@ -147,16 +184,22 @@ public sealed class FinanceDailyLakehouseChart : ILakehouseChartConfig
     private static async Task<List<PerBucket>> FetchPerBucketAsync(
         NpgsqlDataSource ds, DateOnly date, int? deptFilter, CancellationToken ct)
     {
-        const string sql = $"""
+        // [Query 3/3 — GROUP BY loại hóa đơn]
+        //
+        // TODO_COLUMN: cột phân loại invoice — đổi tùy schema:
+        //   i.invoice_type   — categorical
+        //   hoặc i.bucket    — bucket name nếu đã có
+        //   hoặc CASE WHEN ... THEN ... — tự compute
+        var sql = $"""
             SELECT
-                COALESCE(finance_bucket, '(không có)')          AS "FinanceBucket",
-                COALESCE(SUM(total_invoice_amount), 0)::numeric AS "TotalInvoiceAmount"
-            FROM {ViewName}
-            WHERE date = @d
-              AND (@dept IS NULL OR department_id = @dept)
-            GROUP BY finance_bucket
-            HAVING SUM(total_invoice_amount) > 0
-            ORDER BY SUM(total_invoice_amount) DESC
+                COALESCE(i.invoice_type, '(không có)')              AS "FinanceBucket",
+                COALESCE(SUM(i.total_amount), 0)::numeric           AS "TotalInvoiceAmount"
+            FROM {InvoiceTable} i
+            WHERE i.invoice_date = @d
+              AND (@dept IS NULL OR i.department_id = @dept)
+            GROUP BY i.invoice_type
+            HAVING SUM(i.total_amount) > 0
+            ORDER BY SUM(i.total_amount) DESC
             LIMIT 10
         """;
 
@@ -175,7 +218,7 @@ public sealed class FinanceDailyLakehouseChart : ILakehouseChartConfig
     }
 
     // ─────────────────────────────────────────────────────────
-    // Section builders — code dùng canonical name nhất quán SourceProfile
+    // Section builders — không đổi vs version gọi view
     // ─────────────────────────────────────────────────────────
 
     private static SduiRow BuildKpiRow(Totals t)
@@ -223,7 +266,7 @@ public sealed class FinanceDailyLakehouseChart : ILakehouseChartConfig
                 double  pct      = maxInvoice > 0 ? Math.Round((double)(x.TotalInvoiceAmount * 100m / maxInvoice), 1) : 0;
                 decimal discRate = x.TotalInvoiceAmount > 0 ? x.TotalDiscountAmount * 100m / x.TotalInvoiceAmount : 0;
                 return new ProgressItem(
-                    Label:          $"Khoa #{x.DepartmentId} ({FormatShort(x.TotalInvoiceAmount)})",
+                    Label:          $"{x.DepartmentName} ({FormatShort(x.TotalInvoiceAmount)})",
                     Value:          pct,
                     SecondaryValue: null,
                     Color:          discRate >= 30 ? "#ff4d4f"
@@ -241,7 +284,8 @@ public sealed class FinanceDailyLakehouseChart : ILakehouseChartConfig
 
         var alerts = rows
             .Where(x => x.TotalInvoiceAmount > 0)
-            .Select(x => (x.DepartmentId, x.TotalInvoiceAmount, x.TotalDiscountAmount, Pct: x.TotalDiscountAmount * 100m / x.TotalInvoiceAmount))
+            .Select(x => (x.DepartmentId, x.DepartmentName, x.TotalInvoiceAmount, x.TotalDiscountAmount,
+                          Pct: x.TotalDiscountAmount * 100m / x.TotalInvoiceAmount))
             .Where(x => x.Pct >= 30)
             .OrderByDescending(x => x.Pct)
             .Take(20)
@@ -249,7 +293,7 @@ public sealed class FinanceDailyLakehouseChart : ILakehouseChartConfig
                 Code:     $"K#{x.DepartmentId}",
                 Text:     $"Giảm {Math.Round(x.Pct, 1)}% — {FormatShort(x.TotalDiscountAmount)} / {FormatShort(x.TotalInvoiceAmount)}",
                 Patient:  "—",
-                Dept:     $"Khoa #{x.DepartmentId}",
+                Dept:     x.DepartmentName,
                 Time:     "hôm nay",
                 Severity: x.Pct >= 50 ? "critical" : "warning"))
             .ToList();
@@ -309,8 +353,65 @@ public sealed class FinanceDailyLakehouseChart : ILakehouseChartConfig
 
     private SduiPage BuildEmpty(DateOnly reportDate, int? deptId) =>
         new(
-            Code, "Tài chính theo ngày (Live)", "Trống", false,
+            Code, "Tài chính theo ngày (Live, raw SQL)", "Trống", false,
             $"Không có dữ liệu ngày {reportDate:dd/MM/yyyy}"
-            + (deptId is null ? "" : $" cho khoa #{deptId}") + ".",
+            + (deptId is null ? "" : $" cho khoa #{deptId}") + ". "
+            + "Kiểm tra TODO_TABLE/TODO_COLUMN trong chart code có khớp schema thật.",
             [], [], DateTime.UtcNow);
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Demo mode — fake SduiPage không query DB. Dùng để verify shape +
+    // FE test mapping mà không phụ thuộc raw tables đã setup hay chưa.
+    // ─────────────────────────────────────────────────────────────────────
+    private SduiPage BuildDemo(DateOnly reportDate)
+    {
+        var fakeTotals = new Totals(
+            TotalInvoiceAmount:     5_240_000_000m,   // 5.24 tỷ
+            TotalDiscountAmount:      890_000_000m,   //  890 tr
+            InvoiceCount:           1_247,
+            DistinctEncounterCount:   832);
+
+        var fakeDepts = new List<PerDept>
+        {
+            new(DepartmentId: 1, DepartmentName: "Khoa Tim mạch",
+                TotalInvoiceAmount: 1_240_000_000m, TotalDiscountAmount: 180_000_000m, DistinctEncounterCount: 156),
+            new(DepartmentId: 2, DepartmentName: "Khoa Hồi sức tích cực",
+                TotalInvoiceAmount:   980_000_000m, TotalDiscountAmount: 320_000_000m, DistinctEncounterCount:  98),
+            new(DepartmentId: 3, DepartmentName: "Khoa Nhi",
+                TotalInvoiceAmount:   720_000_000m, TotalDiscountAmount:  85_000_000m, DistinctEncounterCount: 142),
+            new(DepartmentId: 4, DepartmentName: "Khoa Sản",
+                TotalInvoiceAmount:   650_000_000m, TotalDiscountAmount:  72_000_000m, DistinctEncounterCount: 124),
+            new(DepartmentId: 5, DepartmentName: "Khoa Cấp cứu",
+                TotalInvoiceAmount:   520_000_000m, TotalDiscountAmount: 280_000_000m, DistinctEncounterCount: 186),  // discount 53% — alert
+            new(DepartmentId: 6, DepartmentName: "Khoa Ngoại thần kinh",
+                TotalInvoiceAmount:   480_000_000m, TotalDiscountAmount:  35_000_000m, DistinctEncounterCount:  47),
+            new(DepartmentId: 7, DepartmentName: "Khoa Nội tiết",
+                TotalInvoiceAmount:   420_000_000m, TotalDiscountAmount:  18_000_000m, DistinctEncounterCount:  51),
+            new(DepartmentId: 8, DepartmentName: "Khoa Da liễu",
+                TotalInvoiceAmount:   230_000_000m, TotalDiscountAmount:   8_000_000m, DistinctEncounterCount:  28),
+        };
+
+        var fakeBuckets = new List<PerBucket>
+        {
+            new("BHYT",            2_650_000_000m),
+            new("Dịch vụ",         1_420_000_000m),
+            new("Yêu cầu",           680_000_000m),
+            new("Bảo hiểm tư",       350_000_000m),
+            new("Khác",              140_000_000m),
+        };
+
+        return new SduiPage(
+            Code:        Code,
+            Title:       "Tài chính theo ngày (Demo)",
+            Badge:       "Demo",
+            Live:        false,
+            Subtitle:    $"⚠ DEMO MODE — fake data, không từ lakehouse · Ngày {reportDate:dd/MM/yyyy}",
+            Actions:     [new("Xuất Excel", "default", null)],
+            Rows:        [
+                BuildKpiRow(fakeTotals),
+                BuildProgressAndAlertRow(fakeDepts),
+                BuildFlowAndPieRow(fakeTotals, fakeBuckets),
+            ],
+            GeneratedAt: DateTime.UtcNow);
+    }
 }

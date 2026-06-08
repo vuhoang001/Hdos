@@ -516,6 +516,111 @@ Path B hiện tại tốt cho 90% case. Cân nhắc nâng cấp khi:
 
 ---
 
-## 11. Changelog
+## 11. Query thẳng raw tables thay vì view
+
+> Việc DE chưa tạo view? Schema warehouse phức tạp cần JOIN nhiều bảng?
+> Path B vẫn dùng — chỉ cần thay `FROM api.<view>` → `FROM <schema>.<table>`.
+> Không đụng pattern, không đụng infra.
+
+### 11.1 Khi nào cần?
+
+| Tình huống | Pick raw tables |
+|---|---|
+| DE team chậm, bạn muốn tự làm | ✓ |
+| Cần JOIN 3-5 bảng với logic phức tạp | ✓ |
+| Báo cáo ad-hoc, mỗi cái khác nhau | ✓ |
+| Data volume lớn (> 10M row), cần materialized view | ✗ vẫn nên qua view |
+| Schema warehouse hay đổi | ✗ vẫn nên qua view (cách ly) |
+
+### 11.2 Workflow
+
+```
+[1] Discover raw tables
+    psql lakehouse -c "\dt *.*"                       — list bảng
+    psql lakehouse -c "\d+ raw.invoices"              — list cột table cụ thể
+
+[2] Quy hoạch JOIN
+    invoices (department_id) ↔ departments (id)
+    invoices (invoice_date, department_id) ↔ encounters (encounter_date, department_id)
+
+[3] Viết SQL trong chart C# (raw string """...""")
+
+[4] Test SQL trong psql trước rồi paste vào file
+```
+
+### 11.3 Pattern code (xem [`FinanceDailyLakehouseChart.cs`](../src/Services/LakehouseService/LakehouseService.Infrastructure/Charts/Configs/FinanceDailyLakehouseChart.cs))
+
+Khai báo table names ở `const string` đầu file để grep + replace dễ:
+
+```csharp
+public sealed class XLakehouseChart : ILakehouseChartConfig
+{
+    // ── TODO_TABLE: thay schema/table thật ──
+    private const string InvoiceTable    = "raw.invoices";
+    private const string DepartmentTable = "master.departments";
+    private const string EncounterTable  = "raw.encounters";
+
+    private static async Task<Totals> FetchTotalsAsync(NpgsqlDataSource ds, DateOnly date, ...)
+    {
+        var sql = $"""
+            SELECT
+                COALESCE(SUM(i.total_amount),    0)::numeric AS "TotalInvoiceAmount",
+                COALESCE(SUM(i.discount_amount), 0)::numeric AS "TotalDiscountAmount",
+                COUNT(i.id)::int                             AS "InvoiceCount",
+                COUNT(DISTINCT e.encounter_id)::int          AS "DistinctEncounterCount"
+            FROM {InvoiceTable} i                                                -- ← const interpolated
+            LEFT JOIN {EncounterTable} e
+                   ON e.department_id  = i.department_id
+                  AND e.encounter_date = i.invoice_date                          -- ← JOIN có điều kiện
+            WHERE i.invoice_date = @d
+              AND (@dept IS NULL OR i.department_id = @dept)
+        """;
+
+        // ... execute như cũ ...
+    }
+}
+```
+
+→ Khi DE tạo view sau này, bạn chỉ cần đổi:
+```csharp
+private const string InvoiceTable = "api.finance_daily";  // hoặc view name mới
+```
++ adjust SELECT/JOIN — không phải viết lại toàn bộ chart.
+
+### 11.4 Pitfalls khi query raw tables
+
+| Pitfall | Tránh bằng |
+|---|---|
+| Schema thay đổi → chart 500 silent | Test SQL trong psql trước mỗi lần deploy |
+| JOIN cross-product → row count vọt lên | `COUNT(DISTINCT ...)` thay vì `COUNT(*)` |
+| Aggregate sai do JOIN nhân row | Phân tách thành 2 query rồi merge ở C# nếu phức tạp |
+| Performance kém (> 2s) | `EXPLAIN ANALYZE` trong psql; tìm cột chưa có index |
+| Schema khác nhau giữa env | Const string + config theo env, hoặc tách table names ra `appsettings.json` |
+
+### 11.5 So sánh trực quan
+
+```sql
+-- Cách cũ (qua view)
+SELECT * FROM api.finance_daily WHERE date = @d;
+
+-- Cách mới (raw tables)
+SELECT 
+    i.department_id, d.department_name,
+    SUM(i.total_amount), SUM(i.discount_amount),
+    COUNT(DISTINCT e.encounter_id)
+FROM raw.invoices i
+LEFT JOIN master.departments d ON d.id = i.department_id
+LEFT JOIN raw.encounters e ON e.department_id = i.department_id
+                           AND e.encounter_date = i.invoice_date
+WHERE i.invoice_date = @d
+GROUP BY i.department_id, d.department_name;
+```
+
+**Cùng kết quả** (giả sử view `api.finance_daily` cũng compute như cách mới). Khác biệt: cách mới BE control SQL hoàn toàn.
+
+---
+
+## 12. Changelog
 
 - **2026-06-08** — Initial. Recipe 7 bước, worked example finance-daily, JOIN pattern, filter qua IQueryCollection, SQL best practices.
+- **2026-06-08 (v2)** — Refactor `FinanceDailyLakehouseChart` từ query view → query raw tables (JOIN invoices + departments + encounters). Thêm §11 hướng dẫn workflow raw tables + pitfalls. Const `TODO_TABLE` để grep + replace dễ.
