@@ -42,6 +42,7 @@ Bộ tài liệu này mô tả toàn bộ hệ thống **Hdos** — một nền 
 | [47 — Test MVP B Lakehouse View](./47-test-mvp-b-lakehouse-view.md) | Test guide end-to-end cho `POST /lakehouse/view-bindings/with-auto-profile` (MVP B): inspect schema view, gọi auto-profile, verify SourceProfile + ViewBinding + sync. Có case study bed_occupancy + 5 view khác |
 | [48 — FE Guide: Consume /dm/pages Chart](./48-frontend-consume-dm-pages-chart-guide.md) | Hướng dẫn FE lấy dữ liệu chart-ready từ `GET /dm/pages/{code}` (SduiEngine): reference catalog (endpoint, response shape, 5 component types, TS types) + hands-on FE implementation (Next.js + Recharts + auto-refresh). Bridge từ lakehouse → with-auto-profile → sync → chart |
 | [49 — BE Tutorial: Thêm SDUI page mới](./49-add-new-sdui-page-config-guide.md) | Hướng dẫn BE viết `SduiPageConfig` cho data lakehouse mới: 5 bước (verify data, code template, DI, build, test) + worked example thật `BedOccupancySduiConfig`. Có 8 nguyên tắc, common errors, comparison với DashboardConfig. Companion với doc 48 |
+| [50 — BE Recipe: Thêm báo cáo Path B (Direct SQL Lakehouse)](./50-add-new-lakehouse-chart-guide.md) | Recipe 7 bước viết chart `ILakehouseChartConfig` query thẳng lakehouse PG bằng raw SQL Npgsql (KHÔNG cần ingest / SourceProfile / StagingRecord). Worked example `FinanceDailyLakehouseChart`. Có JOIN pattern, filter động qua IQueryCollection, SQL best practices, common errors. Companion với doc 48-49 |
 | [00 — Hướng dẫn viết Spec cho AI](./00-spec-format.md) | Format chuẩn để viết technical spec đủ rõ cho AI implement |
 
 ---

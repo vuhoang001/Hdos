@@ -34,6 +34,7 @@ public sealed class LakehouseChartsController(LakehouseChartBuilder builder) : C
     /// </summary>
     /// <param name="code">Chart code (lấy từ <c>GET /lakehouse/charts</c>).</param>
     /// <param name="date">(Optional) Ngày báo cáo yyyy-MM-dd. Mặc định hôm nay UTC.</param>
+    /// <param name="ct"></param>
     [HttpGet("{code}")]
     [ProducesResponseType(typeof(ApiResponse<SduiPage>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]

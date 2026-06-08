@@ -40,6 +40,7 @@ public static class DependencyInjection
 
         // Lakehouse Charts — thêm chart mới: AddSingleton<ILakehouseChartConfig, YourChart>()
         services.AddSingleton<ILakehouseChartConfig, BedOccupancyLakehouseChart>();
+        services.AddSingleton<ILakehouseChartConfig, FinanceDailyLakehouseChart>();
         services.AddSingleton<LakehouseChartBuilder>();
 
         return services;
