@@ -14,9 +14,14 @@ public sealed class MatchingWorker(
     private readonly int _intervalSeconds =
         configuration.GetValue("Matching:WorkerIntervalSeconds", 30);
 
+    private readonly int _batchSize =
+        configuration.GetValue("Matching:BatchSize", 1000);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        logger.LogInformation("MatchingWorker started. Interval: {Interval}s", _intervalSeconds);
+        logger.LogInformation(
+            "MatchingWorker started. Interval: {Interval}s, BatchSize: {Batch}",
+            _intervalSeconds, _batchSize);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -41,7 +46,7 @@ public sealed class MatchingWorker(
         var records = scope.ServiceProvider.GetRequiredService<IStagingRecordRepository>();
         var uow     = scope.ServiceProvider.GetRequiredService<IDataMatchingUnitOfWork>();
 
-        var batch = await records.GetPendingBatchAsync(50, ct);
+        var batch = await records.GetPendingBatchAsync(_batchSize, ct);
         if (batch.Count == 0) return;
 
         var processed = 0;
