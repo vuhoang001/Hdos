@@ -29,6 +29,7 @@ public static class DependencyInjection
 
         // SDUI Engine — thêm page mới: AddSingleton<SduiPageConfig, YourPageConfig>()
         services.AddSingleton<SduiPageConfig, ExecutiveSduiConfig>();
+        services.AddSingleton<SduiPageConfig, BedOccupancySduiConfig>();
         services.AddSingleton<SduiEngine>();
 
         return services;
