@@ -7,7 +7,48 @@
 > - **FE dev** — đọc toàn bộ. §6 (FE responsibilities) là nơi triển khai chính
 > - **Tech lead / reviewer** — đọc §10 (review checklist) + §8 (versioning)
 >
-> Companion docs: [25 — SDUI engine](./25-sdui-server-driven-ui.md), [53 — Data Contract Engine](./53-chart-funnel-architecture.md), [54 — Walkthrough](./54-data-contract-walkthrough.md), [56 — Files explained](./56-data-contract-files-explained.md).
+> Companion docs: [25 — SDUI engine](./25-sdui-server-driven-ui.md), [29 — DynamicFormService](./29-dynamic-form-service.md), [52 — Embed Lakehouse chart vào DynamicForm](./52-embed-lakehouse-chart-in-dynamicform.md), [53 — Data Contract Engine](./53-chart-funnel-architecture.md), [54 — Walkthrough](./54-data-contract-walkthrough.md), [56 — Files explained](./56-data-contract-files-explained.md).
+
+---
+
+## 0. Phạm vi áp dụng — đọc TRƯỚC
+
+FE Hdos hiện có **2 đường render khác nhau**, dùng chung component library nhưng **renderer và nguồn data tách biệt hoàn toàn**. Doc này **chỉ áp dụng cho 1 trong 2**:
+
+| Aspect | DynamicForm path | SDUI/Lakehouse path *(doc này)* |
+|---|---|---|
+| Ai tạo widget config? | **Admin** kéo-thả trong screen designer | **BE dev** viết C# Consumer |
+| Lưu ở đâu? | DB (Postgres `DynamicFormDb`) | Không lưu — generate runtime từ data |
+| Endpoint | `GET /forms/admin/screens/{code}` | `GET /lakehouse/contracts/{code}/chart` |
+| Response shape | `{ widgets: [{chartType, visualConfig, ...}] }` | `{ rows: [{components: [{type, props}]}] }` |
+| Renderer FE | `src/components/widgets/WidgetRenderer.tsx` | `src/components/ScreenRenderer.tsx` |
+| Source data | `DataBinding` expression (FE eval) | `IDataSource<TRow>` (BE C#) |
+| Type safety | Không (`Dictionary<string,object>`) | Có (C# record + `[JsonDerivedType]`) |
+| Phù hợp | Form input, simple dashboard, admin tự quản | Analytics phức tạp, real-time chart, ETL output |
+| Vocabulary chung? | Có — cả 2 dùng `KpiCard`, `ChartPie`,... | Có — cùng react component class |
+| Bridge | [Doc 52](./52-embed-lakehouse-chart-in-dynamicform.md) — embed SDUI page vào DynamicForm screen |
+
+→ **Doc này áp dụng cho cột bên phải.** Cho DynamicForm path xem [doc 29](./29-dynamic-form-service.md), [doc 33](./33-screen-designer.md), [doc 34](./34-widget-catalog.md).
+
+### Khi nào dùng đường nào?
+
+| Tình huống | Path nên chọn | Lý do |
+|---|---|---|
+| Admin (non-dev) muốn tự tạo dashboard/form | **DynamicForm** | Có UI screen designer, không cần code |
+| Cần aggregation phức tạp (group, join, calc) | **SDUI/Lakehouse** | Logic ở C# Consumer, không gò vào expression |
+| Cần type safety + test BE | **SDUI/Lakehouse** | C# record + xUnit test được |
+| Form nhập liệu | **DynamicForm** | DynamicForm chuyên cho FormSection + binding |
+| Chart từ raw SQL lakehouse | **SDUI/Lakehouse** | Source/Consumer pattern cho phép swap data |
+| Cần nhúng chart vào form admin tạo | **Cả 2** (qua bridge doc 52) | DynamicForm wrap SDUI chart như 1 widget |
+
+### Anti-pattern: nhầm 2 đường
+
+| ❌ Sai | ✅ Đúng |
+|---|---|
+| Xóa `WidgetRenderer.tsx` vì tưởng `ScreenRenderer` thay thế | Giữ cả 2, phục vụ 2 use case khác nhau |
+| Hard-code chart SDUI trong widget config DynamicForm | Dùng bridge doc 52 (`embed_sdui_page` widget) |
+| Tạo Consumer C# cho form input | Dùng DynamicForm + FormSection widget |
+| Admin tạo dashboard analytics qua screen designer | Yêu cầu BE viết Consumer (type safety + perf) |
 
 ---
 
