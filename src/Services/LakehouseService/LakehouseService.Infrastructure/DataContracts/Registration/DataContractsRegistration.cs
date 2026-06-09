@@ -1,6 +1,7 @@
 using Hdos.Contracts.DataContracts.Extensions;
 using Hdos.Contracts.DataContracts.FormPrefill;
 using Hdos.LakehouseService.Application.Charts.Sdui;
+using Hdos.LakehouseService.Application.DataContracts.Schemas.Clinical;
 using Hdos.LakehouseService.Application.DataContracts.Schemas.Finance;
 using Hdos.LakehouseService.Infrastructure.DataContracts.Consumers;
 using Hdos.LakehouseService.Infrastructure.DataContracts.Sources;
@@ -30,6 +31,13 @@ public static class DataContractsRegistration
             .AddDataConsumer<FinanceDailyRow, SduiPage,         FinanceDailyChartConsumer>()
             .AddDataConsumer<FinanceDailyRow, FormPrefillResult, FinanceDailyFormPrefillConsumer>()
             .AddDataContractValidator<FinanceDailyRow, FinanceDailyValidator>();
+
+        // ── patient.daily.new (demo only — chưa có SQL source) ──
+        services
+            .AddDataContract<PatientDailyNewContract>()
+            .AddDataSource<PatientDailyNewRow, PatientDailyNewDemoSource>()
+            .AddDataConsumer<PatientDailyNewRow, SduiPage, PatientDailyNewChartConsumer>()
+            .AddDataContractValidator<PatientDailyNewRow, PatientDailyNewValidator>();
 
         return services;
     }
