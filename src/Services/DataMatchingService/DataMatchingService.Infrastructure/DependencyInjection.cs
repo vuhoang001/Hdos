@@ -1,5 +1,6 @@
 using Hdos.Common.Extensions;
 using Hdos.DataMatchingService.Domain.Repositories;
+using Hdos.DataMatchingService.Infrastructure.DataContracts.Registration;
 using Hdos.DataMatchingService.Infrastructure.Messaging.Consumers;
 using Hdos.DataMatchingService.Infrastructure.Persistence;
 using Hdos.DataMatchingService.Infrastructure.Workers;
@@ -39,6 +40,10 @@ public static class DependencyInjection
         }, servicePrefix: "dm");
 
         services.AddHostedService<MatchingWorker>();
+
+        // Data Contract layer (doc 53) — source "staging" cho mọi contract đọc canonical từ StagingRecord.
+        // Chạy song song với SduiEngine cũ; SduiEngine vẫn handle /dm/pages/{code}.
+        services.AddDataMatchingDataContracts();
 
         return services;
     }

@@ -27,10 +27,13 @@ public static class DependencyInjection
         services.AddSingleton<DashboardConfig, M02DashboardConfig>();
         services.AddSingleton<DashboardEngine>();
 
-        // SDUI Engine — thêm page mới: AddSingleton<SduiPageConfig, YourPageConfig>()
+        // SDUI Engine — soft deprecated (doc 53 P6). Endpoint /dm/pages/{code} vẫn chạy đến P7 hard delete.
+        // Page mới nên dùng DataContract layer thay vì AddSingleton<SduiPageConfig, ...>.
+#pragma warning disable CS0618 // SduiPageConfig obsolete, intentional registration
         services.AddSingleton<SduiPageConfig, ExecutiveSduiConfig>();
         services.AddSingleton<SduiPageConfig, BedOccupancySduiConfig>();
         services.AddSingleton<SduiPageConfig, FinanceDailySduiConfig>();
+#pragma warning restore CS0618
         services.AddSingleton<SduiEngine>();
 
         return services;

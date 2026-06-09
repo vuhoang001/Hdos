@@ -23,6 +23,7 @@ namespace Hdos.LakehouseService.Infrastructure.Charts.Configs;
 ///
 /// GET /lakehouse/charts/finance-daily?date=yyyy-MM-dd&amp;department=3
 /// </summary>
+#pragma warning disable CS0618 // Soft deprecated (doc 53 P6) — chuyển sang DataContract khi tới P7
 public sealed class FinanceDailyLakehouseChart : ILakehouseChartConfig
 {
     public string Code => "finance-daily";

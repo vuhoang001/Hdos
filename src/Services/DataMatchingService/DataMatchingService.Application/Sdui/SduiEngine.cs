@@ -3,6 +3,7 @@ using Hdos.DataMatchingService.Domain.Repositories;
 
 namespace Hdos.DataMatchingService.Application.Sdui;
 
+#pragma warning disable CS0618 // SduiPageConfig obsolete; Engine vẫn host nó đến P7 (doc 53)
 public sealed class SduiEngine
 {
     private readonly IStagingRecordRepository _records;
@@ -50,3 +51,4 @@ public sealed class SduiEngine
             .Where(d => d.Count > 0)
             .ToList();
 }
+#pragma warning restore CS0618

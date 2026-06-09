@@ -14,6 +14,7 @@ namespace Hdos.LakehouseService.Infrastructure.Charts.Configs;
 ///   date       — ngày báo cáo (mặc định hôm nay UTC)
 ///   department — ILIKE match department_name hoặc department_code
 /// </summary>
+#pragma warning disable CS0618 // Soft deprecated (doc 53 P6) — chuyển sang DataContract khi tới P7
 public sealed class BedOccupancyLakehouseChart : ILakehouseChartConfig
 {
     public string Code => "bed-occupancy";

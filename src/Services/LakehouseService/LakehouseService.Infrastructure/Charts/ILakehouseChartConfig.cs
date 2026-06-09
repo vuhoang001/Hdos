@@ -12,6 +12,7 @@ namespace Hdos.LakehouseService.Infrastructure.Charts;
 /// Filter động (department, date, ...) lấy từ <see cref="IQueryCollection"/>.
 /// Trả về <see cref="SduiPage"/> cùng JSON shape với /dm/pages/{code} — FE reuse renderer.
 /// </summary>
+[Obsolete("Use DataContract layer (doc 53): define IDataContract<TSchema> + IDataSource<TSchema> + IDataConsumer<TSchema, SduiPage>. Endpoint cũ /lakehouse/charts/{code} vẫn hoạt động nhưng sẽ được xóa sau khi prod stable.", false)]
 public interface ILakehouseChartConfig
 {
     /// <summary>Chart code dùng trong URL. VD "bed-occupancy".</summary>

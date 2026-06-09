@@ -7,6 +7,7 @@ namespace Hdos.DataMatchingService.Application.Sdui.Pages;
 /// qua MVP B (with-auto-profile). Xem doc 45/47.
 /// GET /dm/pages/bed-occupancy?date=yyyy-MM-dd
 /// </summary>
+#pragma warning disable CS0618 // Soft deprecated (doc 53 P6) — chuyển sang DataContract khi tới P7
 public sealed class BedOccupancySduiConfig : SduiPageConfig
 {
     public override string Code => "bed-occupancy";

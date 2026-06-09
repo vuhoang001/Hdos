@@ -3,6 +3,7 @@ using Hdos.LakehouseService.Application.Services;
 using Hdos.LakehouseService.Infrastructure.Charts;
 using Hdos.LakehouseService.Infrastructure.Charts.Configs;
 using Hdos.LakehouseService.Infrastructure.Consumers;
+using Hdos.LakehouseService.Infrastructure.DataContracts.Registration;
 using Hdos.LakehouseService.Infrastructure.ExternalClients;
 using Hdos.LakehouseService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -38,10 +39,18 @@ public static class DependencyInjection
             c.Timeout = TimeSpan.FromSeconds(10);
         });
 
-        // Lakehouse Charts — thêm chart mới: AddSingleton<ILakehouseChartConfig, YourChart>()
+        // Lakehouse Charts — soft deprecated (doc 53 P6). Endpoint /lakehouse/charts/{code} vẫn chạy đến P7.
+        // Chart mới nên dùng DataContract layer thay vì AddSingleton<ILakehouseChartConfig, ...>.
+#pragma warning disable CS0618 // ILakehouseChartConfig obsolete, intentional registration
         services.AddSingleton<ILakehouseChartConfig, BedOccupancyLakehouseChart>();
         services.AddSingleton<ILakehouseChartConfig, FinanceDailyLakehouseChart>();
+#pragma warning restore CS0618
         services.AddSingleton<LakehouseChartBuilder>();
+
+        // Data Contract layer (doc 53) — chạy song song với LakehouseChartBuilder ở trên.
+        // Endpoint cũ /lakehouse/charts/{code} vẫn dùng builder cũ; endpoint mới
+        // /lakehouse/contracts/{code}/chart dùng DataContractGateway.
+        services.AddLakehouseDataContracts();
 
         return services;
     }
