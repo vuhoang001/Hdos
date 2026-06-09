@@ -411,7 +411,7 @@ public sealed class DataContractChartController : ControllerBase
 |---|---|---|---|
 | **P1** | Contract layer trong BuildingBlocks (interfaces + Gateway + Registry) | Zero | Không ai dùng, chỉ thêm |
 | **P2** | FinanceDailyRow contract + 3 source + 2 consumer + DI register | Zero | Chart cũ vẫn nguyên |
-| **P3** | Endpoint `/lakehouse/contracts/{code}/chart` mới + feature flag `DataContracts__EnableNewEndpoint` | Thấp | Flag off mặc định; FE old vẫn dùng `/lakehouse/charts/finance-daily` |
+| **P3** | Endpoint `/lakehouse/contracts/{code}/chart` mới | Thấp | FE old vẫn dùng `/lakehouse/charts/finance-daily` |
 | **P4** | DynamicForm: `DataContractFormBindingResolver` resolve MANAGED DataSource qua gateway | Trung bình | Resolver fallback HTTP nếu không tìm thấy contract |
 | **P5** | DataMatching: `IngestSource<T>` wrap `IngestCoreService` — thêm method `IngestThroughContractAsync<T>` | Trung bình | Method cũ `TryBuildRecordAsync` vẫn còn |
 | **P6** | `[Obsolete]` markers cho `SduiPageConfig`, `ILakehouseChartConfig` với hint migrate sang DataContract | Thấp | Soft deprecate — code cũ vẫn build, chỉ có warning |

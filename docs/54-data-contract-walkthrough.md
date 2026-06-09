@@ -32,19 +32,12 @@ docker compose ps | grep -E "lakehouse|datamatching"
 
 ## Phần 1 — Smoke test pilot `finance.daily.row` (~10 phút)
 
-### Bước 1.1 — Bật feature flag
+### Bước 1.1 — Đảm bảo Lakehouse đang chạy
 
-Mặc định endpoint mới OFF (`DataContracts:EnableNewEndpoint=false`). Bật qua env var:
+Endpoint `/lakehouse/contracts` luôn ON — không cần bật flag.
 
 ```bash
-# Tạm thời cho 1 lần test — restart Lakehouse với biến env:
-docker compose stop lakehouseservice
-DataContracts__EnableNewEndpoint=true docker compose up -d lakehouseservice
-
-# HOẶC edit appsettings.json:
-#   "DataContracts": { "EnableNewEndpoint": true }
-# rồi:
-docker compose up -d --build lakehouseservice
+docker compose up -d lakehouseservice
 ```
 
 Check logs ổn:
@@ -710,8 +703,8 @@ Thêm endpoint trong controller (hoặc tạo controller riêng) tương tự `/
 - Restart nginx nếu thay đổi config: `docker compose restart nginx`
 
 ### Build pass nhưng endpoint 404
-- Feature flag chưa bật: env `DataContracts__EnableNewEndpoint=true`
-- Check: `curl /lakehouse/contracts` — nếu trả "DATA_CONTRACT.DISABLED" = flag chưa bật
+- Contract chưa register trong DI — check `DataContractsRegistration.cs` (xem Bước 10)
+- Check: `curl /lakehouse/contracts` — nếu list rỗng = chưa register contract nào
 
 ### Validator không chạy
 - Validator OPTIONAL, Gateway chỉ gọi nếu caller invoke `gateway.ValidateAsync(...)`. Controller không auto-validate — caller responsibility.
@@ -756,11 +749,8 @@ Thêm endpoint trong controller (hoặc tạo controller riêng) tương tự `/
 ☐ 14. FE: page app/dashboards/{name}/page.tsx — fetch URL + <SduiPageView page={data} />
 ☐ 15. Test trên browser, verify render + filter date/source dropdown
 
-# Production
-☐ 16. (Khi sẵn sàng prod) Set env DataContracts__EnableNewEndpoint=true
-
 # (Optional) Tests
-☐ 17. Validator test → tests/Hdos.{Service}.Tests/DataContracts/Schemas/{Domain}/{Entity}ValidatorTests.cs
+☐ 16. Validator test → tests/Hdos.{Service}.Tests/DataContracts/Schemas/{Domain}/{Entity}ValidatorTests.cs
      (tạo {Service}.Tests project nếu chưa có — copy pattern Hdos.LakehouseService.Tests)
 ```
 

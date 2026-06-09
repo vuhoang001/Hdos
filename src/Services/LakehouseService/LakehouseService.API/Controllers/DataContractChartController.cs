@@ -11,9 +11,6 @@ namespace Hdos.LakehouseService.API.Controllers;
 /// Endpoint mới đi qua <see cref="DataContractGateway"/> (doc 53). Chạy song song với
 /// <c>/lakehouse/charts/{code}</c> cũ — endpoint cũ KHÔNG bị xóa, chỉ deprecate ở P6.
 ///
-/// Bật endpoint bằng config: <c>DataContracts:EnableNewEndpoint=true</c>
-/// (env: <c>DataContracts__EnableNewEndpoint=true</c>). Mặc định false để rollout an toàn.
-///
 /// Khác biệt vs endpoint cũ:
 ///   • URL dùng full contract code (<c>finance.daily.row</c>) thay vì chart code (<c>finance-daily</c>)
 ///   • Hỗ trợ <c>?source=sql|demo|...</c> swap data source runtime
@@ -23,21 +20,13 @@ namespace Hdos.LakehouseService.API.Controllers;
 [ApiController]
 [Route("lakehouse/contracts")]
 [Tags("Lakehouse Data Contracts — Universal funnel (doc 53)")]
-public sealed class DataContractChartController(
-    DataContractGateway gateway,
-    Microsoft.Extensions.Configuration.IConfiguration configuration) : ControllerBase
+public sealed class DataContractChartController(DataContractGateway gateway) : ControllerBase
 {
-    private bool IsEnabled =>
-        configuration.GetValue<bool>("DataContracts:EnableNewEndpoint");
-
     /// <summary>List tất cả data contract đã đăng ký + schema type.</summary>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<DataContractMetadata>>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
     public IActionResult List()
     {
-        if (!IsEnabled) return FlagDisabled();
-
         var items = gateway.AvailableContracts
             .Select(c => new DataContractMetadata(c.Code, c.DisplayName, c.SchemaType.Name))
             .OrderBy(x => x.Code)
@@ -62,8 +51,6 @@ public sealed class DataContractChartController(
         [FromQuery(Name = "consumer")] string consumerCode = "chart",
         CancellationToken ct = default)
     {
-        if (!IsEnabled) return FlagDisabled();
-
         IDataContract contract;
         try { contract = gateway.Require(code); }
         catch (DataContractNotFoundException)
@@ -113,8 +100,6 @@ public sealed class DataContractChartController(
         [FromQuery(Name = "source")] string? sourceCode,
         CancellationToken ct = default)
     {
-        if (!IsEnabled) return FlagDisabled();
-
         IDataContract contract;
         try { contract = gateway.Require(code); }
         catch (DataContractNotFoundException)
@@ -155,11 +140,6 @@ public sealed class DataContractChartController(
             .SelectMany(kv => kv.Value.Select(v => new KeyValuePair<string, string?>(kv.Key, v)));
         return DataContractQuery.From(pairs);
     }
-
-    private IActionResult FlagDisabled() =>
-        NotFound(ApiResponse.Fail(
-            "DATA_CONTRACT.DISABLED",
-            "Endpoint /lakehouse/contracts đang OFF. Bật bằng DataContracts__EnableNewEndpoint=true."));
 
     public sealed record DataContractMetadata(string Code, string DisplayName, string SchemaTypeName);
 }

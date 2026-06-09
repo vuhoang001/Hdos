@@ -134,7 +134,6 @@
 | `GET /lakehouse/contracts/{code}/prefill` | Form pre-fill output qua consumer "form-prefill" |
 
 **Đặc điểm:**
-- Feature flag `DataContracts:EnableNewEndpoint` mặc định false. Nếu OFF → endpoint trả 404.
 - **Reflection dispatch:** Controller không hard-code từng schema type. Nó đọc `contract.SchemaType` từ Registry → `MakeGenericMethod()` để gọi `gateway.ConsumeAsync<TSchema, SduiPage>(...)`.
 - Wrap kết quả trong `ApiResponse<T>` (chuẩn của Hdos).
 
@@ -155,7 +154,6 @@
 |---|---|---|
 | `BuildingBlocks/Contracts/Contracts.csproj` | Add `Microsoft.Extensions.DependencyInjection.Abstractions` package | Để DI helpers compile được |
 | `LakehouseService.Infrastructure/DependencyInjection.cs` | Gọi `services.AddLakehouseDataContracts()` | Wire engine vào service composition root |
-| `LakehouseService.API/appsettings.json` | Thêm `DataContracts.EnableNewEndpoint = false` | Feature flag mặc định OFF (an toàn rollout) |
 | `LakehouseService.Infrastructure/Charts/ILakehouseChartConfig.cs` | Đánh `[Obsolete]` | Soft deprecate Path B cũ — endpoint vẫn chạy, có warning cho dev thấy migrate |
 | `DataMatchingService.Application/Sdui/SduiPageConfig.cs` | Đánh `[Obsolete]` | Soft deprecate Path A cũ |
 | Một số file impl của Path A/B | `#pragma warning disable CS0618` | Suppress warning ở wiring sites cũ — build vẫn pass 0 warning mới |
@@ -190,8 +188,6 @@
 ```
 
 **Component types FE cần render:** `KpiCard`, `ProgressList`, `AlertList`, `FlowPipeline`, `ChartPie`. Xem doc 48 cho TypeScript types + Next.js renderer pattern.
-
-**Trigger endpoint:** Set env `DataContracts__EnableNewEndpoint=true` ở Lakehouse container (đã có config `false` mặc định trong appsettings.json).
 
 ---
 
