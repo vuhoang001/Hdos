@@ -9,6 +9,7 @@ namespace Hdos.LakehouseService.Infrastructure.Charts;
 /// Pattern y hệt SduiEngine bên DataMatching nhưng dùng <see cref="NpgsqlDataSource"/>
 /// trực tiếp thay vì StagingRecord repository.
 /// </summary>
+#pragma warning disable CS0618 // ILakehouseChartConfig obsolete; Builder vẫn host đến P7 (doc 53)
 public sealed class LakehouseChartBuilder
 {
     private readonly NpgsqlDataSource _warehouse;
@@ -33,3 +34,4 @@ public sealed class LakehouseChartBuilder
         return await config.BuildAsync(_warehouse, reportDate, query, ct);
     }
 }
+#pragma warning restore CS0618

@@ -20,6 +20,7 @@ namespace Hdos.DataMatchingService.Application.Sdui.Pages;
 ///   TotalInvoiceAmount      (decimal — doanh thu hóa đơn)
 ///   TotalDiscountAmount     (decimal — giảm giá)
 /// </summary>
+#pragma warning disable CS0618 // Soft deprecated (doc 53 P6) — chuyển sang DataContract khi tới P7
 public sealed class FinanceDailySduiConfig : SduiPageConfig
 {
     public override string Code => "finance-daily";

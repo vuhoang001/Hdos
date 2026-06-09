@@ -6,6 +6,7 @@ namespace Hdos.DataMatchingService.Application.Sdui;
 /// Để thêm page SDUI mới: kế thừa class này, override Code/RecordTypes/BuildPage,
 /// đăng ký trong DI: services.AddSingleton&lt;SduiPageConfig, YourPageConfig&gt;()
 /// </summary>
+[Obsolete("Use DataContract layer (doc 53): define IDataContract<TSchema> + IDataSource<TSchema> 'staging' + IDataConsumer<TSchema, SduiPage>. Endpoint cũ /dm/pages/{code} vẫn hoạt động nhưng sẽ được xóa sau khi prod stable.", false)]
 public abstract class SduiPageConfig
 {
     /// Page code dùng trong URL: GET /dm/pages/{Code}

@@ -6,6 +6,7 @@ namespace Hdos.DataMatchingService.Application.Sdui.Pages;
 /// Bảng điều hành bệnh viện — executive overview page.
 /// GET /dm/pages/executive
 /// </summary>
+#pragma warning disable CS0618 // Soft deprecated (doc 53 P6) — chuyển sang DataContract khi tới P7
 public sealed class ExecutiveSduiConfig : SduiPageConfig
 {
     public override string Code => "executive";
