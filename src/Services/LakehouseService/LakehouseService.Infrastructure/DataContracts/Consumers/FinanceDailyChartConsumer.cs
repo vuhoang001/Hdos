@@ -1,6 +1,6 @@
 using Hdos.Contracts.DataContracts;
-using Hdos.Contracts.DataContracts.Finance;
 using Hdos.LakehouseService.Application.Charts.Sdui;
+using Hdos.LakehouseService.Application.DataContracts.Schemas.Finance;
 
 namespace Hdos.LakehouseService.Infrastructure.DataContracts.Consumers;
 

@@ -1,4 +1,6 @@
-namespace Hdos.Contracts.DataContracts.Finance;
+using Hdos.Contracts.DataContracts;
+
+namespace Hdos.LakehouseService.Application.DataContracts.Schemas.Finance;
 
 public sealed class FinanceDailyContract : DataContract<FinanceDailyRow>
 {

@@ -1,7 +1,7 @@
 using Hdos.Contracts.DataContracts.Extensions;
-using Hdos.Contracts.DataContracts.Finance;
 using Hdos.Contracts.DataContracts.FormPrefill;
 using Hdos.LakehouseService.Application.Charts.Sdui;
+using Hdos.LakehouseService.Application.DataContracts.Schemas.Finance;
 using Hdos.LakehouseService.Infrastructure.DataContracts.Consumers;
 using Hdos.LakehouseService.Infrastructure.DataContracts.Sources;
 using Microsoft.Extensions.DependencyInjection;

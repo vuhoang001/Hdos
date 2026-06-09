@@ -172,20 +172,28 @@ JSON shape giống nhau (SduiPage) → component `<SduiPageView>` render không 
 
 **Output:** Endpoint `GET /lakehouse/contracts/patient.daily.new/chart?source=demo&date=...` trả SduiPage; FE render trang `/dashboards/patient-daily-new`.
 
+### Bước 2.0 — Quyết định service owner
+
+Patient data thuộc service nào? Theo CLAUDE.md, `LakehouseService` đã handle warehouse data và chart. → **Patient daily new contract sẽ LIVE trong LakehouseService.Application** (service-local schema, không phải BuildingBlocks).
+
+> ⚠️ Trước đây tôi đặt FinanceDaily ở `BuildingBlocks/Contracts/DataContracts/Finance/` — đó là **sai**.
+> BuildingBlocks chỉ chứa FRAMEWORK + cross-cutting shapes. Schema nghiệp vụ thuộc service owner.
+
 ### Bước 2.1 — Schema record
 
 ```bash
-mkdir -p src/BuildingBlocks/Contracts/DataContracts/Clinical
+mkdir -p src/Services/LakehouseService/LakehouseService.Application/DataContracts/Schemas/Clinical
 ```
 
-File: `src/BuildingBlocks/Contracts/DataContracts/Clinical/PatientDailyNewRow.cs`
+File: `src/Services/LakehouseService/LakehouseService.Application/DataContracts/Schemas/Clinical/PatientDailyNewRow.cs`
 
 ```csharp
-namespace Hdos.Contracts.DataContracts.Clinical;
+namespace Hdos.LakehouseService.Application.DataContracts.Schemas.Clinical;
 
 /// <summary>
 /// 1 row số bệnh nhân ĐĂNG KÝ MỚI theo (ngày × khoa).
 /// AgeAvg = trung bình tuổi của bệnh nhân mới trong nhóm đó.
+/// Service-local — LakehouseService owns.
 /// </summary>
 public sealed record PatientDailyNewRow(
     DateOnly RegisterDate,
@@ -197,10 +205,12 @@ public sealed record PatientDailyNewRow(
 
 ### Bước 2.2 — Contract class
 
-File: `src/BuildingBlocks/Contracts/DataContracts/Clinical/PatientDailyNewContract.cs`
+File: `src/Services/LakehouseService/LakehouseService.Application/DataContracts/Schemas/Clinical/PatientDailyNewContract.cs`
 
 ```csharp
-namespace Hdos.Contracts.DataContracts.Clinical;
+using Hdos.Contracts.DataContracts;
+
+namespace Hdos.LakehouseService.Application.DataContracts.Schemas.Clinical;
 
 public sealed class PatientDailyNewContract : DataContract<PatientDailyNewRow>
 {
@@ -213,10 +223,12 @@ public sealed class PatientDailyNewContract : DataContract<PatientDailyNewRow>
 
 ### Bước 2.3 — Validator (optional nhưng nên có)
 
-File: `src/BuildingBlocks/Contracts/DataContracts/Clinical/PatientDailyNewValidator.cs`
+File: `src/Services/LakehouseService/LakehouseService.Application/DataContracts/Schemas/Clinical/PatientDailyNewValidator.cs`
 
 ```csharp
-namespace Hdos.Contracts.DataContracts.Clinical;
+using Hdos.Contracts.DataContracts;
+
+namespace Hdos.LakehouseService.Application.DataContracts.Schemas.Clinical;
 
 public sealed class PatientDailyNewValidator : IDataContractValidator<PatientDailyNewRow>
 {
@@ -255,7 +267,7 @@ File: `src/Services/LakehouseService/LakehouseService.Infrastructure/DataContrac
 ```csharp
 using System.Runtime.CompilerServices;
 using Hdos.Contracts.DataContracts;
-using Hdos.Contracts.DataContracts.Clinical;
+using Hdos.LakehouseService.Application.DataContracts.Schemas.Clinical;
 
 namespace Hdos.LakehouseService.Infrastructure.DataContracts.Sources;
 
@@ -299,7 +311,7 @@ File: `src/Services/LakehouseService/LakehouseService.Infrastructure/DataContrac
 ```csharp
 using System.Runtime.CompilerServices;
 using Hdos.Contracts.DataContracts;
-using Hdos.Contracts.DataContracts.Clinical;
+using Hdos.LakehouseService.Application.DataContracts.Schemas.Clinical;
 using Npgsql;
 
 namespace Hdos.LakehouseService.Infrastructure.DataContracts.Sources;
@@ -368,8 +380,8 @@ File: `src/Services/LakehouseService/LakehouseService.Infrastructure/DataContrac
 
 ```csharp
 using Hdos.Contracts.DataContracts;
-using Hdos.Contracts.DataContracts.Clinical;
 using Hdos.LakehouseService.Application.Charts.Sdui;
+using Hdos.LakehouseService.Application.DataContracts.Schemas.Clinical;
 
 namespace Hdos.LakehouseService.Infrastructure.DataContracts.Consumers;
 
@@ -483,11 +495,11 @@ public sealed class PatientDailyNewChartConsumer
 Edit `src/Services/LakehouseService/LakehouseService.Infrastructure/DataContracts/Registration/DataContractsRegistration.cs`:
 
 ```csharp
-using Hdos.Contracts.DataContracts.Clinical;            // ← THÊM
 using Hdos.Contracts.DataContracts.Extensions;
-using Hdos.Contracts.DataContracts.Finance;
 using Hdos.Contracts.DataContracts.FormPrefill;
 using Hdos.LakehouseService.Application.Charts.Sdui;
+using Hdos.LakehouseService.Application.DataContracts.Schemas.Clinical;   // ← THÊM
+using Hdos.LakehouseService.Application.DataContracts.Schemas.Finance;
 using Hdos.LakehouseService.Infrastructure.DataContracts.Consumers;
 using Hdos.LakehouseService.Infrastructure.DataContracts.Sources;
 using Microsoft.Extensions.DependencyInjection;
@@ -710,35 +722,49 @@ Thêm endpoint trong controller (hoặc tạo controller riêng) tương tự `/
 ## Phần 4 — Checklist khi thêm contract mới (cheat sheet)
 
 ```
-☐ 1. Tạo Domain folder: src/BuildingBlocks/Contracts/DataContracts/{Domain}/
+☐ 0. Quyết định SERVICE OWNER (Lakehouse / Order / M01 / DataMatching / ...)
+
+# Schema (Application layer)
+☐ 1. Tạo Domain folder: src/Services/{Service}/{Service}.Application/DataContracts/Schemas/{Domain}/
 ☐ 2. {Entity}Row.cs               record với fields canonical
 ☐ 3. {Entity}Contract.cs          class : DataContract<{Entity}Row>
 ☐ 4. (Optional) {Entity}Validator.cs : IDataContractValidator<{Entity}Row>
 
+# Source (Infrastructure layer)
 ☐ 5. Source folder: src/Services/{Service}/{Service}.Infrastructure/DataContracts/Sources/
 ☐ 6. {Entity}DemoSource.cs        IDataSource<{Entity}Row>, SourceCode="demo"
 ☐ 7. {Entity}SqlSource.cs         IDataSource<{Entity}Row>, SourceCode="sql"
                                   (Optional: {Entity}ViewSource, {Entity}RmqSource...)
 
+# Consumer (Infrastructure layer)
 ☐ 8. Consumer folder: src/Services/{Service}/{Service}.Infrastructure/DataContracts/Consumers/
 ☐ 9. {Entity}ChartConsumer.cs     IDataConsumer<{Entity}Row, SduiPage>
                                   (Optional: CsvConsumer, FormPrefillConsumer, ...)
 
+# DI + endpoint
 ☐ 10. Edit DataContractsRegistration.cs — thêm cụm AddDataContract + AddDataSource* + AddDataConsumer*
 
 ☐ 11. dotnet build src/Services/{Service}/{Service}.API     # 0 errors
 ☐ 12. docker compose up -d --build {service}
 
-☐ 13. Verify:
+# Test
+☐ 13. Verify endpoint:
      curl -s /lakehouse/contracts | jq '.data[].code'
      curl -s /lakehouse/contracts/{code}/chart?source=demo | jq '.data.title'
 
+# FE
 ☐ 14. FE: page app/dashboards/{name}/page.tsx — fetch URL + <SduiPageView page={data} />
-
 ☐ 15. Test trên browser, verify render + filter date/source dropdown
 
+# Production
 ☐ 16. (Khi sẵn sàng prod) Set env DataContracts__EnableNewEndpoint=true
+
+# (Optional) Tests
+☐ 17. Validator test → tests/Hdos.{Service}.Tests/DataContracts/Schemas/{Domain}/{Entity}ValidatorTests.cs
+     (tạo {Service}.Tests project nếu chưa có — copy pattern Hdos.LakehouseService.Tests)
 ```
+
+⚠️ **KHÔNG đặt schema (Row, Contract, Validator) trong BuildingBlocks.** BuildingBlocks chỉ chứa framework + cross-cutting shapes.
 
 ---
 

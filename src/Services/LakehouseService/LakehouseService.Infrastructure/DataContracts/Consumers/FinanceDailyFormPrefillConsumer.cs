@@ -1,6 +1,6 @@
 using Hdos.Contracts.DataContracts;
-using Hdos.Contracts.DataContracts.Finance;
 using Hdos.Contracts.DataContracts.FormPrefill;
+using Hdos.LakehouseService.Application.DataContracts.Schemas.Finance;
 
 namespace Hdos.LakehouseService.Infrastructure.DataContracts.Consumers;
 

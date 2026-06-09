@@ -143,13 +143,13 @@ public sealed class DataContractGateway
 
 ## 4. POC End-to-End — FinanceDaily
 
-### 4.1 Schema (Contract layer)
+### 4.1 Schema (Application layer của service owner)
 
 ```csharp
-// src/BuildingBlocks/Contracts/DataContracts/Finance/FinanceDailyRow.cs
-namespace Hdos.Contracts.DataContracts.Finance;
+// src/Services/LakehouseService/LakehouseService.Application/DataContracts/Schemas/Finance/FinanceDailyRow.cs
+namespace Hdos.LakehouseService.Application.DataContracts.Schemas.Finance;
 
-/// 1 row tài chính theo ngày × khoa. Canonical schema dùng chung cho mọi source.
+/// 1 row tài chính theo ngày × khoa. Canonical schema dùng chung cho mọi source của Lakehouse.
 public sealed record FinanceDailyRow(
     DateOnly InvoiceDate,
     int      DepartmentId,
@@ -160,7 +160,11 @@ public sealed record FinanceDailyRow(
     int      DistinctEncounterCount,
     string?  FinanceBucket);
 
-// src/BuildingBlocks/Contracts/DataContracts/Finance/FinanceDailyContract.cs
+// src/Services/LakehouseService/LakehouseService.Application/DataContracts/Schemas/Finance/FinanceDailyContract.cs
+using Hdos.Contracts.DataContracts;
+
+namespace Hdos.LakehouseService.Application.DataContracts.Schemas.Finance;
+
 public sealed class FinanceDailyContract : DataContract<FinanceDailyRow>
 {
     public const string ContractCode = "finance.daily.row";
@@ -425,11 +429,16 @@ public sealed class DataContractChartController : ControllerBase
 
 ## 6. Convention & quy tắc
 
-### 6.1 Vị trí file
+### 6.1 Vị trí file (CẬP NHẬT 2026-06-09)
+
+**Quy tắc tách layer:**
+- **BuildingBlocks/Contracts/DataContracts/** = FRAMEWORK + cross-cutting shapes (không nghiệp vụ).
+- **{Service}.Application/DataContracts/Schemas/{Domain}/** = SCHEMA + Contract + Validator của domain (service-local).
+- **{Service}.Infrastructure/DataContracts/{Sources,Consumers,Registration}/** = code chạy thật (impl phụ thuộc DB/HTTP/Npgsql).
 
 ```
-src/BuildingBlocks/Contracts/DataContracts/
-├── IDataContract.cs                 ← core interfaces
+src/BuildingBlocks/Contracts/DataContracts/          ← FRAMEWORK ONLY
+├── IDataContract.cs                 ← core abstractions
 ├── IDataSource.cs
 ├── IDataConsumer.cs
 ├── IDataContractValidator.cs
@@ -439,25 +448,39 @@ src/BuildingBlocks/Contracts/DataContracts/
 ├── DataContractException.cs
 ├── Extensions/
 │   └── DataContractServiceCollectionExtensions.cs
-└── {Domain}/                        ← contract per business domain
-    ├── Finance/
-    │   ├── FinanceDailyRow.cs
-    │   └── FinanceDailyContract.cs
-    ├── Clinical/
-    │   ├── BedOccupancyRow.cs
-    │   └── BedOccupancyContract.cs
-    └── ...
+└── FormPrefill/
+    └── FormPrefillResult.cs         ← shape generic, không phụ thuộc domain
+
+src/Services/{Service}/{Service}.Application/DataContracts/Schemas/{Domain}/
+                                                      ← SERVICE-LOCAL SCHEMA
+├── {Entity}Row.cs                   ← record canonical
+├── {Entity}Contract.cs              ← DataContract<{Entity}Row>
+└── {Entity}Validator.cs             ← (optional) IDataContractValidator<{Entity}Row>
 
 src/Services/{Service}/{Service}.Infrastructure/DataContracts/
+                                                      ← IMPL CHẠY THẬT
 ├── Sources/
-│   ├── {Domain}{Source}Source.cs    ← e.g. FinanceDailyViewSource, BedOccupancySqlSource
+│   ├── {Entity}{Kind}Source.cs      ← e.g. FinanceDailySqlSource, FinanceDailyDemoSource
 │   └── ...
 ├── Consumers/
-│   ├── {Domain}{Consumer}Consumer.cs ← e.g. FinanceDailyChartConsumer
+│   ├── {Entity}{Kind}Consumer.cs    ← e.g. FinanceDailyChartConsumer
 │   └── ...
 └── Registration/
-    └── DataContractsRegistration.cs ← extension method AddDataContracts...()
+    └── DataContractsRegistration.cs ← extension method AddXxxDataContracts()
+
+tests/Hdos.{Service}.Tests/DataContracts/Schemas/{Domain}/
+                                                      ← TEST CHO SERVICE
+└── {Entity}ValidatorTests.cs
 ```
+
+**Tại sao tách Application vs Infrastructure cho schema vs source?**
+- Schema (record + contract + validator) thuần CLR types, không phụ thuộc gì → Application layer (theo Clean Architecture).
+- Source impl dùng `NpgsqlDataSource`, `HttpClient`, `DbContext`... → Infrastructure layer.
+
+**Khi nào schema có thể nằm ở BuildingBlocks?**
+- Chỉ khi >=2 services CÙNG produce HOẶC CÙNG consume schema đó qua DataContract (không qua HTTP).
+- Hiếm gặp — đa số trường hợp 1 service own data → schema service-local.
+- Nếu cần chia sẻ cross-service: pattern là IntegrationEvent (RMQ) chứ không phải shared DataContract schema.
 
 ### 6.2 Naming
 
@@ -526,23 +549,27 @@ Tránh tự ý đổi type của field hiện có — đó là breaking change c
 ## 9. Files & checklist khi migrate 1 chart hiện có sang DataContract
 
 ```
-☐ Tạo {Domain}Row.cs record trong Contracts/DataContracts/{Domain}/
-☐ Tạo {Domain}Contract.cs class trong cùng folder
-☐ (Optional) Tạo {Domain}Validator.cs trong cùng folder
-☐ Tạo {Domain}{SourceKind}Source.cs trong {Service}.Infrastructure/DataContracts/Sources/
+☐ Quyết định SERVICE OWNER (Lakehouse, Order, M01, ...) — service nào logic owns data này
+☐ Tạo {Entity}Row.cs           {Service}.Application/DataContracts/Schemas/{Domain}/
+☐ Tạo {Entity}Contract.cs      cùng folder
+☐ (Optional) Tạo {Entity}Validator.cs cùng folder
+☐ Tạo {Entity}{SourceKind}Source.cs    {Service}.Infrastructure/DataContracts/Sources/
    ↳ Copy nguyên logic fetch từ SduiPageConfig.BuildPage hoặc ILakehouseChartConfig.BuildAsync
-   ↳ Convert output → IAsyncEnumerable<{Domain}Row>
-☐ Tạo {Domain}{ConsumerKind}Consumer.cs trong {Service}.Infrastructure/DataContracts/Consumers/
+   ↳ Convert output → IAsyncEnumerable<{Entity}Row>
+☐ Tạo {Entity}{ConsumerKind}Consumer.cs   {Service}.Infrastructure/DataContracts/Consumers/
    ↳ Copy nguyên logic build SduiPage
-   ↳ Input đổi từ raw payload sang stream {Domain}Row
+   ↳ Input đổi từ raw payload sang stream {Entity}Row
 ☐ Đăng ký DI trong DataContractsRegistration.cs:
-     services.AddDataContract<{Domain}Contract>()
-             .AddDataSource<{Domain}Row, {Domain}{SourceKind}Source>()
-             .AddDataConsumer<{Domain}Row, SduiPage, {Domain}{ConsumerKind}Consumer>();
+     services.AddDataContract<{Entity}Contract>()
+             .AddDataSource<{Entity}Row, {Entity}{SourceKind}Source>()
+             .AddDataConsumer<{Entity}Row, SduiPage, {Entity}{ConsumerKind}Consumer>();
 ☐ Test endpoint mới /lakehouse/contracts/{contract.code}/chart trả SduiPage shape đúng
 ☐ Endpoint cũ /lakehouse/charts/{code} GIỮ NGUYÊN — không xóa trong session migrate
 ☐ Update doc cho chart mới (nếu có doc riêng)
 ```
+
+**⚠️ KHÔNG đặt schema (Row, Contract, Validator) trong `BuildingBlocks/Contracts/DataContracts/{Domain}/`.**
+BuildingBlocks chỉ chứa FRAMEWORK + cross-cutting shapes. Schema nghiệp vụ thuộc service owner.
 
 ---
 
@@ -550,13 +577,14 @@ Tránh tự ý đổi type của field hiện có — đó là breaking change c
 
 | Phase | Trạng thái | File / commit |
 |---|---|---|
-| P1 — Contract layer | ✅ DONE 2026-06-09 | `src/BuildingBlocks/Contracts/DataContracts/*` |
-| P2 — FinanceDaily pilot | ✅ DONE 2026-06-09 | `src/Services/LakehouseService/LakehouseService.Infrastructure/DataContracts/*` |
+| P1 — Contract layer | ✅ DONE 2026-06-09 | `src/BuildingBlocks/Contracts/DataContracts/*` (framework only) |
+| P2 — FinanceDaily pilot | ✅ DONE 2026-06-09 | `LakehouseService.Application/DataContracts/Schemas/Finance/` + Infrastructure sources/consumer |
 | P3 — Endpoint mới + flag | ✅ DONE 2026-06-09 | `DataContractChartController.cs` |
-| P4 — DynamicForm consumer | ✅ DONE 2026-06-09 | `DataContractFormBindingResolver.cs` |
-| P5 — DataMatching ingest wrap | ✅ DONE 2026-06-09 | `IngestThroughContractAsync` extension |
-| P6 — `[Obsolete]` markers | ✅ DONE 2026-06-09 | annotations trên class cũ |
-| P7 — Tests | ✅ DONE 2026-06-09 | `tests/Hdos.BuildingBlocks.Tests/DataContracts/` |
+| P4 — DynamicForm consumer | ✅ DONE 2026-06-09 | `FinanceDailyFormPrefillConsumer` + `/prefill` endpoint |
+| P5 — DataMatching ingest wrap | ✅ DONE 2026-06-09 | `DataContractIngestExtensions.IngestContractRowAsync` |
+| P6 — `[Obsolete]` markers | ✅ DONE 2026-06-09 | annotations trên `ILakehouseChartConfig`, `SduiPageConfig` |
+| P7 — Tests | ✅ DONE 2026-06-09 | BuildingBlocks.Tests (framework) + LakehouseService.Tests (schema) |
+| Refactor — schema service-local | ✅ DONE 2026-06-09 | Moved FinanceDaily Schema BB → Lakehouse.Application |
 | Hard delete cũ | ⏳ TODO sau khi prod stable | session khác |
 
 ---

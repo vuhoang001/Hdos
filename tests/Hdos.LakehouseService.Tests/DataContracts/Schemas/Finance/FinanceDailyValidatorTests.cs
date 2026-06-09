@@ -1,8 +1,8 @@
 using FluentAssertions;
-using Hdos.Contracts.DataContracts.Finance;
+using Hdos.LakehouseService.Application.DataContracts.Schemas.Finance;
 using Xunit;
 
-namespace Hdos.BuildingBlocks.Tests.Contracts.DataContracts;
+namespace Hdos.LakehouseService.Tests.DataContracts.Schemas.Finance;
 
 public sealed class FinanceDailyValidatorTests
 {

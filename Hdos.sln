@@ -79,6 +79,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LakehouseService.API", "src
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hdos.DynamicFormService.Tests", "tests\Hdos.DynamicFormService.Tests\Hdos.DynamicFormService.Tests.csproj", "{51BA67AB-F5FB-4019-8480-E5746AE52E7F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hdos.LakehouseService.Tests", "tests\Hdos.LakehouseService.Tests\Hdos.LakehouseService.Tests.csproj", "{6107B7CE-504F-49E4-B71F-0563E016CECF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -425,6 +427,18 @@ Global
 		{51BA67AB-F5FB-4019-8480-E5746AE52E7F}.Release|x64.Build.0 = Release|Any CPU
 		{51BA67AB-F5FB-4019-8480-E5746AE52E7F}.Release|x86.ActiveCfg = Release|Any CPU
 		{51BA67AB-F5FB-4019-8480-E5746AE52E7F}.Release|x86.Build.0 = Release|Any CPU
+		{6107B7CE-504F-49E4-B71F-0563E016CECF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6107B7CE-504F-49E4-B71F-0563E016CECF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6107B7CE-504F-49E4-B71F-0563E016CECF}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{6107B7CE-504F-49E4-B71F-0563E016CECF}.Debug|x64.Build.0 = Debug|Any CPU
+		{6107B7CE-504F-49E4-B71F-0563E016CECF}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{6107B7CE-504F-49E4-B71F-0563E016CECF}.Debug|x86.Build.0 = Debug|Any CPU
+		{6107B7CE-504F-49E4-B71F-0563E016CECF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6107B7CE-504F-49E4-B71F-0563E016CECF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6107B7CE-504F-49E4-B71F-0563E016CECF}.Release|x64.ActiveCfg = Release|Any CPU
+		{6107B7CE-504F-49E4-B71F-0563E016CECF}.Release|x64.Build.0 = Release|Any CPU
+		{6107B7CE-504F-49E4-B71F-0563E016CECF}.Release|x86.ActiveCfg = Release|Any CPU
+		{6107B7CE-504F-49E4-B71F-0563E016CECF}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -466,5 +480,6 @@ Global
 		{16CA1071-42E7-468D-98AA-9A2D0CA2EBC3} = {29E8670A-1DF4-826C-8472-EBE24AA85FE4}
 		{E83415FA-3A39-4992-AF46-2BDD5AFF59AE} = {29E8670A-1DF4-826C-8472-EBE24AA85FE4}
 		{51BA67AB-F5FB-4019-8480-E5746AE52E7F} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{6107B7CE-504F-49E4-B71F-0563E016CECF} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal
