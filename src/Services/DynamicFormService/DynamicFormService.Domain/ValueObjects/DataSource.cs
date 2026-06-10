@@ -13,10 +13,13 @@ namespace Hdos.DynamicFormService.Domain.ValueObjects;
 //
 // Namespace     : key dùng trong DataBinding expression, e.g. "patient"
 // RequiredParams: tên các {param} placeholder trong ResourcePath (hoặc Operation.Pattern)
+// DefaultParams : giá trị mặc định cho {param} placeholder (key = param name).
+//                 FE merge với URL params trước khi fetch — URL wins.
 public sealed record DataSource(
     string       Namespace,
     string?      ServiceId,
     string?      ResourcePath,
     List<string> RequiredParams,
-    string?      SchemaPath  = null,
-    string?      OperationId = null);
+    string?      SchemaPath     = null,
+    string?      OperationId    = null,
+    Dictionary<string, string>? DefaultParams = null);

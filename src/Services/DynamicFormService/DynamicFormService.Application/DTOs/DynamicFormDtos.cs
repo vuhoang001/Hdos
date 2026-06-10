@@ -84,10 +84,11 @@ public sealed record DataSourceDto(
     string?      ServiceId,
     string?      ResourcePath,
     List<string> RequiredParams,
-    string?      SchemaPath  = null,
-    string?      BaseUrl     = null,
-    string?      Kind        = null,
-    string?      OperationId = null);
+    string?      SchemaPath    = null,
+    string?      BaseUrl       = null,
+    string?      Kind          = null,
+    string?      OperationId   = null,
+    Dictionary<string, string>? DefaultParams = null);
 
 // ── Submission ────────────────────────────────────────────────────────────────
 

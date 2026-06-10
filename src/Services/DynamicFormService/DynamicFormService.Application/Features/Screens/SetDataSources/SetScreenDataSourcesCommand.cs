@@ -12,10 +12,11 @@ namespace Hdos.DynamicFormService.Application.Features.Screens.SetDataSources;
 public sealed record DataSourceInput(
     string       Namespace,
     List<string> RequiredParams,
-    string?      OperationId  = null,
-    string?      ServiceId    = null,
-    string?      ResourcePath = null,
-    string?      SchemaPath   = null);
+    string?      OperationId   = null,
+    string?      ServiceId     = null,
+    string?      ResourcePath  = null,
+    string?      SchemaPath    = null,
+    Dictionary<string, string>? DefaultParams = null);
 
 public sealed record SetScreenDataSourcesCommand(
     string                ModuleCode,
@@ -96,7 +97,8 @@ public sealed class SetScreenDataSourcesCommandHandler(
                 d.ResourcePath,
                 d.RequiredParams ?? new(),
                 d.SchemaPath,
-                d.OperationId))
+                d.OperationId,
+                d.DefaultParams))
             .ToList();
 
         try

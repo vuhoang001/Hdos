@@ -86,14 +86,16 @@ public sealed class GetScreenLayoutQueryHandler(
             // LEGACY mode
             return new DataSourceDto(
                 d.Namespace, d.ServiceId, d.ResourcePath, d.RequiredParams,
-                d.SchemaPath, BaseUrl: null, Kind: null, OperationId: null);
+                d.SchemaPath, BaseUrl: null, Kind: null, OperationId: null,
+                DefaultParams: d.DefaultParams);
         }
 
         var parts = d.OperationId.Split("::", 2);
         if (parts.Length != 2)
         {
             return new DataSourceDto(d.Namespace, d.ServiceId, d.ResourcePath, d.RequiredParams,
-                d.SchemaPath, BaseUrl: null, Kind: null, OperationId: d.OperationId);
+                d.SchemaPath, BaseUrl: null, Kind: null, OperationId: d.OperationId,
+                DefaultParams: d.DefaultParams);
         }
 
         var providerCode = parts[0];
@@ -107,7 +109,8 @@ public sealed class GetScreenLayoutQueryHandler(
         {
             return new DataSourceDto(
                 d.Namespace, d.ServiceId, d.ResourcePath, d.RequiredParams,
-                d.SchemaPath, BaseUrl: null, Kind: null, OperationId: d.OperationId);
+                d.SchemaPath, BaseUrl: null, Kind: null, OperationId: d.OperationId,
+                DefaultParams: d.DefaultParams);
         }
 
         // Required params: ưu tiên giá trị admin set khi tạo DataSource (cho phép override),
@@ -124,7 +127,8 @@ public sealed class GetScreenLayoutQueryHandler(
             SchemaPath:     operation.SchemaPath,
             BaseUrl:        provider.BaseUrl,
             Kind:           operation.Kind.ToString(),
-            OperationId:    operation.GetCombinedRef());
+            OperationId:    operation.GetCombinedRef(),
+            DefaultParams:  d.DefaultParams);
     }
 
     private static FormSchemaDto HydrateFormSchema(Domain.Entities.FormTemplate t)
