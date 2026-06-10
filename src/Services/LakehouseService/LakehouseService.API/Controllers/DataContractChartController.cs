@@ -1,3 +1,5 @@
+using System.Reflection;
+using System.Text.Json.Serialization;
 using Hdos.Common.Responses;
 using Hdos.Contracts.DataContracts;
 using Hdos.Contracts.DataContracts.FormPrefill;
@@ -134,6 +136,66 @@ public sealed class DataContractChartController(DataContractGateway gateway) : C
         }
     }
 
+    /// <summary>
+    /// Schema discovery (doc 58 §7 Phase 2): reflection trên <see cref="IDataContract.SchemaType"/>,
+    /// trả về list field cho admin UI (FieldBrowser FE) dropdown bind expression.
+    /// </summary>
+    [HttpGet("{code}/schema")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<FieldDescriptor>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+    public IActionResult GetSchema(string code)
+    {
+        IDataContract contract;
+        try { contract = gateway.Require(code); }
+        catch (DataContractNotFoundException)
+        {
+            return NotFound(ApiResponse<IReadOnlyList<FieldDescriptor>>.Fail(
+                "CONTRACT.NOT_FOUND",
+                $"Contract '{code}' chưa đăng ký."));
+        }
+
+        var fields = ReflectSchema(contract.SchemaType);
+        return Ok(ApiResponse<IReadOnlyList<FieldDescriptor>>.Ok(fields));
+    }
+
+    private static IReadOnlyList<FieldDescriptor> ReflectSchema(Type schemaType)
+    {
+        var ctx = new NullabilityInfoContext();
+        var props = schemaType
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(p => p.GetIndexParameters().Length == 0);
+
+        var result = new List<FieldDescriptor>();
+        foreach (var p in props)
+        {
+            var jsonAttr = p.GetCustomAttribute<JsonPropertyNameAttribute>();
+            var jsonName = jsonAttr?.Name ?? ToCamelCase(p.Name);
+
+            var (typeName, optional) = DescribeType(p, ctx);
+
+            result.Add(new FieldDescriptor(p.Name, jsonName, typeName, optional));
+        }
+        return result;
+    }
+
+    private static (string TypeName, bool Optional) DescribeType(PropertyInfo p, NullabilityInfoContext ctx)
+    {
+        var underlying = Nullable.GetUnderlyingType(p.PropertyType);
+        if (underlying is not null)
+            return (underlying.Name, true);
+
+        if (p.PropertyType.IsValueType)
+            return (p.PropertyType.Name, false);
+
+        // Reference type — check NRT annotations.
+        var info = ctx.Create(p);
+        var optional = info.ReadState == NullabilityState.Nullable;
+        return (p.PropertyType.Name, optional);
+    }
+
+    private static string ToCamelCase(string s)
+        => string.IsNullOrEmpty(s) ? s : char.ToLowerInvariant(s[0]) + s[1..];
+
     private DataContractQuery BuildQuery()
     {
         var pairs = HttpContext.Request.Query
@@ -142,4 +204,6 @@ public sealed class DataContractChartController(DataContractGateway gateway) : C
     }
 
     public sealed record DataContractMetadata(string Code, string DisplayName, string SchemaTypeName);
+
+    public sealed record FieldDescriptor(string Name, string JsonName, string Type, bool Optional);
 }

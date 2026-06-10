@@ -33,11 +33,12 @@ public static class DataContractsRegistration
             .AddDataConsumer<FinanceDailyRow, FormPrefillResult, FinanceDailyFormPrefillConsumer>()
             .AddDataContractValidator<FinanceDailyRow, FinanceDailyValidator>();
 
-        // ── patient.daily.new (demo only — chưa có SQL source, chưa có Prefill consumer) ──
+        // ── patient.daily.new (demo only — chưa có SQL source) ──
         services
             .AddDataContract<PatientDailyNewContract>()
             .AddDataSource<PatientDailyNewRow, PatientDailyNewDemoSource>()
-            .AddDataConsumer<PatientDailyNewRow, SduiPage, PatientDailyNewChartConsumer>()
+            .AddDataConsumer<PatientDailyNewRow, SduiPage,          PatientDailyNewChartConsumer>()
+            .AddDataConsumer<PatientDailyNewRow, FormPrefillResult, PatientDailyNewFormPrefillConsumer>()
             .AddDataContractValidator<PatientDailyNewRow, PatientDailyNewValidator>();
 
         // ── finance.monthly.row (demo doc 59 — chứng minh Phase 4 auto-sync) ──
