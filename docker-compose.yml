@@ -167,11 +167,15 @@ services:
       Jwt__Issuer: "hdos-auth"
       Jwt__Audience: "hdos-api"
       Jwt__Secret: "${JWT_SECRET:-DEV-INSECURE-SECRET-CHANGE-ME-AT-LEAST-32-CHARS}"
+      Services__DynamicForm__GrpcUrl: "http://dynamicformservice:8081"
+      Services__Lakehouse__PublicBaseUrl: "http://lakehouseservice:8080"
     depends_on:
       postgres-lh:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      dynamicformservice:
+        condition: service_started
     networks: [hdos-shared-net]
 
   datamatchingservice:

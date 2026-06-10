@@ -15,6 +15,7 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="AspNetCore.HealthChecks.Npgsql" Version="8.0.2" />
+    <PackageReference Include="Grpc.AspNetCore" Version="2.65.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.8.1" />
   </ItemGroup>
 
@@ -22,6 +23,7 @@
     <ProjectReference Include="..\DynamicFormService.Application\DynamicFormService.Application.csproj" />
     <ProjectReference Include="..\DynamicFormService.Infrastructure\DynamicFormService.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\Common\Common.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Contracts\Contracts.csproj" />
   </ItemGroup>
 
 </Project>

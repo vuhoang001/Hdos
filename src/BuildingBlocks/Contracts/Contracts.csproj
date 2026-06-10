@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <Protobuf Include="Protos\users.proto" GrpcServices="Both" />
+    <Protobuf Include="Protos\datacontract_registry.proto" GrpcServices="Both" />
   </ItemGroup>
 
 </Project>

@@ -5,6 +5,7 @@ using Hdos.LakehouseService.Application.DataContracts.Schemas.Clinical;
 using Hdos.LakehouseService.Application.DataContracts.Schemas.Finance;
 using Hdos.LakehouseService.Infrastructure.DataContracts.Consumers;
 using Hdos.LakehouseService.Infrastructure.DataContracts.Sources;
+using Hdos.LakehouseService.Infrastructure.Sync;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Hdos.LakehouseService.Infrastructure.DataContracts.Registration;
@@ -32,12 +33,31 @@ public static class DataContractsRegistration
             .AddDataConsumer<FinanceDailyRow, FormPrefillResult, FinanceDailyFormPrefillConsumer>()
             .AddDataContractValidator<FinanceDailyRow, FinanceDailyValidator>();
 
-        // ── patient.daily.new (demo only — chưa có SQL source) ──
+        // ── patient.daily.new (demo only — chưa có SQL source, chưa có Prefill consumer) ──
         services
             .AddDataContract<PatientDailyNewContract>()
             .AddDataSource<PatientDailyNewRow, PatientDailyNewDemoSource>()
             .AddDataConsumer<PatientDailyNewRow, SduiPage, PatientDailyNewChartConsumer>()
             .AddDataContractValidator<PatientDailyNewRow, PatientDailyNewValidator>();
+
+        // Operation generic (pattern có `{contractCode}` template) — 1 operation
+        // phục vụ tất cả contract. Thêm contract mới không cần đụng catalog.
+        var catalog = new LakehouseContractOperationCatalog()
+            .AddOperation(new OperationEntry(
+                OperationKey:   "prefill",
+                DisplayName:    "Lakehouse contract prefill",
+                Pattern:        "/lakehouse/contracts/{contractCode}/prefill",
+                SchemaPath:     "/lakehouse/contracts/{contractCode}/schema",
+                RequiredParams: new[] { "contractCode" },
+                Kind:           "Single"))
+            .AddOperation(new OperationEntry(
+                OperationKey:   "chart",
+                DisplayName:    "Lakehouse contract chart",
+                Pattern:        "/lakehouse/contracts/{contractCode}/chart",
+                SchemaPath:     null,
+                RequiredParams: new[] { "contractCode" },
+                Kind:           "Single"));
+        services.AddSingleton(catalog);
 
         return services;
     }

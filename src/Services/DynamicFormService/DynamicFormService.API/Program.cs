@@ -4,17 +4,29 @@ using Hdos.Common.HealthChecks;
 using Hdos.Common.Logging;
 using Hdos.Common.Monitoring;
 using Hdos.Common.Swagger;
+using Hdos.DynamicFormService.API.Grpc;
 using Hdos.DynamicFormService.Application;
 using Hdos.DynamicFormService.Infrastructure;
 using Hdos.DynamicFormService.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.UseHdosLogging("DynamicFormService");
 
+// REST trên RestPort (HTTP/1.1+HTTP/2 cho Swagger), gRPC trên GrpcPort (HTTP/2 only).
+builder.WebHost.ConfigureKestrel(options =>
+{
+    var restPort = builder.Configuration.GetValue<int>("Kestrel:RestPort", 8080);
+    var grpcPort = builder.Configuration.GetValue<int>("Kestrel:GrpcPort", 8081);
+    options.ListenAnyIP(restPort, lo => lo.Protocols = HttpProtocols.Http1AndHttp2);
+    options.ListenAnyIP(grpcPort, lo => lo.Protocols = HttpProtocols.Http2);
+});
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddHdosSwagger("DynamicFormService");
+builder.Services.AddGrpc();
 
 builder.Services.AddDynamicFormApplication();
 builder.Services.AddDynamicFormInfrastructure(builder.Configuration);
@@ -39,6 +51,7 @@ app.UseHdosCors();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapGrpcService<DataContractRegistrySyncGrpcService>();
 app.UseHdosMonitoring();
 
 await EnsureDatabaseAsync(app);

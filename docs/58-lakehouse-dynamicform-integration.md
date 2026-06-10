@@ -270,7 +270,7 @@ Multi-row use case (vd: bảng) vẫn dùng default mode (không có `mode=singl
 | **1** | Catalog-as-Code + Single-row fix | ✅ **DONE** (doc 58) |
 | 2 | Schema discovery endpoint `/lakehouse/contracts/{code}/schema` (reflection) | Chưa |
 | 3 | Auto-form generator: mở rộng `GenerateFromSourceCommand` hỗ trợ source type `datacontract` | Chưa |
-| 4 | Auto-sync registry: `IHostedService` ở Lakehouse → gRPC sang DynamicForm tự tạo Provider/Operation mỗi khi thêm contract | Chưa (làm khi có ≥10 contract) |
+| **4** | Auto-sync registry: `IHostedService` ở Lakehouse → gRPC sang DynamicForm tự tạo Provider/Operation | ✅ **DONE** (doc 59) |
 
 ### Phase 2 — Schema discovery (~1h)
 Endpoint mới ở Lakehouse trả danh sách field bằng reflection trên `contract.SchemaType`:
@@ -289,8 +289,8 @@ Dùng cho admin UI dropdown "chọn field để bind". Operation `prefill` đã 
 ### Phase 3 — Auto-form generator (~5h)
 Mở rộng `GenerateFromSourceCommand` (hiện đã hỗ trợ DataMatching) thêm source type `datacontract`. Admin chọn contract → BE đọc schema → sinh Form + Fields + DataSource + bindings + publish.
 
-### Phase 4 — Auto-sync (~2 ngày)
-`IHostedService` ở Lakehouse khi startup: loop contracts trong `DataContractRegistry` → gRPC sang DynamicFormService → upsert Provider + Operations. Tránh phải viết migration mỗi lần thêm contract. Cân nhắc khi số contract ≥10.
+### Phase 4 — Auto-sync (DONE)
+Xem **doc 59**. `IHostedService` ở Lakehouse khi startup gọi rpc `SyncRegistry` sang DynamicForm → upsert Provider `lakehouse` + Operations idempotent. Bỏ hẳn `HasData()` seed của doc 58 (migration `RemoveLakehouseSeed`). Thêm contract mới hoặc đổi `BaseUrl` Lakehouse không còn cần migration ở DynamicForm.
 
 ---
 

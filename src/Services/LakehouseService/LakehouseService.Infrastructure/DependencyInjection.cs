@@ -1,4 +1,5 @@
 using Hdos.Common.Extensions;
+using Hdos.Contracts.Grpc.DataContractRegistry;
 using Hdos.LakehouseService.Application.Services;
 using Hdos.LakehouseService.Infrastructure.Charts;
 using Hdos.LakehouseService.Infrastructure.Charts.Configs;
@@ -6,9 +7,11 @@ using Hdos.LakehouseService.Infrastructure.Consumers;
 using Hdos.LakehouseService.Infrastructure.DataContracts.Registration;
 using Hdos.LakehouseService.Infrastructure.ExternalClients;
 using Hdos.LakehouseService.Infrastructure.Persistence;
+using Hdos.LakehouseService.Infrastructure.Sync;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace Hdos.LakehouseService.Infrastructure;
 
@@ -51,6 +54,15 @@ public static class DependencyInjection
         // Endpoint cũ /lakehouse/charts/{code} vẫn dùng builder cũ; endpoint mới
         // /lakehouse/contracts/{code}/chart dùng DataContractGateway.
         services.AddLakehouseDataContracts();
+
+        // Phase 4 auto-sync: Lakehouse push Provider+Operations sang DynamicForm khi startup.
+        var dynamicFormGrpcUrl = configuration["Services:DynamicForm:GrpcUrl"]
+                                 ?? "http://dynamicformservice:8081";
+        services.AddGrpcClient<DataContractRegistrySyncService.DataContractRegistrySyncServiceClient>(o =>
+        {
+            o.Address = new Uri(dynamicFormGrpcUrl);
+        });
+        services.AddHostedService<LakehouseRegistrySyncHostedService>();
 
         return services;
     }

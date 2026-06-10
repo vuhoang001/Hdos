@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+option csharp_namespace = "Hdos.Contracts.Grpc.DataContractRegistry";
+
+package hdos.datacontract_registry.v1;
+
+// DataContractRegistrySyncService — exposed by DynamicFormService, consumed by
+// LakehouseService (or any other service hosting a DataContractRegistry).
+//
+// Mục đích: thay vì migration tay seed Provider+Operation mỗi lần thêm contract,
+// service nguồn (Lakehouse) tự push danh sách contract của mình mỗi khi startup.
+service DataContractRegistrySyncService {
+  // Upsert một Provider + danh sách Operation. Idempotent: gọi lại N lần đều
+  // ra cùng state. Provider tồn tại → Update; chưa có → Create. Operation
+  // cũng vậy, key = (providerCode, operationKey).
+  rpc SyncRegistry (SyncRegistryRequest) returns (SyncRegistryReply);
+}
+
+message SyncRegistryRequest {
+  ProviderSpec provider = 1;
+  repeated OperationSpec operations = 2;
+}
+
+message ProviderSpec {
+  string code         = 1; // VD: "lakehouse"
+  string display_name = 2;
+  string base_url     = 3; // VD: "http://lakehouseservice:8080"
+}
+
+message OperationSpec {
+  string operation_key  = 1; // VD: "prefill", "chart"
+  string display_name   = 2;
+  string pattern        = 3; // VD: "/lakehouse/contracts/{contractCode}/prefill"
+  string schema_path    = 4; // optional, empty string = null
+  repeated string required_params = 5;
+  string kind           = 6; // "Single" | "List" | "Chart" — map tới OperationKind enum
+}
+
+message SyncRegistryReply {
+  int32 upserted_provider_count   = 1; // 0 hoặc 1 (chỉ 1 provider mỗi call)
+  int32 upserted_operation_count  = 2;
+  int32 deactivated_operation_count = 3; // operations cũ không còn trong payload → deactivate
+}
