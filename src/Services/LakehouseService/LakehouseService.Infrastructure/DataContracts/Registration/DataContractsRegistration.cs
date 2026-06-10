@@ -40,6 +40,14 @@ public static class DataContractsRegistration
             .AddDataConsumer<PatientDailyNewRow, SduiPage, PatientDailyNewChartConsumer>()
             .AddDataContractValidator<PatientDailyNewRow, PatientDailyNewValidator>();
 
+        // ── finance.monthly.row (demo doc 59 — chứng minh Phase 4 auto-sync) ──
+        services
+            .AddDataContract<FinanceMonthlyContract>()
+            .AddDataSource<FinanceMonthlyRow, FinanceMonthlyDemoSource>()
+            .AddDataConsumer<FinanceMonthlyRow, SduiPage,          FinanceMonthlyChartConsumer>()
+            .AddDataConsumer<FinanceMonthlyRow, FormPrefillResult, FinanceMonthlyFormPrefillConsumer>()
+            .AddDataContractValidator<FinanceMonthlyRow, FinanceMonthlyValidator>();
+
         // Operation generic (pattern có `{contractCode}` template) — 1 operation
         // phục vụ tất cả contract. Thêm contract mới không cần đụng catalog.
         var catalog = new LakehouseContractOperationCatalog()
