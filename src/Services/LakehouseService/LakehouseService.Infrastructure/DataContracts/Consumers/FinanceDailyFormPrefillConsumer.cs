@@ -43,9 +43,16 @@ public sealed class FinanceDailyFormPrefillConsumer
             if (rows.Count >= limit) break;
         }
 
+        var single = string.Equals(query.Get("mode"), "single", StringComparison.OrdinalIgnoreCase) && rows.Count > 0
+            ? rows[0]
+            : null;
+
         return new FormPrefillResult(
             ContractCode: ContractCode,
             RowCount:     rows.Count,
-            Rows:         rows);
+            Rows:         rows)
+        {
+            Single = single
+        };
     }
 }
