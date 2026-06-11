@@ -3,6 +3,7 @@ using Hdos.Contracts.DataContracts.FormPrefill;
 using Hdos.LakehouseService.Application.Charts.Sdui;
 using Hdos.LakehouseService.Application.DataContracts.Schemas.Clinical;
 using Hdos.LakehouseService.Application.DataContracts.Schemas.Finance;
+using Hdos.LakehouseService.Application.DataContracts.Schemas.Pharmacy;
 using Hdos.LakehouseService.Infrastructure.DataContracts.Consumers;
 using Hdos.LakehouseService.Infrastructure.DataContracts.Sources;
 using Hdos.LakehouseService.Infrastructure.Sync;
@@ -48,6 +49,14 @@ public static class DataContractsRegistration
             .AddDataConsumer<FinanceMonthlyRow, SduiPage,          FinanceMonthlyChartConsumer>()
             .AddDataConsumer<FinanceMonthlyRow, FormPrefillResult, FinanceMonthlyFormPrefillConsumer>()
             .AddDataContractValidator<FinanceMonthlyRow, FinanceMonthlyValidator>();
+
+        // ── pharmacy.dispense.daily.row (demo doc 62 — full 5 chart types) ──
+        services
+            .AddDataContract<PharmacyDispenseDailyContract>()
+            .AddDataSource<PharmacyDispenseDailyRow, PharmacyDispenseDailyDemoSource>()
+            .AddDataConsumer<PharmacyDispenseDailyRow, SduiPage,          PharmacyDispenseDailyChartConsumer>()
+            .AddDataConsumer<PharmacyDispenseDailyRow, FormPrefillResult, PharmacyDispenseDailyFormPrefillConsumer>()
+            .AddDataContractValidator<PharmacyDispenseDailyRow, PharmacyDispenseDailyValidator>();
 
         // Operation generic (pattern có `{contractCode}` template) — 1 operation
         // phục vụ tất cả contract. Thêm contract mới không cần đụng catalog.
