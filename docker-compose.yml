@@ -159,7 +159,7 @@ services:
       context: .
       dockerfile: src/Services/LakehouseService/LakehouseService.API/Dockerfile
     environment:
-      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__LakehouseDb: "Host=postgres-lh;Port=5432;Database=LakehouseDb;Username=lh_user;Password=${POSTGRES_LH_PASSWORD:-lh_pass}"
       ConnectionStrings__Warehouse: "${WAREHOUSE_CONN:-}"
       RabbitMq__Host: rabbitmq
@@ -184,7 +184,7 @@ services:
       context: .
       dockerfile: src/Services/DataMatchingService/DataMatchingService.API/Dockerfile
     environment:
-      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__DataMatchingDb: "Host=postgres-dm;Port=5432;Database=DataMatchingDb;Username=dm_user;Password=${POSTGRES_DM_PASSWORD:-dm_pass}"
       RabbitMq__Host: rabbitmq
       RabbitMq__Port: 5672
