@@ -24,7 +24,7 @@
     "context": "."
   },
   "superset": {
-    "dockerfile": "Dockerfile",
+    "dockerfile": "superset/Dockerfile",
     "context": "./superset"
   }
 }
