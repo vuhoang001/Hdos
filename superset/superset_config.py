@@ -31,16 +31,20 @@ SQLALCHEMY_DATABASE_URI = os.environ.get(
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 # ── Behind nginx reverse proxy at /superset/ ──────────────────────────────
-# Nginx phải set header `X-Forwarded-Prefix: /superset` để Werkzeug ProxyFix
-# gán SCRIPT_NAME = /superset → Flask url_for() sinh URL có prefix đúng.
+# nginx KHÔNG strip prefix (vì Superset routes đã hardcode /superset/welcome/...)
+# nên x_prefix=0. Chỉ cần x_for/proto/host/port để Flask biết URL gốc.
+# Static asset URL được generate có prefix /superset nhờ STATIC_ASSETS_PREFIX dưới.
 ENABLE_PROXY_FIX = True
 PROXY_FIX_CONFIG = {
     "x_for": 1,
     "x_proto": 1,
     "x_host": 1,
     "x_port": 1,
-    "x_prefix": 1,
 }
+
+# HTML template generate URL static có prefix /superset →
+# browser request /superset/static/* → nginx strip → forward tới Superset Flask /static/.
+STATIC_ASSETS_PREFIX = "/superset"
 
 # Session cookie chỉ scope trong /superset (không leak sang frontend Next.js).
 SESSION_COOKIE_PATH = "/superset"
