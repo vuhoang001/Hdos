@@ -1,6 +1,5 @@
 using Hdos.AuthService.Application.Features.SupersetGuestToken;
 using Hdos.AuthService.Application.Options;
-using Hdos.Common.Auth;
 using Hdos.Common.Responses;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -13,22 +12,26 @@ namespace Hdos.AuthService.API.Controllers;
 [Route("auth/superset")]
 public sealed class SupersetController(
     ISender sender,
-    IOptions<SupersetOptions> supersetOptions,
-    IOptions<JwtOptions> jwtOptions)
+    IOptions<SupersetOptions> supersetOptions)
     : ControllerBase
 {
     /// <summary>
-    /// Single sign-on tới Superset. Validate JWT hiện tại (qua Authorize),
-    /// set cookie `hdos_jwt` scope `/superset/` để Security Manager Python
-    /// (security_manager.py) auto-login user khi browser navigate sang Superset.
+    /// Single sign-on tới Superset (port 8444 dedicated).
+    /// Trả redirectUrl = {publicUrl}?access_token={jwt} → Security Manager Python
+    /// (security_manager.py) đọc query param khi browser navigate, auto-login user.
+    /// Sau lần redirect đầu, Superset session cookie riêng take over → các request
+    /// sau không còn ?access_token= trong URL.
     /// </summary>
     /// <remarks>
+    /// Cookie không dùng được vì Superset ở port riêng (8444), browser không
+    /// gửi cookie set ở :8443 cross-port. Query param chấp nhận trong môi trường
+    /// LAN nội bộ (JWT chỉ exposed 1 lần trên URL redirect, ngắn hạn).
+    ///
     /// FE flow:
     /// <code>
     /// const res = await fetch('/auth/superset/sso', {
     ///   method: 'POST',
     ///   headers: { Authorization: `Bearer ${jwt}` },
-    ///   credentials: 'include',
     /// });
     /// const { data } = await res.json();
     /// window.location.href = data.redirectUrl;
@@ -42,17 +45,11 @@ public sealed class SupersetController(
         if (string.IsNullOrEmpty(token))
             return Unauthorized(ApiResponse.Fail("auth.no_token", "Missing bearer token"));
 
-        Response.Cookies.Append("hdos_jwt", token, new CookieOptions
-        {
-            Path = "/superset/",
-            HttpOnly = true,
-            Secure = true,
-            SameSite = SameSiteMode.Lax,
-            Expires = DateTimeOffset.UtcNow.AddMinutes(jwtOptions.Value.ExpiresMinutes),
-        });
-
         var publicUrl = supersetOptions.Value.PublicUrl;
-        return Ok(ApiResponse<object>.Ok(new { redirectUrl = publicUrl }));
+        var separator = publicUrl.Contains('?') ? '&' : '?';
+        var redirectUrl = $"{publicUrl}{separator}access_token={Uri.EscapeDataString(token)}";
+
+        return Ok(ApiResponse<object>.Ok(new { redirectUrl }));
     }
 
     /// <summary>
@@ -72,13 +69,16 @@ public sealed class SupersetController(
         return Ok(ApiResponse<GuestTokenDto>.Ok(result.Value!));
     }
 
-    /// <summary>Logout phía Superset: xóa cookie `hdos_jwt`.</summary>
+    /// <summary>
+    /// Logout phía Superset. Trả redirectUrl tới Superset logout endpoint —
+    /// FE navigate tới đây để xóa session cookie của Superset (set bởi Flask-AppBuilder).
+    /// </summary>
     [Authorize]
     [HttpPost("logout")]
     public IActionResult Logout()
     {
-        Response.Cookies.Delete("hdos_jwt", new CookieOptions { Path = "/superset/" });
-        return Ok(ApiResponse.Ok());
+        var publicUrl = supersetOptions.Value.PublicUrl.TrimEnd('/');
+        return Ok(ApiResponse<object>.Ok(new { redirectUrl = $"{publicUrl}/logout/" }));
     }
 
     private string? ExtractBearerToken()

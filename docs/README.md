@@ -106,7 +106,7 @@ Sau khi chạy:
 | `https://localhost:8443/orders/swagger` | Swagger OrderService |
 | `https://localhost:8443/notifications/swagger` | Swagger NotificationService |
 | `https://localhost:8443/m01/swagger` | Swagger M01Service |
-| `https://localhost:8443/superset/` | Apache Superset (BI — admin/admin, xem [64](./64-superset-phase1-standalone.md)) |
+| `https://localhost:8444/` | Apache Superset (BI — admin/admin, xem [64](./64-superset-phase1-standalone.md)) |
 | `http://localhost:15672` | RabbitMQ Management (guest/guest) |
 | `http://localhost:3030` | Grafana (admin/admin) |
 | `http://localhost:9090` | Prometheus |

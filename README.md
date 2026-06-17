@@ -73,7 +73,7 @@ Swagger từng service:
 | http://localhost:5000/m01/swagger | M01Service |
 | http://localhost:5000/async/swagger | **AsyncGateway** (Async API) |
 | http://localhost:5000/dm/swagger | **DataMatchingService** |
-| https://localhost:8443/superset/ | **Apache Superset** (BI — admin/admin, xem [docs/64](./docs/64-superset-phase1-standalone.md)) |
+| https://localhost:8444/ | **Apache Superset** (BI — admin/admin, xem [docs/64](./docs/64-superset-phase1-standalone.md)) |
 | http://localhost:15672 | RabbitMQ Management (guest/guest) |
 
 > **Test API qua Swagger**: gọi `POST /auth/login` (`admin@hdos.dev` / `Admin1234!`) → copy `data.token` → bấm **Authorize** trong Swagger → paste token. Chi tiết: [docs/06-xac-thuc.md](./docs/06-xac-thuc.md).

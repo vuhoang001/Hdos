@@ -28,7 +28,7 @@ Trade-off: Superset là Python/Flask, **không fit Clean Architecture .NET của
 
 ```
        Browser
-          │ https://localhost:8443/superset/
+          │ https://localhost:8444/
           ▼
     ┌──────────┐
     │  nginx   │  ← strip /superset/ prefix
@@ -140,7 +140,7 @@ docker compose restart nginx
 ### 5.2. Truy cập
 
 ```
-URL:      https://localhost:8443/superset/
+URL:      https://localhost:8444/
 User:     admin
 Password: admin
 ```
@@ -153,7 +153,7 @@ Chấp nhận self-signed cert ở browser.
 
 ```bash
 # Health endpoint Superset (qua nginx)
-curl -k https://localhost:8443/superset/health
+curl -k https://localhost:8444/health
 # Expected: "OK"
 
 # Direct (cần exec vào container vì không expose host port)
@@ -178,7 +178,7 @@ docker compose up -d --build postgres-superset superset-init superset
 ## 6. Done criteria — Phase 1
 
 - [x] `docker compose up -d --build` chạy không lỗi
-- [x] `https://localhost:8443/superset/` lên UI Superset
+- [x] `https://localhost:8444/` lên UI Superset
 - [x] Login `admin/admin` vào được dashboard rỗng
 - [x] Không có 502/504 từ nginx
 - [x] Tất cả container healthy: `postgres-superset`, `superset` (superset-init: exited 0)

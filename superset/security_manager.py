@@ -89,9 +89,19 @@ class HdosSecurityManager(SupersetSecurityManager):
     # ── Helpers ──────────────────────────────────────────────────────────
     @staticmethod
     def _extract_token() -> str | None:
+        # Ưu tiên: Authorization header (API call)
         auth = request.headers.get("Authorization", "")
         if auth.lower().startswith("bearer "):
             return auth[7:].strip() or None
+
+        # SSO redirect: ?access_token=<jwt> (AuthService /auth/superset/sso trả về)
+        # JWT trong URL chỉ thấy 1 lần lúc redirect; sau khi login Superset set
+        # session cookie riêng, không cần access_token trong các request sau.
+        q = request.args.get("access_token")
+        if q:
+            return q.strip() or None
+
+        # Fallback: cookie (legacy, giữ cho compatibility nếu setup cookie phù hợp)
         cookie = request.cookies.get(HDOS_COOKIE_NAME)
         return cookie.strip() if cookie else None
 

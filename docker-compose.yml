@@ -127,7 +127,7 @@ services:
       Superset__BaseUrl: "http://superset:8088/"
       Superset__AdminUsername: "${SUPERSET_ADMIN_USERNAME:-admin}"
       Superset__AdminPassword: "${SUPERSET_ADMIN_PASSWORD:-admin}"
-      Superset__PublicUrl: "${SUPERSET_PUBLIC_URL:-https://localhost:8443/superset/}"
+      Superset__PublicUrl: "${SUPERSET_PUBLIC_URL:-https://localhost:8444/}"
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -268,7 +268,7 @@ services:
     environment:
       SUPERSET_SECRET_KEY: "${SUPERSET_SECRET_KEY:-CHANGE-ME-LOCAL-DEV-INSECURE-32-CHARS-X}"
       SUPERSET_DATABASE_URI: "postgresql+psycopg2://superset_user:${POSTGRES_SUPERSET_PASSWORD:-superset_pass}@postgres-superset:5432/SupersetDb"
-      SUPERSET_PUBLIC_URL: "${SUPERSET_PUBLIC_URL:-https://localhost:8443/superset/}"
+      SUPERSET_PUBLIC_URL: "${SUPERSET_PUBLIC_URL:-https://localhost:8444/}"
       # Phase 2: Hdos JWT secret để Security Manager Python validate JWT
       HDOS_JWT_SECRET: "${JWT_SECRET:-DEV-INSECURE-SECRET-CHANGE-ME-AT-LEAST-32-CHARS}"
       # Phase 4: CORS allowlist cho FE nhúng iframe
@@ -308,6 +308,7 @@ services:
     ports:
       - "5000:8080"
       - "8443:8443"
+      - "8444:8444"
     networks: [hdos-shared-net]
 
 networks:

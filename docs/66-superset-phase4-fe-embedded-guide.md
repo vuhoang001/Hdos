@@ -255,7 +255,7 @@ body: JSON.stringify({
 | `Superset__BaseUrl` | URL nội bộ Superset (gọi Admin API) | `http://superset:8088/` |
 | `Superset__AdminUsername` | Username admin Superset | `admin` |
 | `Superset__AdminPassword` | Password admin Superset | `admin` (PROD: bắt buộc đổi) |
-| `Superset__PublicUrl` | URL public Superset (FE redirect) | `https://localhost:8443/superset/` |
+| `Superset__PublicUrl` | URL public Superset (FE redirect) | `https://localhost:8444/` |
 
 ### 8.2. Trên Superset container
 

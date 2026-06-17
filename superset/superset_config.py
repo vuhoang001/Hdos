@@ -30,10 +30,10 @@ SQLALCHEMY_DATABASE_URI = os.environ.get(
 )
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-# ── Behind nginx reverse proxy at /superset/ ──────────────────────────────
-# nginx KHÔNG strip prefix (vì Superset routes đã hardcode /superset/welcome/...)
-# nên x_prefix=0. Chỉ cần x_for/proto/host/port để Flask biết URL gốc.
-# Static asset URL được generate có prefix /superset nhờ STATIC_ASSETS_PREFIX dưới.
+# ── Behind nginx reverse proxy (port 8444 dedicated, root path) ──────────
+# Superset chạy như root path trên port 8444 riêng (không subpath).
+# nginx terminate TLS, forward / → http://superset:8088/. ProxyFix đọc
+# X-Forwarded-* để Superset biết URL gốc client thấy là https:// + port 8444.
 ENABLE_PROXY_FIX = True
 PROXY_FIX_CONFIG = {
     "x_for": 1,
@@ -42,12 +42,7 @@ PROXY_FIX_CONFIG = {
     "x_port": 1,
 }
 
-# HTML template generate URL static có prefix /superset →
-# browser request /superset/static/* → nginx strip → forward tới Superset Flask /static/.
-STATIC_ASSETS_PREFIX = "/superset"
-
-# Session cookie chỉ scope trong /superset (không leak sang frontend Next.js).
-SESSION_COOKIE_PATH = "/superset"
+# Session cookie ở root path mặc định (không subpath).
 SESSION_COOKIE_SAMESITE = "Lax"
 
 # Public URL — dùng cho email/alert/screenshot links (Phase 5+).

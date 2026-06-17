@@ -46,7 +46,7 @@ services:
       Superset__BaseUrl: "http://superset:8088/"
       Superset__AdminUsername: "${SUPERSET_ADMIN_USERNAME:-admin}"
       Superset__AdminPassword: "${SUPERSET_ADMIN_PASSWORD}"
-      Superset__PublicUrl: "${SUPERSET_PUBLIC_URL:-https://localhost/superset/}"
+      Superset__PublicUrl: "${SUPERSET_PUBLIC_URL:-https://localhost:8444/}"
 
   notificationservice:
     image: ${REGISTRY_IMAGE}/hdos-notificationservice:${IMAGE_TAG}
@@ -135,7 +135,7 @@ services:
     environment:
       SUPERSET_SECRET_KEY: "${SUPERSET_SECRET_KEY}"
       SUPERSET_DATABASE_URI: "postgresql+psycopg2://superset_user:${POSTGRES_SUPERSET_PASSWORD}@postgres-superset:5432/SupersetDb"
-      SUPERSET_PUBLIC_URL: "${SUPERSET_PUBLIC_URL:-https://localhost:8443/superset/}"
+      SUPERSET_PUBLIC_URL: "${SUPERSET_PUBLIC_URL:-https://localhost:8444/}"
       # Phase 2: Hdos JWT secret cho Security Manager Python
       HDOS_JWT_SECRET: "${JWT_SECRET}"
       # Phase 4: CORS allowlist FE

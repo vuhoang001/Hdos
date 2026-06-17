@@ -106,7 +106,7 @@ public IActionResult Sso()
         SameSite = SameSiteMode.Lax,    // không gửi cross-site form POST
         Expires = ...                   // match JWT lifetime
     });
-    return Ok(new { redirectUrl = "https://localhost:8443/superset/" });
+    return Ok(new { redirectUrl = "https://localhost:8444/" });
 }
 ```
 
@@ -189,7 +189,7 @@ curl -k -X POST https://localhost:8443/auth/superset/sso \
   -c cookies.txt
 # Kiểm tra cookies.txt phải có hdos_jwt với Path=/superset/
 
-# Mở browser DevTools, paste cookie vào, navigate https://localhost:8443/superset/
+# Mở browser DevTools, paste cookie vào, navigate https://localhost:8444/
 # → vào thẳng dashboard, không cần admin/admin
 ```
 
