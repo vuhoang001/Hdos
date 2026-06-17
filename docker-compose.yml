@@ -89,6 +89,23 @@ services:
       start_period: 30s
     networks: [hdos-shared-net]
 
+  postgres-superset:
+    image: postgres:16-alpine
+    container_name: hdos-postgres-superset
+    environment:
+      POSTGRES_DB: SupersetDb
+      POSTGRES_USER: superset_user
+      POSTGRES_PASSWORD: "${POSTGRES_SUPERSET_PASSWORD:-superset_pass}"
+    volumes:
+      - hdos-pgdata-superset:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U superset_user -d SupersetDb"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks: [hdos-shared-net]
+
   # ── Services ──────────────────────────────────────────────────────────────────
   authservice:
     image: hdos/authservice:latest
@@ -216,6 +233,50 @@ services:
         condition: service_healthy
     networks: [hdos-shared-net]
 
+  # ── Apache Superset (BI module — Phase 1: standalone) ────────────────────────
+  # Kiến trúc + roadmap Phase 2-6: docs/64-superset-phase1-standalone.md
+  superset-init:
+    image: hdos/superset:latest
+    build:
+      context: ./superset
+      dockerfile: Dockerfile
+    container_name: hdos-superset-init
+    command: ["/app/docker-init.sh"]
+    environment:
+      SUPERSET_SECRET_KEY: "${SUPERSET_SECRET_KEY:-CHANGE-ME-LOCAL-DEV-INSECURE-32-CHARS-X}"
+      SUPERSET_DATABASE_URI: "postgresql+psycopg2://superset_user:${POSTGRES_SUPERSET_PASSWORD:-superset_pass}@postgres-superset:5432/SupersetDb"
+      SUPERSET_ADMIN_USERNAME: "${SUPERSET_ADMIN_USERNAME:-admin}"
+      SUPERSET_ADMIN_PASSWORD: "${SUPERSET_ADMIN_PASSWORD:-admin}"
+      SUPERSET_ADMIN_EMAIL: "${SUPERSET_ADMIN_EMAIL:-admin@hdos.local}"
+    depends_on:
+      postgres-superset:
+        condition: service_healthy
+    restart: "no"
+    networks: [hdos-shared-net]
+
+  superset:
+    image: hdos/superset:latest
+    build:
+      context: ./superset
+      dockerfile: Dockerfile
+    container_name: hdos-superset
+    environment:
+      SUPERSET_SECRET_KEY: "${SUPERSET_SECRET_KEY:-CHANGE-ME-LOCAL-DEV-INSECURE-32-CHARS-X}"
+      SUPERSET_DATABASE_URI: "postgresql+psycopg2://superset_user:${POSTGRES_SUPERSET_PASSWORD:-superset_pass}@postgres-superset:5432/SupersetDb"
+      SUPERSET_PUBLIC_URL: "${SUPERSET_PUBLIC_URL:-https://localhost:8443/superset/}"
+    depends_on:
+      postgres-superset:
+        condition: service_healthy
+      superset-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8088/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    networks: [hdos-shared-net]
+
   nginx:
     image: nginx:1.27-alpine
     container_name: hdos-nginx
@@ -234,6 +295,7 @@ services:
       - dynamicformservice
       - lakehouseservice
       - asyncgateway
+      - superset
     ports:
       - "5000:8080"
       - "8443:8443"
@@ -248,4 +310,5 @@ volumes:
   hdos-pgdata-dm:
   hdos-pgdata-df:
   hdos-pgdata-lh:
+  hdos-pgdata-superset:
   hdos-nginx-ssl:

@@ -1,0 +1,12 @@
+# Hdos Superset — extra Python packages.
+#
+# Phase 1: trống — psycopg2 (Postgres driver cho metadata DB) đã có sẵn trong
+#          base image apache/superset:3.1.1.
+#
+# Phase 3 (data source config): bật pyodbc khi admin cần add SQL Server DB
+#         (AuthDb, NotificationDb, M01Db). Cần thêm bước apt-get install
+#         unixodbc + msodbcsql trong Dockerfile, xem docs/64-superset-phase1.md.
+# pyodbc==5.1.0
+#
+# Phase 4 (embedded SDK): khi chuyển sang Redis cache.
+# redis==5.0.1
