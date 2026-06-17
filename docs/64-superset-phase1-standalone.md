@@ -226,7 +226,51 @@ Không sao — script đã `|| echo` swallow lỗi này. Init vẫn tiếp tục
 | Hard-code SECRET_KEY trong config file | PROD: rò rỉ secret. Dùng env var |
 | Bật `EMBEDDED_SUPERSET` từ Phase 1 | YAGNI — chưa có FE consume, bật sớm gây lỗi confusing |
 
-## 9. Liên kết tới các Phase tiếp theo
+## 9. CI/CD integration (đã setup)
+
+Superset image được build & push lên GHCR cùng pipeline với các .NET service. Khi PR merge vào `main` hoặc `staging`, CI tự động:
+
+1. Build `superset/Dockerfile` (context `./superset`)
+2. Push `ghcr.io/<owner>/hdos-superset:<sha>` và `ghcr.io/<owner>/hdos-superset:prod-latest|dev-latest`
+3. CD pull image → `docker compose up -d` trên staging/prod
+
+### File touch points
+
+| File | Vai trò |
+|------|---------|
+| `services.json` | Map `superset` → `superset/Dockerfile` + context `./superset` |
+| `.github/path-filters.yml` | Chỉ rebuild Superset khi file trong `superset/**` đổi (branch feature). Branch `main` luôn build tất cả |
+| `.github/workflows/ci.yml` (`resolve-services`) | Hard-coded ALL array đã include `"superset"` |
+| `docker-compose.server.yml` | Override `image` → GHCR path, `!reset` build directive, inject env vars |
+| `.github/workflows/cd.yml` (Prepare env files) | Auto-append placeholder cho `POSTGRES_SUPERSET_PASSWORD`, `SUPERSET_SECRET_KEY`, `SUPERSET_ADMIN_PASSWORD` nếu chưa có trên server |
+
+### Env vars BẮT BUỘC set trên server (sửa `/opt/hdos-<env>/.env`)
+
+```bash
+POSTGRES_SUPERSET_PASSWORD=<random >=16 chars>
+SUPERSET_SECRET_KEY=<random >=32 chars>   # openssl rand -base64 42
+SUPERSET_ADMIN_PASSWORD=<strong password>
+SUPERSET_ADMIN_USERNAME=admin             # optional, default "admin"
+SUPERSET_ADMIN_EMAIL=admin@example.com    # optional
+SUPERSET_PUBLIC_URL=https://hdos.example.com/superset/  # optional
+```
+
+CD lần đầu sẽ inject placeholder `changeme-*` — **bắt buộc đổi ngay lần đầu deploy** trước khi expose ra internet.
+
+### Verify sau deploy
+
+```bash
+# Trên server staging/prod
+ssh <server>
+cd /opt/hdos-<env>
+docker compose -f docker-compose.yml -f docker-compose.server.yml -f docker-compose.monitoring.yml ps superset
+# Mong đợi: superset (healthy), superset-init (exited 0), postgres-superset (healthy)
+
+curl -k https://<public-domain>/superset/health
+# Expected: OK
+```
+
+## 10. Liên kết tới các Phase tiếp theo
 
 - **Phase 2 (SSO)** — sẽ thêm `superset/security_manager.py` extends `SupersetSecurityManager`, parse JWT từ `Authorization` header hoặc cookie do AuthService set. AuthService cần expose JWKS endpoint nếu chuyển sang RS256.
 - **Phase 3 (data sources)** — admin add Postgres DataMatchingDb/LakehouseDb qua UI; nếu cần SQL Server (AuthDb/M01Db) thì bật pyodbc + msodbcsql trong Dockerfile.

@@ -109,6 +109,29 @@ services:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
       Jwt__Secret: "${JWT_SECRET}"
 
+  # ── Superset (Phase 1: standalone BI behind nginx) ───────────────────────
+  postgres-superset:
+    environment:
+      POSTGRES_PASSWORD: "${POSTGRES_SUPERSET_PASSWORD:-changeme}"
+
+  superset-init:
+    image: ${REGISTRY_IMAGE}/hdos-superset:${IMAGE_TAG}
+    build: !reset null
+    environment:
+      SUPERSET_SECRET_KEY: "${SUPERSET_SECRET_KEY}"
+      SUPERSET_DATABASE_URI: "postgresql+psycopg2://superset_user:${POSTGRES_SUPERSET_PASSWORD}@postgres-superset:5432/SupersetDb"
+      SUPERSET_ADMIN_USERNAME: "${SUPERSET_ADMIN_USERNAME:-admin}"
+      SUPERSET_ADMIN_PASSWORD: "${SUPERSET_ADMIN_PASSWORD}"
+      SUPERSET_ADMIN_EMAIL: "${SUPERSET_ADMIN_EMAIL:-admin@hdos.local}"
+
+  superset:
+    image: ${REGISTRY_IMAGE}/hdos-superset:${IMAGE_TAG}
+    build: !reset null
+    environment:
+      SUPERSET_SECRET_KEY: "${SUPERSET_SECRET_KEY}"
+      SUPERSET_DATABASE_URI: "postgresql+psycopg2://superset_user:${POSTGRES_SUPERSET_PASSWORD}@postgres-superset:5432/SupersetDb"
+      SUPERSET_PUBLIC_URL: "${SUPERSET_PUBLIC_URL:-https://localhost:8443/superset/}"
+
   nginx:
     image: nginx:1.27-alpine
     volumes:

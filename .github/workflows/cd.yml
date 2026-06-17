@@ -53,6 +53,19 @@ jobs:
             echo "⚠️  POSTGRES_LH_PASSWORD not set — appending placeholder. Change on server!"
             echo "POSTGRES_LH_PASSWORD=changeme-set-real-password" >> "${ENV_DIR}/.env"
           fi
+          # Superset (Phase 1)
+          if ! grep -q "POSTGRES_SUPERSET_PASSWORD" "${ENV_DIR}/.env" 2>/dev/null; then
+            echo "⚠️  POSTGRES_SUPERSET_PASSWORD not set — appending placeholder. Change on server!"
+            echo "POSTGRES_SUPERSET_PASSWORD=changeme-set-real-password" >> "${ENV_DIR}/.env"
+          fi
+          if ! grep -q "SUPERSET_SECRET_KEY" "${ENV_DIR}/.env" 2>/dev/null; then
+            echo "⚠️  SUPERSET_SECRET_KEY not set — appending placeholder. Change on server (>=32 chars random)!"
+            echo "SUPERSET_SECRET_KEY=changeme-superset-secret-key-32-chars-x" >> "${ENV_DIR}/.env"
+          fi
+          if ! grep -q "SUPERSET_ADMIN_PASSWORD" "${ENV_DIR}/.env" 2>/dev/null; then
+            echo "⚠️  SUPERSET_ADMIN_PASSWORD not set — appending placeholder. Change on server!"
+            echo "SUPERSET_ADMIN_PASSWORD=changeme-superset-admin" >> "${ENV_DIR}/.env"
+          fi
 
       - name: Deploy
         env:
@@ -152,6 +165,19 @@ jobs:
           if ! grep -q "POSTGRES_LH_PASSWORD" "${ENV_DIR}/.env" 2>/dev/null; then
             echo "⚠️  POSTGRES_LH_PASSWORD not set — appending placeholder. Change on server!"
             echo "POSTGRES_LH_PASSWORD=changeme-set-real-password" >> "${ENV_DIR}/.env"
+          fi
+          # Superset (Phase 1)
+          if ! grep -q "POSTGRES_SUPERSET_PASSWORD" "${ENV_DIR}/.env" 2>/dev/null; then
+            echo "⚠️  POSTGRES_SUPERSET_PASSWORD not set — appending placeholder. Change on server!"
+            echo "POSTGRES_SUPERSET_PASSWORD=changeme-set-real-password" >> "${ENV_DIR}/.env"
+          fi
+          if ! grep -q "SUPERSET_SECRET_KEY" "${ENV_DIR}/.env" 2>/dev/null; then
+            echo "⚠️  SUPERSET_SECRET_KEY not set — appending placeholder. Change on server (>=32 chars random)!"
+            echo "SUPERSET_SECRET_KEY=changeme-superset-secret-key-32-chars-x" >> "${ENV_DIR}/.env"
+          fi
+          if ! grep -q "SUPERSET_ADMIN_PASSWORD" "${ENV_DIR}/.env" 2>/dev/null; then
+            echo "⚠️  SUPERSET_ADMIN_PASSWORD not set — appending placeholder. Change on server!"
+            echo "SUPERSET_ADMIN_PASSWORD=changeme-superset-admin" >> "${ENV_DIR}/.env"
           fi
 
       - name: Deploy

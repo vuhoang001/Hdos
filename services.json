@@ -22,5 +22,9 @@
   "lakehouseservice": {
     "dockerfile": "src/Services/LakehouseService/LakehouseService.API/Dockerfile",
     "context": "."
+  },
+  "superset": {
+    "dockerfile": "Dockerfile",
+    "context": "./superset"
   }
 }

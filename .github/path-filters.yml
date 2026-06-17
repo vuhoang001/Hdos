@@ -25,3 +25,6 @@ lakehouseservice:
   - "src/Services/LakehouseService/**"
   - "src/BuildingBlocks/**"
 
+superset:
+  - "superset/**"
+
