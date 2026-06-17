@@ -15,7 +15,7 @@ jobs:
       github.event.workflow_run.head_branch == 'staging'
     runs-on: self-hosted
     environment: staging
-    timeout-minutes: 30
+    timeout-minutes: 240
     concurrency:
       group: deploy-staging
       cancel-in-progress: false
@@ -132,7 +132,7 @@ jobs:
       github.event.workflow_run.head_branch == 'main'
     runs-on: self-hosted
     environment: production
-    timeout-minutes: 30
+    timeout-minutes: 240
     concurrency:
       group: deploy-production
       cancel-in-progress: false
