@@ -25,3 +25,6 @@ Thumbs.db
 
 ## EF Core
 **/Migrations/.last
+
+## Claude Code (per-machine state, không commit)
+.claude/worktrees/
