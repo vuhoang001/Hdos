@@ -45,12 +45,24 @@ jobs:
       - id: resolve
         run: |
           ALL='["authservice","notificationservice","asyncgateway","datamatchingservice","dynamicformservice","lakehouseservice","superset"]'
-          # main luôn build tất cả để đảm bảo image SHA luôn tồn tại trên GHCR
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.ref_name }}" = "main" ]; then
+          ALL_NO_SUPERSET='["authservice","notificationservice","asyncgateway","datamatchingservice","dynamicformservice","lakehouseservice"]'
+          CHANGED='${{ needs.detect-changes.outputs.changed }}'
+
+          # workflow_dispatch        → build tất cả (force, dùng khi muốn rebuild Superset)
+          # push main                → build mọi service .NET; Superset chỉ build khi superset/** đổi
+          #                            (image apache/superset ~1GB, config ít đổi → tránh rebuild vô ích)
+          # push branch khác/PR      → chỉ build service có thay đổi (paths-filter)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "services=$ALL" >> $GITHUB_OUTPUT
             echo 'should_build=true' >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref_name }}" = "main" ]; then
+            if echo "$CHANGED" | jq -e 'index("superset")' >/dev/null 2>&1; then
+              echo "services=$ALL" >> $GITHUB_OUTPUT
+            else
+              echo "services=$ALL_NO_SUPERSET" >> $GITHUB_OUTPUT
+            fi
+            echo 'should_build=true' >> $GITHUB_OUTPUT
           else
-            CHANGED='${{ needs.detect-changes.outputs.changed }}'
             echo "services=$CHANGED" >> $GITHUB_OUTPUT
             if [ "$CHANGED" != "[]" ] && [ -n "$CHANGED" ]; then
               echo 'should_build=true' >> $GITHUB_OUTPUT
