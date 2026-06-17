@@ -55,35 +55,69 @@ class HdosSecurityManager(SupersetSecurityManager):
         log.info("HdosSecurityManager: SSO before_request hook registered")
 
     # ── Public hook ──────────────────────────────────────────────────────
+    # Skip paths: static, healthcheck, FAB auth pages (để không can thiệp form login),
+    # API endpoints (FAB API tự xử lý auth bằng JWT của nó, không phải Hdos JWT).
+    _SKIP_PREFIXES = (
+        "/static/",
+        "/favicon",
+        "/health",
+        "/ping",
+        "/login/",       # FAB login form — KHÔNG can thiệp
+        "/logout/",
+        "/users/",       # FAB user mgmt
+        "/api/v1/security/",  # FAB security API
+        "/resetpassword/",
+        "/resetmypassword/",
+    )
+
     def _sso_before_request(self) -> None:
-        """Flask before_request: validate JWT + auto-login nếu chưa authenticated."""
-        # Skip static assets + health (giảm CPU)
-        path = request.path or ""
-        if path.startswith(("/static/", "/favicon", "/health")):
-            return None
+        """Flask before_request: validate Hdos JWT + auto-login nếu present.
 
-        # Đã login session-based → không cần SSO
-        if current_user.is_authenticated:
-            return None
+        Defensive: bọc tất cả trong try/except, KHÔNG BAO GIỜ raise — fail silently
+        để không break Superset native login form. Hook chỉ run trên GET (browser
+        navigate); POST (form submit) bỏ qua hoàn toàn để tránh race với FAB auth.
+        """
+        try:
+            # 1. Chỉ act trên GET request (browser navigate). Bỏ qua POST/PUT/DELETE
+            #    để không interfere với form submits (login, save dashboard, etc).
+            if request.method != "GET":
+                return None
 
-        token = self._extract_token()
-        if not token:
-            return None
+            # 2. Skip static + auth-related paths
+            path = request.path or ""
+            if path.startswith(self._SKIP_PREFIXES):
+                return None
 
-        claims = self._validate_jwt(token)
-        if not claims:
-            return None
+            # 3. Đã login session-based → skip
+            if current_user.is_authenticated:
+                return None
 
-        user = self._find_or_create_user(claims)
-        if not user:
-            return None
+            # 4. Lấy Hdos JWT (header / query / cookie)
+            token = self._extract_token()
+            if not token:
+                return None
 
-        login_user(user, remember=False)
-        log.info(
-            "Hdos SSO login OK: user=%s roles=%s",
-            user.username,
-            [r.name for r in user.roles],
-        )
+            # 5. Validate JWT
+            claims = self._validate_jwt(token)
+            if not claims:
+                return None
+
+            # 6. Map → Superset user và login
+            user = self._find_or_create_user(claims)
+            if not user:
+                return None
+
+            login_user(user, remember=False)
+            log.info(
+                "Hdos SSO login OK: user=%s roles=%s path=%s",
+                user.username,
+                [r.name for r in user.roles],
+                path,
+            )
+        except Exception as e:
+            # Catch-all: bất kỳ lỗi gì cũng KHÔNG được làm sập request.
+            # Native Superset login form sẽ tự xử lý sau hook.
+            log.warning("HdosSecurityManager.before_request error (ignored): %s", e)
         return None
 
     # ── Helpers ──────────────────────────────────────────────────────────
