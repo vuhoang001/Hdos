@@ -1,6 +1,11 @@
 # Hdos Superset — extra Python packages.
 #
-# Phase 1: trống — psycopg2 (Postgres driver cho metadata DB) đã có sẵn trong
+# Phase 2 (SSO): PyJWT để decode JWT do AuthService phát hành (HS256).
+#         Superset đã include PyJWT 2.x làm transitive dep nhưng pin explicit
+#         tránh upstream upgrade gây lỗi.
+PyJWT==2.8.0
+
+# Phase 1: psycopg2 (Postgres driver cho metadata DB) đã có sẵn trong
 #          base image apache/superset:3.1.1.
 #
 # Phase 3 (data source config): bật pyodbc khi admin cần add SQL Server DB

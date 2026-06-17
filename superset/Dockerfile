@@ -8,8 +8,9 @@ USER root
 COPY requirements-local.txt /app/requirements-local.txt
 RUN pip install --no-cache-dir -r /app/requirements-local.txt
 
-# ── App config (Flask loads từ SUPERSET_CONFIG_PATH) ──────────────────────
+# ── App config + custom Security Manager (Phase 2 SSO) ────────────────────
 COPY superset_config.py /app/pythonpath/superset_config.py
+COPY security_manager.py /app/pythonpath/security_manager.py
 ENV SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config.py
 ENV PYTHONPATH=/app/pythonpath:$PYTHONPATH
 
